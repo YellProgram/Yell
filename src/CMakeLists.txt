@@ -16,7 +16,6 @@ if(MSVC)
     SET (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}" CACHE STRING "MSVC CXX Release MT flags " FORCE)
 endif()
 
-
 set(SCITBX_PATH ../lib)
 set(CCTBX_PATH ../lib/cctbx)
 set(LEVMAR_PATH ../lib/levmar-2.4)
