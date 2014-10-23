@@ -84,7 +84,7 @@ ADD_DEPENDENCIES(yell yell-lib levmar cctbx ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 #MS studio includes tr1 libraries by default. To disable it we use
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
-target_link_libraries (yell levmar cctbx ${ZLIB_LIBRARY} ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries (yell yell-lib levmar cctbx ${ZLIB_LIBRARY} ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
 
 # cxxtest
 find_package(CxxTest)
