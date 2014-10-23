@@ -34,7 +34,7 @@
 #include <map>
 #include <math.h>
 
-#include "lm.h" //for minimizer
+#include "levmar.h" //for minimizer
 
 #include <scitbx/vec3.h>
 #include <scitbx/sym_mat3.h>

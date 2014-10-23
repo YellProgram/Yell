@@ -15,27 +15,35 @@ if(MSVC)
     SET (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}" CACHE STRING "MSVC CXX Debug MT flags " FORCE)
     SET (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}" CACHE STRING "MSVC CXX Release MT flags " FORCE)
 endif()
+set(CCTBX_PATH lib/cctbx-v-10/cctbx_sources CACHE PATH "Path to cctbx c++ files")
+set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
+set(SCITBX_PATH lib/cctbx_build/include CACHE PATH "Our library depends on some of the cctbx files which are not readily available in the cctbx source bundle. Rather, they are compiled in one of the stages of cctbx build process. This variable should link to the folder ... which will be created after the command '/your/choice/bin/python ../cctbx_sources/libtbx/configure.py mmtbx' for more information on the installation process see http://cctbx.sourceforge.net/current_cvs/installation.html#manually-building-from-sources-under-unix")
+#set(LAPACK_PATH lib/clapack)
+#set(CXXTEST_PATH lib/cxxtest)
+#set(SZIP_PATH lib/szip)
+#set(ZLIB_PATH lib/zlib)
 
-set(SCITBX_PATH ../lib)
-set(CCTBX_PATH ../lib/cctbx)
-set(LEVMAR_PATH ../lib/levmar-2.4)
-set(LAPACK_PATH ../lib/clapack-3.2.1-CMAKE) #notmac
-set(CXXTEST_PATH ../lib/cxxtest)
-set(SZIP_PATH ../lib/szip-2.1)
-set(ZLIB_PATH ../lib/zlib-1.2.5)
-
-add_subdirectory(${LAPACK_PATH} lapack EXCLUDE_FROM_ALL)
+#add_subdirectory(${LAPACK_PATH} lapack EXCLUDE_FROM_ALL)
 add_subdirectory(${LEVMAR_PATH} levmar EXCLUDE_FROM_ALL)
-add_subdirectory(${ZLIB_PATH} zlib EXCLUDE_FROM_ALL)
-add_subdirectory(${SZIP_PATH} szip EXCLUDE_FROM_ALL)
+#add_subdirectory(${ZLIB_PATH} zlib EXCLUDE_FROM_ALL)
+#add_subdirectory(${SZIP_PATH} szip EXCLUDE_FROM_ALL)
 
-set(BOOST_INCLUDEDIR ../lib/boost_1_45_0) #Intentionally has the same name as variable from findBoost.cmake. Later replace this definition with "FIND_PACKAGE( Boost …"
+#set(BOOST_INCLUDEDIR ../lib/boost)
 
 #find_package(HDF5) # As I am looser, hdf5 can not find the proper place either
-set(HDF5_INCLUDE_DIRS "${PROJECT_BINARY_DIR}/../libs/include" "${PROJECT_BINARY_DIR}/../libs/include/cpp")
-set(HDF5_LIB_DIRS ${PROJECT_BINARY_DIR}/../libs/lib)
+#set(HDF5_INCLUDE_DIRS "${PROJECT_BINARY_DIR}/../libs/include" "${PROJECT_BINARY_DIR}/../libs/include/cpp")
+#set(HDF5_LIB_DIRS ${PROJECT_BINARY_DIR}/../libs/lib)
+#set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl)
+#set(LAPACK_LIBRARIES f2c lapack blas)
+
+find_package(HDF5)
+find_package(Boost)
+find_package(LAPACK)
+find_package(BLAS)
+find_package(ZLIB)
+find_package(HDF5)
 set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl)
-set(LAPACK_LIBRARIES f2c lapack blas)
+#FindBoost FindCxxTest FindBLAS FindHDF5 FindLAPACK FindZLIB FindHDF5
 
 
 #for mac this will be
@@ -43,7 +51,6 @@ set(LAPACK_LIBRARIES f2c lapack blas)
 
 include_directories(${SCITBX_PATH} ${CCTBX_PATH} ${LEVMAR_PATH} ${HDF5_INCLUDE_DIRS} ${BOOST_INCLUDEDIR} ${CXXTEST_PATH} ${HDF5_PATH}/c++/src ${HDF5_PATH}/src) #THe order makes difference. SCITBX_PATH shoud come before CCTBX_PATH !!
 link_directories(${HDF5_LIB_DIRS} ${LAPACK_DIRS})
-
 
 # Manualy get what we need from cctbx
 add_library(cctbx ${CCTBX_PATH}/cctbx/sgtbx/change_of_basis_op.cpp
@@ -59,42 +66,30 @@ ${CCTBX_PATH}/cctbx/eltbx/xray_scattering/wk1995.cpp
 ${CCTBX_PATH}/cctbx/eltbx/basic.cpp
 ${CCTBX_PATH}/cctbx/sgtbx/utils.cpp)
 
+add_library(yell-lib src/basic_classes.cpp
+                     src/diffuser_core.cpp
+                     src/basic_io.cpp
+                     src/FormulaParser.cpp
+                     src/InputFileParser.cpp
+                     src/InputFileParserI.cpp
+                     src/InputFileParserII.cpp
+                     src/InputFileParserIII.cpp
+                     src/model.cpp
+                     src/OutputHandler.cpp)
 
+add_executable(yell src/main.cpp)
 
-add_executable(yell basic_classes.cpp
-                    diffuser_core.cpp
-                    basic_io.cpp
-                    FormulaParser.cpp
-                    InputFileParser.cpp
-                    InputFileParserI.cpp
-                    InputFileParserII.cpp
-                    InputFileParserIII.cpp
-                    main.cpp
-                    model.cpp
-                    OutputHandler.cpp)
-
-#add_executable(test-yell basic_classes.cpp
-#                    diffuser_core.cpp
-#                    basic_io.cpp
-#                    FormulaParser.cpp
-#                    InputFileParser.cpp
-#                    InputFileParserI.cpp
-#                    InputFileParserII.cpp
-#                    InputFileParserIII.cpp
-#                    test_runner.cpp
-#                    model.cpp
-#                    OutputHandler.cpp)
-
-ADD_DEPENDENCIES(yell levmar cctbx zlib szip ${LAPACK_LIBRARIES})
-
+ADD_DEPENDENCIES(yell yell-lib levmar cctbx ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 #MS studio includes tr1 libraries by default. To disable it we use
-add_definitions(-D_HAS_CPP0X=0)
+add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
-target_link_libraries (yell levmar cctbx zlib szip ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
-#target_link_libraries (test-yell levmar cctbx zlib szip ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries (yell levmar cctbx ${ZLIB_LIBRARY} ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
 
-#target_link_libraries (yell levmar cctbx ${HDF5_z_LIBRARY} ${HDF5_sz_LIBRARY} ${HDF5_hdf5_cpp_LIBRARY} ${HDF5_hdf5_cpp_hl_LIBRARY} ${HDF5_z_LIBRARY} ${HDF5_m_LIBRARY} ${HDF5_hdf5_LIBRARY} ${HDF5_hdf5_hl_LIBRARY})
-
-
-#-lm
+# cxxtest
+find_package(CxxTest)
+if(CXXTEST_FOUND)
+    enable_testing()
+    CXXTEST_ADD_TEST(test-yell test_runner.cpp ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
+    target_link_libraries(test-yell yell-lib levmar cctbx ${ZLIB_LIBRARY} ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()

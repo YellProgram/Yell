@@ -57,34 +57,33 @@ FormulaParser::FormulaParser() : FormulaParser::base_type(start),current_array_v
   using phoenix::ref;
   
   fact %= double_ | '(' >> expr >> ')' | identifier | assignment | array_element | special_function; //
-  
-  special_function %= 
-    ("exp(" >> expr >> ')') [_val = bind(&adopted_exp,_1)]
-  | ("log(" >> expr >> ')') [_pass = bind(&log_is_ok,_1)][_val = bind(&adopted_log,_1)]
-  | ("sin(" >> expr >> ')') [_val = bind(&adopted_sin,_1)]
-  | ("cos(" >> expr >> ')') [_val = bind(&adopted_cos,_1)]
-  | ("sqrt(">> expr >> ')') [_pass = bind(&sqrt_is_ok,_1)][_val = bind(&adopted_sqrt,_1)]
-  | ("abs(" >> expr >> ')') [_val = bind(&adopted_abs,_1)]
-  | ("mod(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_mod,_1,_2)]
-  | ("pow(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_pow,_1,_2)]
-  ;
-  
-  term %= fact[_val = _1]
-  >> *( ('*' >> fact)[_val *= _1]
-       | ('/' >> fact)[_val/=_1] )
-  ;
-  expr = ( (-lit('+') >> term)[_val=_1] 
-          | ('-' >> term)[_val=- _1] ) 
-  >> *( 
-       ('+' >> term)[_val+=_1]
-       | ('-' >> term)[_val-=_1]
-       )
-  ;
+    special_function =
+            ("exp(" >> expr >> ')') [_val = bind(&adopted_exp,_1)]
+                    | ("log(" >> expr >> ')') [_pass = bind(&log_is_ok,_1)][_val = bind(&adopted_log,_1)]
+                    | ("sin(" >> expr >> ')') [_val = bind(&adopted_sin,_1)]
+                    | ("cos(" >> expr >> ')') [_val = bind(&adopted_cos,_1)]
+                    | ("sqrt(">> expr >> ')') [_pass = bind(&sqrt_is_ok,_1)][_val = bind(&adopted_sqrt,_1)]
+                    | ("abs(" >> expr >> ')') [_val = bind(&adopted_abs,_1)]
+                    | ("mod(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_mod,_1,_2)]
+                    | ("pow(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_pow,_1,_2)]
+            ;
+
+    term %= fact[_val = _1]
+            >> *( ('*' >> fact)[_val *= _1]
+            | ('/' >> fact)[_val/=_1] )
+            ;
+    expr = ( (-lit('+') >> term)[_val=_1]
+            | ('-' >> term)[_val=- _1] )
+            >> *(
+            ('+' >> term)[_val+=_1]
+                    | ('-' >> term)[_val-=_1])
+            ;
+
   // Deprecated
   //array_element =
   //lit("~i")[_val = bind(&extract_array_value,ref(array),ref(current_array_value)++)]
   //;
-  
+
   // copypaste from InputParser better make a separate grammar for this
   // added minus to the charecters
   valid_identifier %= alpha >> *char_("a-zA-Z0-9_");

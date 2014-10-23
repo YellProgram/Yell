@@ -31,6 +31,10 @@
 #include <iostream>
 #include <fstream>
 
+#ifndef PATH_TO_YELL_SRC
+#define PATH_TO_YELL_SRC "./src"
+#endif
+
 OutputHandler report;
 
 namespace qi = boost::spirit::qi;
@@ -920,7 +924,7 @@ class MyTestSuite : public CxxTest::TestSuite
 	
   void test_hdf5_reader()
   {
-    IntensityMap map_123 = ReadHDF5("../../../src/test_files/123.h5"); //path is relative to build/debug/ folder
+    IntensityMap map_123 = ReadHDF5(PATH_TO_YELL_SRC "/test_files/123.h5");
     
     TS_ASSERT_DELTA(1,map_123.at(0),0.01);
     TS_ASSERT_DELTA(2,map_123.at(1),0.01);
@@ -933,7 +937,7 @@ class MyTestSuite : public CxxTest::TestSuite
     
     TS_ASSERT_DELTA(138690, map.at(31), 0.01);
     
-    map.load_data("../../../src/test_files/123.h5");
+    map.load_data(PATH_TO_YELL_SRC "/test_files/123.h5");
     
     TS_ASSERT_DELTA(1,map.at(0),0.01);
     TS_ASSERT_DELTA(2,map.at(1),0.01);
@@ -952,7 +956,7 @@ class MyTestSuite : public CxxTest::TestSuite
   
   void test_file_exists()
   {
-    TS_ASSERT_EQUALS(true, file_exists("../../../src/test_files/123.h5"));
+    TS_ASSERT_EQUALS(true, file_exists(PATH_TO_YELL_SRC "/test_files/123.h5"));
     TS_ASSERT_EQUALS(false, file_exists("does.not.exist"));
   }
   
@@ -1434,6 +1438,7 @@ class MyTestSuite : public CxxTest::TestSuite
   
   void test_modes_parser()  {
     Model a_model;
+    a_model.cell = UnitCell(1,1,1,90,90,90);
     a_parser.add_model(&a_model);
     
     ChemicalUnit* one_atom;
@@ -1443,8 +1448,9 @@ class MyTestSuite : public CxxTest::TestSuite
     
     TS_ASSERT(test_parser_nores("Modes[ mode1 = TranslationalMode(modes_atom,y) ]",a_parser.modes,a_skipper));
     run_parser("mode1",a_parser.identifier,a_skipper,res);
-    
-    TS_ASSERT_EQUALS(*answer,*boost::get<ADPMode*>(res));
+    ADPMode* result=boost::get<ADPMode*>(res);
+
+    TS_ASSERT_EQUALS(*answer,*result);
     TS_ASSERT_EQUALS(1,a_model.modes.size());
     TS_ASSERT_EQUALS(boost::get<ADPMode*>(res),&a_model.modes[0]);
   }

@@ -23,7 +23,7 @@
 #include "basic_classes.h"
 #include "precompiled_header.h"
 #include "FormulaParser.h"
-#include "Model.h"
+#include "model.h"
 #include <boost/fusion/tuple.hpp>
 #include <boost/fusion/include/boost_tuple.hpp>
 
