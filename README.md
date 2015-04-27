@@ -8,7 +8,7 @@ Yell is a program for analyzing diffuse scattering from single crystals using Th
 You can download the latest version of Yell for Mac and Windows [here](https://github.com/YellProgram/Yell/releases/latest).
 
 ### Documentation
-The documentation can be accessed [at this link](https://stackedit.io/viewer#!provider=gist&gistId=10717004&filename=Yell_1.0_reference). The pdf version is also available at the latest release [here](https://github.com/YellProgram/Yell/releases/latest).
+The documentation can be accessed [at this link](https://stackedit.io/viewer#!provider=gist&gistId=ddc4388dfc94338d61a2&filename=Yell%20reference). The pdf version is also available at the latest release [here](https://github.com/YellProgram/Yell/releases/latest).
 
 ### Examples
 [The hypothetical iron-void example](https://www.crystal.mat.ethz.ch/people/phd_stud/asimonov/iron-void_example.zip).
