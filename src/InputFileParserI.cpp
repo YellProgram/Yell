@@ -18,7 +18,8 @@
  */
 
 #include "InputFileParser.h"
-#include <boost/spirit/home/phoenix/statement/try_catch.hpp>
+#include <boost/phoenix/statement/try_catch.hpp>
+#include <boost/phoenix/core/nothing.hpp>
 
 void InputParser::InputParserI()
 {
@@ -37,39 +38,43 @@ void InputParser::InputParserI()
   
   substitutional_correlation = 
     lit("SubstitutionalCorrelation")
-    > "(" 
-  > (identifier > "," > identifier > "," > number % ',')[phoenix::try_
-                                                         [
-                                                          _val = bind(Model::correlators_from_cuns_,_1,_2,_3)
-                                                         ].catch_all
-                                                         [
-                                                          _pass = false
-                                                         ]]
+    > "("  //due to some bug, it is necessary to turn try_... into sequence by adding noop in the beginninghttp://stackoverflow.com/questions/32245224/boostphoenix-try-catch-all-construct-fails-to-compile
+    > (identifier > "," > identifier > "," > number % ',')[phoenix::nothing,
+                                                             phoenix::try_
+                                                              [
+                                                               _val = bind(Model::correlators_from_cuns_,_1,_2,_3)
+                                                               ].catch_all
+                                                              [
+                                                               _pass = false
+                                                               ] ]
     > ")"
     ;
-  adp_correlation =
+    
+    adp_correlation =
     lit("ADPCorrelation")
     > '('
-  > (identifier > ',' > identifier > ',' > number)[phoenix::try_
-                                                   [
-                                                    _val = bind(&Model::create_double_adp_mode,_1,_2,_3)
-                                                    ].catch_all
-                                                   [
-                                                    _pass = false
-                                                    ]]
+    > (identifier > ',' > identifier > ',' > number)[phoenix::nothing,
+                                                     phoenix::try_
+                                                     [
+                                                      _val = bind(&Model::create_double_adp_mode,_1,_2,_3)
+                                                      ].catch_all
+                                                     [
+                                                      _pass = false
+                                                      ]]
     > ')'
     ;
-  
-  size_effect =
+    
+    size_effect =
     lit("SizeEffect")
     > '('
-  > (identifier > ',' > identifier > ',' > number)[phoenix::try_
-                                                   [
-                                                    _val = bind(&Model::create_size_effect,_1,_2,_3)
-                                                    ].catch_all
-                                                   [
-                                                    _pass = false
-                                                    ]]
+    > (identifier > ',' > identifier > ',' > number)[phoenix::nothing,
+                                                     phoenix::try_
+                                                     [
+                                                      _val = bind(&Model::create_size_effect,_1,_2,_3)
+                                                      ].catch_all
+                                                     [
+                                                      _pass = false
+                                                      ]]
     > ')'
     ;
   

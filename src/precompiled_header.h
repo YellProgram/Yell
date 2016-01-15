@@ -21,13 +21,13 @@
 #include <boost/spirit/include/qi_real.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
-#include <boost/spirit/home/phoenix/bind/bind_member_function.hpp>
-#include <boost/spirit/home/phoenix/operator/member.hpp>
+#include <boost/phoenix/bind/bind_member_function.hpp>
+#include <boost/phoenix/operator/member.hpp>
 
-#include <boost/spirit/home/phoenix/operator/self.hpp>
-#include <boost/spirit/home/phoenix/object/construct.hpp>
-#include <boost/spirit/home/phoenix/bind/bind_function.hpp>
-#include <boost/spirit/home/phoenix/object/new.hpp>
+#include <boost/phoenix/operator/self.hpp>
+#include <boost/phoenix/object/construct.hpp>
+#include <boost/phoenix/bind/bind_function.hpp>
+#include <boost/phoenix/object/new.hpp>
 #include <boost/variant.hpp>
 #include "boost/tuple/tuple.hpp"
 

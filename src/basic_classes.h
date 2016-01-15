@@ -813,9 +813,9 @@ public:
 	{}
 	
 	//Most useful constructor which makes atomic pair form 2 atoms
-	AtomicPair(Atom& _atom1, Atom& _atom2) : 
-	average(_atom1.occupancy * _atom2.occupancy,_atom2.r-_atom1.r, _atom1.U+_atom2.U), 
+	AtomicPair(Atom& _atom1, Atom& _atom2) :
 	real(_atom1.occupancy * _atom2.occupancy,_atom2.r-_atom1.r, _atom1.U+_atom2.U),
+    average(_atom1.occupancy * _atom2.occupancy,_atom2.r-_atom1.r, _atom1.U+_atom2.U),
 	atomic_type1(_atom1.atomic_type),
 	atomic_type2(_atom2.atomic_type),
 	multiplier(_atom1.multiplier * _atom2.multiplier),
