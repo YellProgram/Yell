@@ -46,6 +46,7 @@
 
 #include <cctbx/uctbx.h> //These guys are for cell and 
 #include <scitbx/array_family/tiny.h>
+#include <assert.h>
 
 #include "OutputHandler.h"
 using namespace std;
@@ -59,7 +60,6 @@ const int VectorEnd=1;
 
 class AtomicPairPool;
 
-///\TODO add virtual destructor or else it gonna contain a memory leak
 class PairModifier {
  public:
   virtual ~PairModifier() { };
@@ -68,7 +68,7 @@ class PairModifier {
 };
 
 
-class Atom;
+
 
 /**	\brief Class of pointer vectors.
  
@@ -119,6 +119,7 @@ private:
 	vector<Obj*> pointer_vector;
 };
 
+class Atom;
 class AtomicPair;
 class UnitCell;
 /// Holds the laue symmetry of crystal and has function to apply the symmetry. Also keeps track of which elements should be applied on the level of 

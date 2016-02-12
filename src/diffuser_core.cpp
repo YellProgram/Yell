@@ -76,7 +76,7 @@ IntensityMap ReadHDF5(string filename)
   return result;
 }
 
-void WriteHDF5(string filename,IntensityMap& input)
+void WriteHDF5(string filename, IntensityMap& input)
 {
   H5File file( filename, H5F_ACC_TRUNC );
   
