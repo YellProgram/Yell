@@ -24,6 +24,7 @@
 #include <scitbx/array_family/accessors/c_grid.h>
 #include <scitbx/fftpack/complex_to_complex_3d.h>
 #include <complex>
+#include <assert.h>
 #include "basic_io.h"
 #include "math.h"
 
@@ -31,6 +32,8 @@
 #include <cctbx/uctbx.h> 
 
 #include "OutputHandler.h"
+#include "exceptions.h"
+
 extern OutputHandler report;
 
 #ifndef M_PI
@@ -196,7 +199,7 @@ public:
             data[i]=inp.data[i];
     }
 
-    IntensityMap(Grid _grid) : grid(_grid) {
+    IntensityMap(Grid grid) : grid(grid) {
 
         Init(grid.grid_size[0],grid.grid_size[1],grid.grid_size[2]);
         grid_is_initialized=true;
@@ -214,9 +217,9 @@ public:
     {
         set_grid( Grid(cell, grid_steps, lower_limits));
     }
-    void set_grid(Grid _grid)
+    void set_grid(Grid inp_grid)
     {
-        grid = _grid;
+        grid = inp_grid;
         grid_is_initialized=true;
     }
 
@@ -505,7 +508,7 @@ public:
                 REPORT(ERROR) << "Dataset " << filename << " has incorrect size (" << intensity_map.size()[0] << " " << intensity_map.size()[1] << " " << intensity_map.size()[2]
                               << ")  expected (" << expected_size[0] << " " << expected_size[1] << " " << expected_size[2] << ")\n\n";
                 cout.flush();
-                terminate();
+                throw(TerminateProgram());
             }
 
             for(int i=0; i<intensity_map.size_1d(); ++i)
@@ -513,7 +516,7 @@ public:
                 {
                     REPORT(ERROR) << "Dataset " << filename << " contains NaNs\n\n";
                     cout.flush();
-                    terminate();
+                    throw(TerminateProgram());
                 }
 
             REPORT(MAIN) << "Loaded " << dataset_name << "\n";

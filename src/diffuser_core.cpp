@@ -57,7 +57,7 @@ IntensityMap ReadHDF5(string filename)
   hsize_t dims_out[3];
   int no_dimensions = dataspace.getSimpleExtentDims( dims_out, NULL);
   
-  //\todo: assert that there is not too much dimensions in input vector
+  //\TODO: assert that there is not too much dimensions in input vector
   
   for(int i=no_dimensions; i<3; i++)
     dims_out[i]=1; //fill additional dimensions if input matrix has less then 3 dimensions
@@ -65,9 +65,9 @@ IntensityMap ReadHDF5(string filename)
   
   double * temp_map_holder = (double*) malloc(dims_out[0]*dims_out[1]*dims_out[2] * sizeof(double));
   
-  dataset.read( temp_map_holder, PredType::NATIVE_DOUBLE);
+  dataset.read(temp_map_holder, PredType::NATIVE_DOUBLE);
   
-  IntensityMap result(dims_out[0],dims_out[1],dims_out[2]); ///\todo: copy data directly into versa, not like this, with additional array
+  IntensityMap result(dims_out[0], dims_out[1], dims_out[2]); ///\TODO: copy data directly into versa, not like this, with additional array
   for(int i=0; i<dims_out[0]*dims_out[1]*dims_out[2]; i++)
     result.at(i) = temp_map_holder[i];
   
@@ -75,6 +75,33 @@ IntensityMap ReadHDF5(string filename)
 
   return result;
 }
+
+
+template<typename T>
+DataType getH5Type() {}
+
+template<>
+DataType getH5Type<int> () {
+    return PredType::NATIVE_INT;
+}
+template<>
+DataType getH5Type<bool> () {
+    return PredType::NATIVE_HBOOL;
+}
+template<>
+DataType getH5Type<double> () {
+    return PredType::NATIVE_DOUBLE;
+}
+
+template <typename T>
+void creadeAndWriteDataset(H5File& file, string datasetName, T* data, hsize_t n, hsize_t* dims) {
+    DataSpace dataspace( n, dims );
+
+    DataSet dataset = file.createDataSet( datasetName, getH5Type<T>(), dataspace );
+
+    dataset.write( data, getH5Type<T>() );
+}
+
 
 void WriteHDF5(string filename, IntensityMap& input)
 {

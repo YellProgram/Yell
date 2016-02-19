@@ -33,7 +33,13 @@ ENDIF(APPLE)
 
 #FindBoost FindCxxTest FindBLAS FindHDF5 FindLAPACK FindZLIB FindHDF5
 
-include_directories( ${CCTBX_PATH} ${LEVMAR_PATH}/include ${HDF5_INCLUDE_DIRS} ${BOOST_INCLUDEDIR} ${CXXTEST_PATH} ${HDF5_PATH}/c++/src ${HDF5_PATH}/src) 
+include_directories( ${CCTBX_PATH}
+        ${LEVMAR_PATH}/include
+        ${HDF5_INCLUDE_DIRS}
+        ${BOOST_INCLUDEDIR}
+        ${CXXTEST_PATH}
+        ${HDF5_PATH}/c++/src
+        ${HDF5_PATH}/src)
 link_directories(${HDF5_LIB_DIRS} ${LAPACK_DIRS} ${LEVMAR_PATH}/lib)
 
 # Manualy get what we need from cctbx
@@ -60,13 +66,11 @@ add_library(yell-lib src/basic_classes.cpp
                      src/InputFileParserII.cpp
                      src/InputFileParserIII.cpp
                      src/model.cpp
-                     src/OutputHandler.cpp)
+                     src/OutputHandler.cpp src/exceptions.h)
 
 add_executable(yell src/main.cpp)
 
 ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
-
-
 
 target_link_libraries(yell yell-lib levmar cctbx  ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
 
