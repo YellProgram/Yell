@@ -32,6 +32,7 @@
 #include "diffuser_core.h"
 #include "InputFileParser.h"
 #include "basic_io.h"
+#include "exceptions.h"
 
 
 using namespace std;
@@ -146,7 +147,7 @@ void print_essential_information_about_crystal(Model& model)
     if(!grid.grid_is_compatible_with_fft())
     {
       REPORT(ERROR) << "ERROR: Grid is incompatible with fft calculation algorithm. To work properly, algorithm needs that diffuse scattering grid has even number of pixels in each dimension and that the center of reciprocal space is in Ni/2+1 pixel\n";
-      terminate();
+      throw(TerminateProgram());
     }
   }
   else
@@ -220,110 +221,116 @@ void calculate_Jacobians(Model& a_model) {
 OutputHandler report;
 
 int main (int argc, char * const argv[]) {
-  
-  REPORT(MAIN) << "Yell 1.1\n";
-  REPORT(MAIN) << "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to arkadiy.simonov@mat.ethz.ch or directly to our issue tracker https://github.com/YellProgram/Yell/issues\n\n";
-  
-  if(!file_exists("model.txt"))
-    REPORT(ERROR) << "model.txt does not exits.\n";
+  try {
+    REPORT(MAIN) << "Yell 1.1.1\n";
+    REPORT(MAIN) <<
+                 "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to arkadiy.simonov@mat.ethz.ch or directly to our issue tracker https://github.com/YellProgram/Yell/issues\n\n";
 
-  string input = read_input_file("model.txt");
-  
-  Model a_model(input);
-  REPORT(MAIN) << "Input file read, performing a test calculation...\n";
-
-  ///estimate calculation time. Also initialize a_model.refinement_parameters
-  time_t start,end;
-	start = time (NULL);
-  vector<double> initial_params(100000,0);//TODO: I do not need it now. Check.
-  a_model.calculate(initial_params,false);// Ititial run. measures time, imports initial parameters.
-  end = time (NULL);
-  
-  REPORT(MAIN) << "Parsing is ok.\n";
-  REPORT(MAIN) << "Scattering is calculated in " << difftime(end,start) << " sec.\n";
-  print_essential_information_about_crystal(a_model);
-  
-  REPORT(MAIN) << "Number of refined parameters: " << a_model.refinement_parameters.size() << '\n';
-/*  for(int i=0; i<a_model.refinement_parameters.size(); ++i)
-    REPORT(MAIN)<< a_model.refinement_parameters[i] << ' ';
-  REPORT(MAIN) << '\n';*/
-  
-  vec3<int> grid_size = a_model.grid.grid_size;
-  a_model.pdf_multiplier.load_data_and_report("pdf_multiplier.h5","pdf multiplier",grid_size);
-  a_model.weights.load_data_and_report("weights.h5","weights",grid_size);
-  a_model.reciprocal_space_multiplier.load_data_and_report("reciprocal_space_multiplier.h5","reciprocal space multiplier",grid_size);
-
-  report.expect_first_calculation(); //set up the output handler so that it prints all the nessesary information from the first run
-  
-  OptionalIntensityMap experimental_diffuse_map;
-  experimental_diffuse_map.load_data_and_report("experiment.h5", "experimental data",grid_size);
-  if(experimental_diffuse_map.is_loaded)
-    experimental_diffuse_map.get_intensity_map()->set_grid(a_model.grid);
-  
-  if(a_model.refinement_flag) //refinement
-  {
-    if(!experimental_diffuse_map.is_loaded)
-    {
-      REPORT(ERROR) << "Experimental data not found \n";
-      terminate();
+    if (!file_exists("model.txt")) {
+      REPORT(ERROR) << "model.txt does not exits.\n";
+      throw(TerminateProgram());
     }
-    
-    Minimizer a_minimizer;
-    vector<double> refined_params;
-    refined_params = a_minimizer.minimize(a_model.refinement_parameters, experimental_diffuse_map.get_intensity_map(), &a_model, &a_model.weights, a_model.refinement_options);
-    
-    vector<double> esd = esd_from_covar(a_minimizer.covar,refined_params);
-    
-    REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) << "\nRefinableVariables\n[\n";
-    for(int i=1; i<refined_params.size(); ++i)
-      REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
-    REPORT(MAIN) << "]\n";    
-    
-    report.last_run();
-    a_model.calculate(refined_params);
-    a_model.refinement_parameters = refined_params;
-    
-    if(a_model.print_covariance_matrix)
-      print_covariance(a_minimizer.covar,refined_params);
-    
-    print_correlations(a_minimizer.covar,refined_params,a_model.refined_variable_names);
-  }
-  else
-  {
-    report.last_run();
-    a_model.calculate(a_model.refinement_parameters);
-  }
-  
-  if(experimental_diffuse_map.is_loaded)
-  {
-    REPORT(MAIN) << " Rw=" << a_model.R_factor(*experimental_diffuse_map.get_intensity_map(),R2,WEIGHTED) << endl ;
-  }
-  
-  WriteHDF5("full.h5",a_model.intensity_map);
-  WriteHDF5("average.h5",a_model.average_intensity_map);
-  WriteHDF5("model.h5",a_model.model_scaled_to_experiment());
-  
-  if(a_model.grid.grid_is_compatible_with_fft())
-  {
-    IntensityMap normalized_delta_pdf = a_model.model_scaled_to_experiment();
-    normalized_delta_pdf.scale_and_fft(1/a_model.refinement_parameters[0]);
-    WriteHDF5("delta-pdf.h5",normalized_delta_pdf);
-    
-    if(experimental_diffuse_map.is_loaded)
+
+    string input = read_input_file("model.txt");
+
+    Model a_model(input);
+    REPORT(MAIN) << "Input file read, performing a test calculation...\n";
+
+    ///estimate calculation time. Also initialize a_model.refinement_parameters
+    time_t start, end;
+    start = time(NULL);
+    vector<double> initial_params(100000, 0);//TODO: I do not need it now. Check.
+    a_model.calculate(initial_params, false);// Ititial run. measures time, imports initial parameters.
+    end = time(NULL);
+
+    REPORT(MAIN) << "Parsing is ok.\n";
+    REPORT(MAIN) << "Scattering is calculated in " << difftime(end, start) << " sec.\n";
+    print_essential_information_about_crystal(a_model);
+
+    REPORT(MAIN) << "Number of refined parameters: " << a_model.refinement_parameters.size() << '\n';
+    /*  for(int i=0; i<a_model.refinement_parameters.size(); ++i)
+        REPORT(MAIN)<< a_model.refinement_parameters[i] << ' ';
+      REPORT(MAIN) << '\n';*/
+
+    vec3<int> grid_size = a_model.grid.grid_size;
+    a_model.pdf_multiplier.load_data_and_report("pdf_multiplier.h5", "pdf multiplier", grid_size);
+    a_model.weights.load_data_and_report("weights.h5", "weights", grid_size);
+    a_model.reciprocal_space_multiplier.load_data_and_report("reciprocal_space_multiplier.h5",
+                                                             "reciprocal space multiplier", grid_size);
+
+    report.expect_first_calculation(); //set up the output handler so that it prints all the nessesary information from the first run
+
+    OptionalIntensityMap experimental_diffuse_map;
+    experimental_diffuse_map.load_data_and_report("experiment.h5", "experimental data", grid_size);
+    if (experimental_diffuse_map.is_loaded)
+      experimental_diffuse_map.get_intensity_map()->set_grid(a_model.grid);
+
+    if (a_model.refinement_flag) //refinement
     {
-      IntensityMap normalized_d2_pdf = a_model.model_scaled_to_experiment();
-      normalized_d2_pdf.subtract(*experimental_diffuse_map.get_intensity_map());
-      normalized_d2_pdf.scale_and_fft(1/a_model.refinement_parameters[0]);
-      WriteHDF5("delta-delta-pdf.h5",normalized_d2_pdf);
-    
-      experimental_diffuse_map.get_intensity_map()->scale_and_fft(1/a_model.refinement_parameters[0]);
-      WriteHDF5("exp-delta-pdf.h5",*experimental_diffuse_map.get_intensity_map());
+      if (!experimental_diffuse_map.is_loaded) {
+        REPORT(ERROR) << "Experimental data not found \n";
+        throw(TerminateProgram());
+      }
+
+      Minimizer a_minimizer;
+      vector<double> refined_params;
+      refined_params = a_minimizer.minimize(a_model.refinement_parameters, experimental_diffuse_map.get_intensity_map(),
+                                            &a_model, &a_model.weights, a_model.refinement_options);
+
+      vector<double> esd = esd_from_covar(a_minimizer.covar, refined_params);
+
+      REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) <<
+                   "\nRefinableVariables\n[\n";
+      for (int i = 1; i < refined_params.size(); ++i)
+        REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
+      REPORT(MAIN) << "]\n";
+
+      report.last_run();
+      a_model.calculate(refined_params);
+      a_model.refinement_parameters = refined_params;
+
+      if (a_model.print_covariance_matrix)
+        print_covariance(a_minimizer.covar, refined_params);
+
+      print_correlations(a_minimizer.covar, refined_params, a_model.refined_variable_names);
     }
+    else {
+      report.last_run();
+      a_model.calculate(a_model.refinement_parameters);
+    }
+
+    if (experimental_diffuse_map.is_loaded) {
+      REPORT(MAIN) << " Rw=" << a_model.R_factor(*experimental_diffuse_map.get_intensity_map(), R2, WEIGHTED) << endl;
+    }
+
+    WriteHDF5("full.h5", a_model.intensity_map);
+    WriteHDF5("average.h5", a_model.average_intensity_map);
+    WriteHDF5("model.h5", a_model.model_scaled_to_experiment());
+
+    if (a_model.grid.grid_is_compatible_with_fft()) {
+      IntensityMap normalized_delta_pdf = a_model.model_scaled_to_experiment();
+      normalized_delta_pdf.scale_and_fft(1 / a_model.refinement_parameters[0]);
+      WriteHDF5("delta-pdf.h5", normalized_delta_pdf);
+
+      if (experimental_diffuse_map.is_loaded) {
+        IntensityMap normalized_d2_pdf = a_model.model_scaled_to_experiment();
+        normalized_d2_pdf.subtract(*experimental_diffuse_map.get_intensity_map());
+        normalized_d2_pdf.scale_and_fft(1 / a_model.refinement_parameters[0]);
+        WriteHDF5("delta-delta-pdf.h5", normalized_d2_pdf);
+
+        experimental_diffuse_map.get_intensity_map()->scale_and_fft(1 / a_model.refinement_parameters[0]);
+        WriteHDF5("exp-delta-pdf.h5", *experimental_diffuse_map.get_intensity_map());
+      }
+    }
+
+    if (a_model.calculate_jacobians)
+      calculate_Jacobians(a_model);
+
+    REPORT(MAIN) << '\n';
+    return EXIT_SUCCESS;
+  } catch (const TerminateProgram&)
+  {
+    return EXIT_FAILURE;
   }
-  
-  if(a_model.calculate_jacobians)
-    calculate_Jacobians(a_model);
-  
-  REPORT(MAIN) << '\n';
-  return 0;
+
 }

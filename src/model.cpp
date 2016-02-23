@@ -20,8 +20,32 @@
 #include "model.h"
 #include "InputFileParser.h"
 #include <sstream>
+#include "exceptions.h"
 extern OutputHandler report;
 typedef iterator_ Iterator;
+
+Iterator line_start(Iterator pos, const Iterator& start) {
+  if(pos!=start and *pos=='\n')
+    --pos;
+  while (pos!=start && *pos != '\n')
+    --pos;
+
+  return pos;
+}
+Iterator line_end(Iterator pos, const Iterator& end) {
+  if(pos!=end and *pos=='\n')
+    ++pos;
+  while (pos!=end && *pos != '\n')
+    ++pos;
+
+  return pos;
+}
+Iterator step_from_newline(const Iterator& pos, const Iterator& end) {
+  if(pos!=end and *pos=='\n')
+    return pos + 1;
+  else
+    return pos;
+}
 
 void complain_about_error(Iterator start, Iterator current, Iterator end)
 {
@@ -29,36 +53,39 @@ void complain_about_error(Iterator start, Iterator current, Iterator end)
   InputParser a_parser;
   qi::parse(current,end,a_parser.skipper_no_assignement);
 
-  int line_number=0;
-  int line_pos=0;
-  
-  Iterator line_start = current;
-  while (line_start!=start && *line_start != '\n')
-  {
-    line_start--;
-    line_pos++;
-  }
-  
-  Iterator line_end = current;
-  while (line_end!=end && *line_end != '\n')
-    line_end++;
-  
+  current = step_from_newline(current,end);
+
+  int line_number = 0;
   for(Iterator it=current; it!=start; it--)
     if(*it=='\n')
       line_number++;
 
-  std::string trouble_line(line_start,line_end);
+  Iterator lstart = line_start(current, start);
+
+  int error_pos_within_line = 0;
+  for(Iterator t = step_from_newline(lstart,end); t!=current; ++t)
+    ++error_pos_within_line;
+
+  // Print two lines before the error line
+  Iterator context_start = step_from_newline(line_start(line_start(lstart,start),start),end);
+  
+  Iterator lend = line_end(current,end);
+
+  Iterator next_two_lines_start = step_from_newline(lend,end);
+  Iterator next_two_lines_end = line_end(line_end(next_two_lines_start,end),end);
+
+  std::string trouble_line_with_context(context_start,lend);
+  std::string next_two_lines(next_two_lines_start,next_two_lines_end);
 
   std::ostringstream complain;
   
-  complain << "Parsing failed with exception around line " << line_number+1 << ":\n" << trouble_line <<"\n";
-  for(int i=0; i<line_pos-1; ++i)
+  complain << "Parsing failed with exception around line " << line_number+1 << ":\n\n" << trouble_line_with_context <<"\n";
+  for(int i=0; i < error_pos_within_line - 1; ++i)
     complain << ' ';
-  complain << "^-----roughly here\n\n";
+  complain << "^-----roughly here\n";
+  complain << next_two_lines << "\n";
   
   REPORT(ERROR) << complain.str();
-  std::cout.flush();
-  
 }
 
 void Model::calculate(vector<double> params,bool average_flag)
@@ -77,7 +104,7 @@ void Model::calculate(vector<double> params,bool average_flag)
   }catch(const qi::expectation_failure<Iterator>& e)
   {
     complain_about_error(model.begin(), e.first, model.end());
-    terminate();
+    throw(TerminateProgram());
   }
   
   if(!r || start!=end)
