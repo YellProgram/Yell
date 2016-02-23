@@ -28,11 +28,13 @@
 #include "basic_io.h"
 #include "math.h"
 
-
 #include <cctbx/uctbx.h> 
 
 #include "OutputHandler.h"
 #include "exceptions.h"
+
+#include <H5Cpp.h>
+using namespace H5;
 
 extern OutputHandler report;
 
@@ -467,6 +469,12 @@ private:
  * \todo error handling
  */
 IntensityMap ReadHDF5(string filename);
+
+template<typename T>
+DataType getH5Type();
+template <typename T>
+void creadeAndWriteDataset(H5File& file, string datasetName, T* data, hsize_t n, hsize_t* dims);
+
 
 /**
  * function writes intensity map in a hdf5 file. 
