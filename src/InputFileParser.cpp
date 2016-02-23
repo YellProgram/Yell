@@ -119,7 +119,7 @@ InputParser::InputParser() : InputParser::base_type(start)
   ;
   
   print_command_parser = 
-  lit("Print")[bind(&report_after_refinement,"requested output:")]
+  lit("Print")[bind(&report_after_refinement,"Requested output:")]
     >> *(
          (formula.expr >> !char_(';'))[bind(&report_after_refinement_dbl,_1)]
          | string_in_quotes[bind(&report_after_refinement,_1)]
