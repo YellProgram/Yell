@@ -102,8 +102,8 @@ void creadeAndWriteDataset(H5File& file, string datasetName, T* data, hsize_t n,
 
 template <typename T>
 void writeConstant(H5File& file, string datasetName, T data) {
-    T dataAsPlaneArray[1] = {data};
-    creadeAndWriteDataset<T>(file, datasetName, dataAsPlaneArray, 0, nullptr);
+    H5::DataSet ds = file.createDataSet(datasetName, getH5Type<T>(), H5::DataSpace(H5S_SCALAR));
+    ds.write(&data, getH5Type<T>());
 }
 
 template <typename T,unsigned long N>
