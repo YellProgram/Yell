@@ -20,7 +20,8 @@ set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 IF(APPLE)
   set(LAPACK_LIBRARIES "-framework accelerate")
 ELSE(APPLE)
-  set(LAPACK_LIBRARIES f2c lapack blas)
+  set(LAPACK_LIBRARIES f2c lapack blas dl)
+#  find_package(LAPACK)
 ENDIF(APPLE)
 
 
