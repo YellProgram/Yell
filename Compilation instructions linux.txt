@@ -1,0 +1,52 @@
+
+mkdir levmar
+cd levmar
+wget http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz .
+tar -zxf levmar-2.6.tgz
+rm levmar-2.6.tgz
+mkdir levmar-build
+cd levmar-build
+cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING=“Release” ../levmar-2.6
+make
+cd ..
+mkdir include
+cp levmar-2.6/*.h include
+mkdir lib
+cp levmar-build/*.a lib
+
+cd ..
+mkdir hdf5
+cd hdf5
+wget http://www.hdfgroup.org/ftp/HDF5/current/src/CMake-hdf5-1.8.16.tar.gz
+tar -zxf CMake-hdf5-1.8.16.tar.gz
+cd CMake-hdf5-1.8.16
+./build-unix.sh
+tar -zxf HDF5-1.8.16-Linux.tar.gz
+cd ..
+cp -r CMake-hdf5-1.8.16/HDF5-1.8.16-Linux/HDF_Group/HDF5/1.8.16/* .
+rm -r CMake-hdf5-1.8.16
+
+cd ..
+mkdir boost
+cd boost
+wget http://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+unzip boost_1_60_0.zip
+mv boost_1_60_0/boost .
+cd ..
+
+mkdir cxxtest
+cd cxxtest
+wget http://sourceforge.net/projects/cxxtest/files/cxxtest/4.4/cxxtest-4.4.tar.gz
+tar -zxf cxxtest-4.4.tar.gz
+mv cxxtest-4.4/* .
+rm -r cxxtest-4.4
+rm cxxtest-4.4.tar.gz
+…
+
+
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
+cmake -G "Unix Makefiles" ../yell
+make
+
+
