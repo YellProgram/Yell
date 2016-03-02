@@ -1,3 +1,4 @@
+﻿cd lib
 
 mkdir levmar
 cd levmar
