@@ -80,7 +80,7 @@ add_library(yell-lib src/basic_classes.cpp
 
 add_executable(yell src/main.cpp)
 
-ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
+#ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 target_link_libraries(yell yell-lib levmar cctbx  ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
 
