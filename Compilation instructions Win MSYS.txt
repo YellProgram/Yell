@@ -1,0 +1,115 @@
+﻿cd lib
+
+mkdir levmar
+cd levmar
+wget --no-check-certificate http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz .
+tar -zxf levmar-2.6.tgz
+rm levmar-2.6.tgz
+mkdir levmar-build
+cd levmar-build
+cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING=“Release” ../levmar-2.6
+make
+cd ..
+mkdir include
+cp levmar-2.6/*.h include
+mkdir lib
+cp levmar-build/*.a lib
+
+cd ..
+mkdir hdf5
+cd hdf5
+wget http://www.hdfgroup.org/ftp/HDF5/current/src/CMake-hdf5-1.8.16.tar.gz
+tar -zxf CMake-hdf5-1.8.16.tar.gz
+cd CMake-hdf5-1.8.16
+./build-unix.sh
+tar -zxf HDF5-1.8.16-Linux.tar.gz
+cd ..
+cp -r CMake-hdf5-1.8.16/HDF5-1.8.16-Linux/HDF_Group/HDF5/1.8.16/* .
+rm -r CMake-hdf5-1.8.16
+
+cd ..
+mkdir boost
+cd boost
+wget http://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+unzip boost_1_60_0.zip
+mv boost_1_60_0/boost_1_60_0 .
+cd ..
+
+mkdir cxxtest
+cd cxxtest
+wget http://sourceforge.net/projects/cxxtest/files/cxxtest/4.4/cxxtest-4.4.tar.gz
+tar -zxf cxxtest-4.4.tar.gz
+mv cxxtest-4.4/* .
+rm -r cxxtest-4.4
+rm cxxtest-4.4.tar.gz
+
+cd ..
+mkdir lapack
+cd lapack
+wget http://netlib.org/lapack/lapack.tgz
+tar -zxf lapack.tgz
+mkdir lapack-build
+cd lapack-build
+cmake -G "MSYS Makefiles" ../lapack-3.6.0
+make
+cd ..
+cp lapack-build/lib .
+cp -r lapack-build/lib .
+
+cd ..
+cd ..
+mkdir yell-build
+cd yell-build
+
+cmake -G "MSYS Makefiles" ../yell
+make
+
+
+
+
+
+ 26  cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
+   27  rm -r *
+   28  cmake -G "MSYS Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
+   29  make
+   30  cd ..
+   31  mkdir include
+   32  cp levmar-2.6/*.h include
+   33  mkdir lib
+   34  cp levmar-build/*.a lib
+   35  ls
+   36  ls lib
+   37  ls include/
+   38  cd ..
+   39  mkdir boost
+   40  cd boost
+   41  wget http://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+   42  unzip boost_1_60_0.zip
+   43  mv boost_1_60_0/boost .
+   44  nmake
+   45  gfortran
+   46  wget --no-check-certificate http://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+   47  unzip
+   48  cd ..
+   49  mkdir lapack
+   50  cd lapack
+   51  wget http://netlib.org/lapack/lapack.tgz
+   52  tar
+   53  tar -zxf lapack.tgz
+   54  mkdir lapack-build
+   55  cd lapack-build
+   56  cmake -G "MSYS Makefiles" ../lapack-3.6.0
+   57  ls
+   58  ls lib
+   59  make
+   60  ls lib
+   61  cd ..
+   62  cp lapack-build/lib .
+   63  cp -r lapack-build/lib .
+   64  ls lapack-build/
+   65  cd ..
+   66  cd ..
+   67  cd ..
+   68  mkdir build-yell
+   69  cd build-yell/
+   70  history

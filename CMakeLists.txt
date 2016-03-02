@@ -16,12 +16,20 @@ set(BOOST_INCLUDEDIR lib/boost)
 set(HDF5_INCLUDE_DIRS lib/hdf5/include)
 
 set(HDF5_LIB_DIRS lib/hdf5/lib)
-set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
+#set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
+set(HDF5_LIBRARIES libhdf5_cpp libhdf5_hl_cpp libhdf5 libhdf5_hl libszip libzlib)
 IF(APPLE)
   set(LAPACK_LIBRARIES "-framework accelerate")
-ELSE(APPLE)
-  set(LAPACK_LIBRARIES f2c lapack blas)
 ENDIF(APPLE)
+IF(UNIX)
+  set(LAPACK_LIBRARIES f2c lapack blas dl)
+#  find_package(LAPACK)
+ENDIF(UNIX)
+IF(MINGW)
+  set(LAPACK_PATH lib/lapack)
+  set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
+  set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+ENDIF(MINGW)
 
 
 #find_package(HDF5)
@@ -40,7 +48,7 @@ include_directories( ${CCTBX_PATH}
         ${CXXTEST_PATH}
         ${HDF5_PATH}/c++/src
         ${HDF5_PATH}/src)
-link_directories(${HDF5_LIB_DIRS} ${LAPACK_DIRS} ${LEVMAR_PATH}/lib)
+link_directories(${HDF5_LIB_DIRS} ${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib)
 
 # Manualy get what we need from cctbx
 add_library(cctbx 

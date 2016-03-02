@@ -106,7 +106,7 @@ void writeConstant(H5File& file, string datasetName, T data) {
     ds.write(&data, getH5Type<T>());
 }
 
-template <typename T,unsigned long N>
+template <typename T, std::size_t N>
 void writeVector(H5File& file, string datasetName, af::tiny_plain<T,N> v) {
     T dataAsPlaneArray[N];
     for(int i=0; i<N; ++i)
