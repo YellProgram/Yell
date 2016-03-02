@@ -313,8 +313,11 @@ int main (int argc, char * const argv[]) {
       WriteHDF5("delta-pdf.h5", normalized_delta_pdf);
 
       if (experimental_diffuse_map.is_loaded) {
-        IntensityMap normalized_d2_pdf = a_model.model_scaled_to_experiment();
-        normalized_d2_pdf.subtract(*experimental_diffuse_map.get_intensity_map());
+        IntensityMap normalized_d2_pdf = *experimental_diffuse_map.get_intensity_map();
+
+        normalized_d2_pdf.subtract(a_model.model_scaled_to_experiment());
+        WriteHDF5("exp-minus-model.h5", normalized_d2_pdf);
+
         normalized_d2_pdf.scale_and_fft(1 / a_model.refinement_parameters[0]);
         WriteHDF5("delta-delta-pdf.h5", normalized_d2_pdf);
 

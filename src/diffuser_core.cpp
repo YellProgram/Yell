@@ -148,7 +148,7 @@ void WriteHDF5(string filename, IntensityMap& input)
     //creadeAndWriteDataset<double>(file, "lower_limits", {g.lower_limits[0], g.lower_limits[1], g.lower_limits[2]}, 1, {3});
     writeVector(file, "lower_limits", g.lower_limits);
     writeConstant(file, "is_direct", !g.reciprocal_flag);
-    writeVector(file, "step_size", g.grid_steps);
+    writeVector(file, "step_sizes", g.grid_steps);
     cctbx::uctbx::unit_cell cell = g.cell;
     if(!g.reciprocal_flag)
         cell=cell.reciprocal();
