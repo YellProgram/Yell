@@ -149,7 +149,11 @@ class LaueSymmetry
                                           vec3<int>(1,1,1)) ) : 
                  label(sym)   {
       vector<string> generators = laue_class_generators();
-      
+      // Я должен признать поражение
+      // в этих лабиринтах я
+      // странная манера искать правила и им следовать под наркотой
+      // Думать об абстрактных концепциях гораздо круче под этой наркотой. Алгебра, все это решает
+      // я заблудился, стоит мне испепелять этот баг, или есть тчо-то более полезное что я все-таки могу сделать?
       for (int i=0; i<generators.size(); ++i)
       {
         if (generator_can_be_applied_on_the_map(generators[i],grid))
@@ -320,7 +324,8 @@ class LaueSymmetry
     }
     
     vector<AtomicPair> filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs);
-    
+    // радужная пена - это подарок нам из ЛСД
+    // все чувства задействованы
     void apply_patterson_symmetry(IntensityMap& map)
     {
       for (int i=0; i<generators_on_map.size(); ++i)

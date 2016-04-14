@@ -1876,6 +1876,7 @@ class MyTestSuite : public CxxTest::TestSuite
     // hall symbol is -P 6 2
     
     IntensityMap int_map(10,10,10);
+	  int_map.grid.reciprocal_flag=false;
     
     int x=3,y=2,z=1;
     int_map.at(5+x,5+y,5+z)=24; // the group class
@@ -1916,8 +1917,8 @@ class MyTestSuite : public CxxTest::TestSuite
     int_map.at(5+-x+y,5+-x,5+-z)=0; 
     TS_ASSERT_EQUALS(int_map.at(5+y,5+-x+y,5+-z),1); //y,-x+y,-z
     int_map.at(5+y,5+-x+y,5+-z)=0; 
-    TS_ASSERT_EQUALS(int_map.at(5+x,5+y,5+-z),1); //x,y,-z
-    int_map.at(5+x,5+y,5+-z)=0; 
+    TS_ASSERT_EQUALS(int_map.at(5+x,5+y,5+-z),1); //x,y,-z  //Это как высоченные стены таинственных письмен
+    int_map.at(5+x,5+y,5+-z)=0; //В комнате стало жарко, как будто одного лаптома достаточно чтобы нагреть всю комнату
     TS_ASSERT_EQUALS(int_map.at(5+x-y,5+x,5+-z),1); //x-y,x,-z
     int_map.at(5+x-y,5+x,5+-z)=0; 
     TS_ASSERT_EQUALS(int_map.at(5+-y,5+x-y,5+-z),1); //-y,x-y,-z
@@ -1939,12 +1940,13 @@ class MyTestSuite : public CxxTest::TestSuite
       for(int j=1;j<10;++j)
         for(int i=1;i<10;++i)
           TS_ASSERT_EQUALS(int_map.at(i,j,k),0); //some unexpected symmetry
-    
+
   }
   void test_Laue_symmetry_6m()  {
     // hall symbol is -P 6
     
     IntensityMap int_map(10,10,10);
+	  int_map.grid.reciprocal_flag=false;
 
     for(int k=1;k<10;++k)
       for(int j=1;j<10;++j)
@@ -1993,6 +1995,7 @@ class MyTestSuite : public CxxTest::TestSuite
     // hall symbol is -R 3 2"
     
     IntensityMap int_map(10,10,10);
+	  int_map.grid.reciprocal_flag=false;
     
     int x=3,y=2,z=1;
     int_map.at(5+x,5+y,5+z)=12; // the group class
@@ -2067,18 +2070,21 @@ class MyTestSuite : public CxxTest::TestSuite
     TS_ASSERT_EQUALS(int_map.at(5+z,5+y,5+x),1); //z,y,x
     int_map.at(5+z,5+y,5+x)=0; 
     TS_ASSERT_EQUALS(int_map.at(5+x,5+z,5+y),1); //x,z,y
-    int_map.at(5+x,5+z,5+y)=0; 
+    int_map.at(5+x,5+z,5+y)=0; //Я помню это показалось мне смешной мыслью - если хочешь чтобы все запомнили как тебя зовут, заставь людей вводить твои имя и фамилию чтобы добраться до интернета
     
     for(int k=1;k<10;++k)
       for(int j=1;j<10;++j)
-        for(int i=1;i<10;++i)
+        for(int i=1;i<10;++i) //Блин, эту задачу решить совершенно невозможно
           TS_ASSERT_EQUALS(int_map.at(i,j,k),0); //some unexpected symmetry
-    
+    //Так, надо доделать и уметываться отсюда
+	  //тут слишком много чего отвлекает
+	  //wdtnf цвета конечно крутые
   }
   void test_Laue_symmetry_3barH()  {
     // hall symbol is -P 3
     
     IntensityMap int_map(10,10,10);
+	  int_map.grid.reciprocal_flag=false;
     
     int x=3,y=2,z=1;
     int_map.at(5+x,5+y,5+z)=6; // the group class
