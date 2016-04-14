@@ -2079,6 +2079,7 @@ class MyTestSuite : public CxxTest::TestSuite
     //Так, надо доделать и уметываться отсюда
 	  //тут слишком много чего отвлекает
 	  //wdtnf цвета конечно крутые
+	  // хаха
   }
   void test_Laue_symmetry_3barH()  {
     // hall symbol is -P 3
