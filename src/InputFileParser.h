@@ -85,6 +85,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
 
   
   qi::symbols<char,bool> calculation_methods;
+    qi::symbols<char,ScatteringType> scattering_type;
   
   qi::rule<Iterator,void(),skipper_type> print_command_parser;
   qi::rule<Iterator,string()> string_in_quotes;
@@ -92,6 +93,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   
   qi::rule<Iterator,void(),skipper_type> program_option;
   qi::rule<Iterator,void(),skipper_type> program_option1;
+  qi::rule<Iterator,void(),skipper_type> program_option2;
   qi::rule<Iterator,void(),skipper_type> program_options;
   qi::rule<Iterator,void(),skipper_type> maybe_assignments;
   qi::rule<Iterator,Scatterer*(),skipper_type> molecular_scatterer;

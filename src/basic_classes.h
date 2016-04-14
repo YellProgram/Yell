@@ -41,6 +41,7 @@
 #include <vector>
 #include <string>
 
+#include <cctbx/eltbx/neutron.h> //this two are for AtomicType
 #include <cctbx/eltbx/xray_scattering.h> //this two are for AtomicType
 #include <cctbx/eltbx/xray_scattering/gaussian.h>
 
@@ -619,6 +620,8 @@ ADPMode* rot_mode(ChemicalUnit* unit,vec3<double> axis , vec3<double> point_on_a
 ADPMode combine_modes(vector<ADPMode> modes);
 vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1,ChemicalUnitNode* node2,vector<double> corr);
 
+enum ScatteringType {XRay, Neutron}; //TODO: after changing to C++11 change to enum class
+
 class Scatterer;
 
 class AtomicTypeCollection
@@ -629,13 +632,13 @@ class AtomicTypeCollection
 		static AtomicTypeCollection& get();
 		map<string,Scatterer*> types;
     
-    static void calculate_form_factors_of_all_atoms_on_grid(vec3<int>map_size,Grid grid);
+    static void calculate_form_factors_of_all_atoms_on_grid(vec3<int>map_size, Grid grid);
     
     static void update_current_form_factors(vec3<double> s, double d_star_square);
     
     /** Creates AtomicType and registers it in ~AtomicTypeCollection. if it is already registered returns existing AtType
      */
-    static Scatterer* get(string const & label);
+    static Scatterer* get(string const & label, ScatteringType t);
     static string strip_label(string const & label);
     static void add(string const & label, Scatterer* s);
 	};
@@ -643,7 +646,7 @@ class AtomicTypeCollection
 class Scatterer {
   
 public:
-  virtual complex<double> form_factor_at_c(vec3<double>s,double d_star_sq)=0;
+  virtual complex<double> form_factor_at_c(vec3<double>s, double d_star_sq)=0;
   virtual double form_factor_at(double d_star_sq)=0;
   virtual ~Scatterer() {};
   void update_current_form_factor(vec3<double>s,double d_star_sq) {
@@ -667,7 +670,7 @@ public:
 	complex<double> current_form_factor; ///< here form factor for direct calculation will be cached
 };
 
-//gives access to computation of atomic form factor
+//gives access to computation of X-ray atomic form factor
 class AtomicType : public Scatterer {
 public:
 	AtomicType()
@@ -679,16 +682,37 @@ public:
 	}
   
 	double form_factor_at(double d_star_sq) {
-		return gauss.at_d_star_sq(d_star_sq);
+		return gauss.at_d_star_sq(d_star_sq); //TODO: check funny sequence here. The entry with _c seems to be real which is ok for normal scattering though
 	}
 
-  complex<double> form_factor_at_c(vec3<double>s,double d_star_sq) {
+  complex<double> form_factor_at_c(vec3<double> s, double d_star_sq) {
     return form_factor_at(d_star_sq);
   }
   
 private:
 	cctbx::eltbx::xray_scattering::gaussian gauss;
-	
+};
+
+//gives access to computation of X-ray atomic form factor
+class NeutronScattererAtom : public Scatterer {
+public:
+    NeutronScattererAtom()
+    {}
+
+    NeutronScattererAtom(string const & _label) :
+            scat_table_entry(_label)
+    {}
+
+    double form_factor_at(double) {
+        return 0; //TODO: check why is this one needed at all
+    }
+
+    complex<double> form_factor_at_c(vec3<double>s,double d_star_sq) {
+        return scat_table_entry.bound_coh_scatt_length();
+    }
+
+private:
+    cctbx::eltbx::neutron::neutron_news_1992_table scat_table_entry;
 };
 
 class MolecularScatterer : public Scatterer {
@@ -754,10 +778,11 @@ public:
   Atom(string const & _label,double _multiplier, double _occupancy, 
        double r1, double r2, double r3,
        double Uiso,
-       sym_mat3<double> reciprocal_metric_tensor) :
+       sym_mat3<double> reciprocal_metric_tensor,
+       ScatteringType scattering_type = XRay) :
   multiplier(_multiplier), occupancy(_occupancy),label(_label),r(r1,r2,r3), U(Uiso*reciprocal_metric_tensor)
   {
-    atomic_type=AtomicTypeCollection::get(_label);
+    atomic_type=AtomicTypeCollection::get(_label, scattering_type);
   }
 
   /// Function only used for tests.
@@ -766,16 +791,17 @@ public:
 		 double U11, double U22, double U33, double U12, double U13, double U23) : //ADP
 	occupancy(_occupancy), r(r1,r2,r3), U(U11,U22,U33,U12,U13,U23),label(_label), multiplier(1)
 	{  
-		atomic_type=AtomicTypeCollection::get(_label);
+		atomic_type=AtomicTypeCollection::get(_label, XRay);
 	}
   
   /// Atom initialization. Be careful, even though they are called Uij, the input parameters are supposed to be Uij/aiaj.
   Atom(string const & _label, double _multiplier, double _occupancy, 
        double r1, double r2, double r3, //position
-       double U11, double U22, double U33, double U12, double U13, double U23) : //ADP
+       double U11, double U22, double U33, double U12, double U13, double U23,
+       ScatteringType scattering_type = XRay) : //ADP
 	multiplier(_multiplier), occupancy(_occupancy), r(r1,r2,r3), U(U11,U22,U33,U12,U13,U23),label(_label)
   {
-		atomic_type=AtomicTypeCollection::get(_label);
+		atomic_type=AtomicTypeCollection::get(_label, scattering_type);
 	}
 	
 	double get_occupancy(){

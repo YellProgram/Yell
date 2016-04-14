@@ -63,6 +63,7 @@ ${CCTBX_PATH}/cctbx/uctbx/spoil_optimization.cpp
 ${CCTBX_PATH}/cctbx/uctbx/crystal_orientation.cpp
 ${CCTBX_PATH}/cctbx/uctbx/uctbx.cpp
 ${CCTBX_PATH}/omptbx/stubs.cpp
+${CCTBX_PATH}/cctbx/eltbx/neutron.cpp
 ${CCTBX_PATH}/cctbx/eltbx/xray_scattering/wk1995.cpp
 ${CCTBX_PATH}/cctbx/eltbx/basic.cpp
 )

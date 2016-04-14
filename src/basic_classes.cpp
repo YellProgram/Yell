@@ -257,7 +257,7 @@ string AtomicTypeCollection::strip_label(string const & label)
   return result;
 }
 
-Scatterer* AtomicTypeCollection::get(string const & label)
+Scatterer* AtomicTypeCollection::get(string const & label, ScatteringType scattering_type)
 {
   if(AtomicTypeCollection::get().types.find(label) != AtomicTypeCollection::get().types.end())
      return AtomicTypeCollection::get().types[label];
@@ -267,7 +267,15 @@ Scatterer* AtomicTypeCollection::get(string const & label)
        return AtomicTypeCollection::get().types[stripped_label];
      else
      {
-       AtomicType* t= new AtomicType(stripped_label);
+       Scatterer *t;
+         switch(scattering_type) {
+             case XRay:
+                 t = new AtomicType(stripped_label);
+                 break;
+             case Neutron:
+                 t = new NeutronScattererAtom(stripped_label);
+                 break;
+         }
        AtomicTypeCollection::add(stripped_label, t);
        return t;
      }

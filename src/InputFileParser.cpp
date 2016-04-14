@@ -97,9 +97,22 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("Scale") > double_ > -(omit[lit('(')>int_>lit(')')]))[bind(&Model::set_scale,*ref(model),_1)]
     | (lit("PrintCovarianceMatrix")> bool_)                     [bind(&Model::set_print_covariance_matrix,*ref(model),_1)]
     | refinable_parameters                                      [bind(&Model::set_refinable_parameters,*ref(model),ref(formula),_1)]
-    | molecular_scatterers
+    | program_option2
   ;
-  
+
+  /* TODO: fixe possible problem coming from the fact that atoms can be defined in molecular scatterers before the
+   * scattering type is defined in such a case some of the atoms will be default XRay, while other will be Neutrons
+   * */
+  program_option2 =
+      molecular_scatterers
+    | (lit("Scattering") > scattering_type)                     [bind(&Model::set_scattering_type,*ref(model),_1)]
+  ;
+
+  scattering_type.add
+          ("x-ray", XRay)
+          ("neutron", Neutron)
+          ;
+
   refinable_parameters %=
     lit("RefinableVariables")               
     > "["                                  

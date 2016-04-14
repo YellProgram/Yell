@@ -167,7 +167,7 @@ public:
   Atom* construct_atom_isotropic_adp(string name,vector<double> params)  {
     return new Atom(name,params[0],
                     1,//we assign probability to 1 because it will be changed by Variant afterwards anyway
-                    params[1],params[2],params[3],params[4],cell.cell.reciprocal_metrical_matrix());
+                    params[1],params[2],params[3],params[4],cell.cell.reciprocal_metrical_matrix(),scattering_type);
   }
   
   /**
@@ -188,7 +188,8 @@ public:
                     params[6]/c/c,
                     params[7]/a/b,
                     params[8]/a/c,
-                    params[9]/b/c);
+                    params[9]/b/c,
+                    scattering_type);
   }
   
   void set_scale(double inp) {  
@@ -235,7 +236,11 @@ public:
   void set_calculation_method(bool method)  {
     direct_diffuse_scattering_calculation=method;
   }
-  
+
+  void set_scattering_type(ScatteringType t) {
+      scattering_type = t;
+  }
+
   void set_recalculation_flag(bool flag)    {
     recalculate_average=flag;
   }
@@ -278,6 +283,7 @@ public:
     recalculate_average=true;
     fft_grid_size=vec3<int>(16,16,16);
     dump_pairs=false;
+    scattering_type = XRay;
     refinement_parameters = vector<double>(1,1);
     refined_variable_names = vector<string>(1,"Scale");
     periodic_boundaries = vector<bool>(3,true);
@@ -393,6 +399,7 @@ public:
   bool report_pairs_outside_pdf_grid;
   bool print_covariance_matrix;
   bool calculate_jacobians;
+    ScatteringType scattering_type;
   IntensityMap& data() { return data_; }
   IntensityMap data_;
   OptionalIntensityMap weights;
