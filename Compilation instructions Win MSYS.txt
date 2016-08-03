@@ -61,7 +61,7 @@ cd ..
 mkdir yell-build
 cd yell-build
 
-cmake -G "MSYS Makefiles" ../yell
+cmake -G "MSYS Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ../yell
 make
 
 

@@ -59,6 +59,9 @@ extern OutputHandler report;
 const int VectorStart=0;
 const int VectorEnd=1;
 
+/// Skips check for matrix being symmetric. Just takes upper-triangular part.
+sym_mat3<double> trusted_mat_to_sym_mat(mat3<double> inp);
+
 class AtomicPairPool;
 
 class PairModifier {
@@ -822,7 +825,7 @@ public:
 		Atom* result = new Atom( *this );
 		
 		result->r=transformation_matrix*r+translation;
-		result->U=sym_mat3<double>(transformation_matrix*U*transformation_matrix.transpose());
+		result->U=trusted_mat_to_sym_mat(transformation_matrix*U*transformation_matrix.transpose());
 
 		return result;
 	}
@@ -1644,4 +1647,6 @@ public:
   Error(string inp) : message(inp) { }
   string message;
 };
+
+
 #endif

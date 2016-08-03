@@ -153,9 +153,11 @@ vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1
 	return res;
 }
 
+
+
 /// Skips check for matrix being symmetric. Just takes upper-triangular part.
 sym_mat3<double> trusted_mat_to_sym_mat(mat3<double> inp) {
-	return sym_mat3<double>(inp[0],inp[4],inp[8],inp[1],inp[2],inp[5]);
+return sym_mat3<double>(inp[0],inp[4],inp[8],inp[1],inp[2],inp[5]);
 }
 
 
