@@ -41,12 +41,10 @@ jobs:
         mkdir hdf5
         cd hdf5
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.6/src/hdf5-1.8.6.tar
-        tar -zxf hdf5-1.8.6.tar
-        cd hdf5-1.8.6.tar
+        tar -xf hdf5-1.8.6.tar
+        cd hdf5-1.8.6
         ./build-unix.sh
-        tar -zxf hdf5-1.8.6.tar
-        cd ..
-        cp -r hdf5-1.8.6/hdf5-1.8.6/* .
+        cp -r * ../
 
     - name: Setup boost
       run: |
@@ -75,8 +73,9 @@ jobs:
         tar -zxf lapack.tgz
         mkdir lapack-build
         cd lapack-build
-        cmake -G "MSYS Makefiles" ../lapack-3.6.0
+        cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
+
 
     - name: Compile Yell
       run: |
