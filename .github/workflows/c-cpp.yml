@@ -44,10 +44,17 @@ jobs:
         rm -rf hdf5-1.8.6  # This ensures the directory is cleared if it exists
         tar -xf ../hdf5-1.8.6.tar
         cd hdf5-1.8.6
-        ./configure --prefix=$(pwd)/../hdf5-install
-        make
-        make install
-        shell: /usr/bin/bash -e {0}
+        ./configure --prefix=$(pwd)/../hdf5-install 2> hdf5_configure_errors.log
+        make 2> hdf5_make_errors.log
+        make install 2> hdf5_make_install_errors.log
+      shell: /usr/bin/bash -e {0}
+
+    - name: Upload HDF5 Error Logs
+      if: failure()
+      uses: actions/upload-artifact@v2
+      with:
+        name: hdf5-error-logs
+        path: lib/hdf5-1.8.6/*.log
 
     - name: Setup boost
       run: |
