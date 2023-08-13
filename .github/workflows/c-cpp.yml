@@ -39,11 +39,9 @@ jobs:
 
     - name: Setup HDF5
       run: |
-        set -e
-        cd lib
-        mkdir hdf5
-        cd hdf5
-        curl -LOv --user-agent "Mozilla/5.0" https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.6/src/hdf5-1.8.6.tar
+         mkdir -p lib/hdf5
+        cd lib/hdf5
+        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.6/src/hdf5-1.8.6.tar
         tar -xf hdf5-1.8.6.tar
         cd hdf5-1.8.6
         ./configure --prefix=$(pwd)/../hdf5-install
