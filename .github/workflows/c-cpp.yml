@@ -39,13 +39,15 @@ jobs:
 
     - name: Setup HDF5
       run: |
-        mkdir lib
+        mkdir -p lib
         cd lib
+        rm -rf hdf5-1.8.6  # This ensures the directory is cleared if it exists
         tar -xf ../hdf5-1.8.6.tar
         cd hdf5-1.8.6
         ./configure --prefix=$(pwd)/../hdf5-install
         make
         make install
+        shell: /usr/bin/bash -e {0}
 
     - name: Setup boost
       run: |
