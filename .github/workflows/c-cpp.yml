@@ -40,7 +40,7 @@ jobs:
         cd lib
         mkdir hdf5
         cd hdf5
-        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.6/src/hdf5-1.8.6.tar
+        wget --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.6/src/hdf5-1.8.6.tar || { echo "Failed to download package."; exit 1; }
         tar -xf hdf5-1.8.6.tar
         cd hdf5-1.8.6
         ./configure --prefix=$(pwd)/../hdf5-install
