@@ -82,7 +82,7 @@ jobs:
         cd lib
         mkdir lapack
         cd lapack
-        curl -LOv --user-agent "Mozilla/5.0" http://netlib.org/lapack/lapack.tgz
+        curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
         tar -zxf lapack.tgz
         mkdir lapack-build
         cd lapack-build
