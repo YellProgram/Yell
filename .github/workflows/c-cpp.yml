@@ -72,7 +72,7 @@ jobs:
         cd lib
         mkdir cxxtest
         cd cxxtest
-        curl -LOv --user-agent "Mozilla/5.0" http://sourceforge.net/projects/cxxtest/files/cxxtest/4.4/cxxtest-4.4.tar.gz
+        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
         tar -zxf cxxtest-4.4.tar.gz
         mv cxxtest-4.4/* .
 
