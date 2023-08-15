@@ -13,22 +13,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Install gfortran/gcc
+    - name: Add older repository for gfortran
       run: |
-        set -e
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
         sudo apt-get update
-        sudo apt-get install -y gfortran gcc
-    - name: Install gfortran/gcc
-      run: |
-        set -e
-        sudo apt-get update
-        sudo apt-get install -y gfortran gcc
 
-    - name: Check gcc and gfortran version
+    - name: Install specific gfortran and gcc versions
       run: |
-        gcc --version
-        gfortran --version
-
+        sudo apt-get install -y gfortran-7 gcc-7
+        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-7 50
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 50
+        
     - name: Compile levmar
       run: |
         set -e
@@ -93,7 +88,7 @@ jobs:
         mkdir lapack
         cd lapack
         curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
-        tar -zxf lapack-3.6.0.tgz  # Corrected the file name here
+        tar -zxf lapack-3.6.0.tgz
         mkdir lapack-build
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
