@@ -18,6 +18,16 @@ jobs:
         set -e
         sudo apt-get update
         sudo apt-get install -y gfortran gcc
+    - name: Install gfortran/gcc
+      run: |
+        set -e
+        sudo apt-get update
+        sudo apt-get install -y gfortran gcc
+
+    - name: Check gcc and gfortran version
+      run: |
+        gcc --version
+        gfortran --version
 
     - name: Compile levmar
       run: |
