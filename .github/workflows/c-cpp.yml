@@ -13,18 +13,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Manually install gfortran-7
+    - name: Install gfortran-7 from apt
       run: |
-        wget -O gfortran-7.tar.xz https://ftp.gnu.org/gnu/gcc/gcc-7.5.0/gcc-7.5.0.tar.xz
-        tar xf gfortran-7.tar.xz
-        cd gcc-7.5.0
-        ./contrib/download_prerequisites
-        mkdir build && cd build
-        ../configure --disable-multilib --enable-language=fortran
-        make -j$(nproc) && sudo make install
-      shell: /usr/bin/bash -e {0}
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install gfortran-7
 
-        
     - name: Compile levmar
       run: |
         set -e
@@ -37,23 +31,10 @@ jobs:
         cd levmar-build
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         make
-        cd ..
-        mkdir include
-        cp levmar-2.6/*.h include
-        mkdir lib
-        cp levmar-build/*.a lib
 
-    - name: Setup HDF5
+    - name: Setup HDF5 using apt
       run: |
-        mkdir -p lib
-        cd lib
-        rm -rf hdf5-1.8.16  # This ensures the directory is cleared if it exists
-        tar -xf ../hdf5-1.8.16.tar
-        cd hdf5-1.8.16
-        ./configure --prefix=$(pwd)/../hdf5-install 2> hdf5_configure_errors.log
-        make 2> hdf5_make_errors.log
-        make install 2> hdf5_make_install_errors.log
-      shell: /usr/bin/bash -e {0}
+        sudo apt-get install libhdf5-dev
 
     - name: Upload HDF5 Error Logs
       if: failure()
@@ -100,5 +81,5 @@ jobs:
         set -e
         mkdir yell-build
         cd yell-build
-        cmake -G "MSYS Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ../yell
+        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ../yell
         make
