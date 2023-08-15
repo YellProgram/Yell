@@ -83,7 +83,7 @@ jobs:
         mkdir lapack
         cd lapack
         curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
-        tar -zxf lapack.tgz
+        tar -zxf lapack-3.6.0.tgz  # Corrected the file name here
         mkdir lapack-build
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
