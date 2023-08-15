@@ -7,23 +7,22 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Install gfortran-7 from apt
+    - name: Install dependencies from apt
       run: |
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
         sudo apt-get update
-        sudo apt-get install gfortran-7
+        sudo apt-get install gfortran libhdf5-dev
 
     - name: Compile levmar
       run: |
         set -e
         cd lib
-        mkdir levmar
+        mkdir -p levmar
         cd levmar
         curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
         tar -zxf levmar-2.6.tgz
@@ -32,22 +31,11 @@ jobs:
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         make
 
-    - name: Setup HDF5 using apt
-      run: |
-        sudo apt-get install libhdf5-dev
-
-    - name: Upload HDF5 Error Logs
-      if: failure()
-      uses: actions/upload-artifact@v2
-      with:
-        name: hdf5-error-logs
-        path: lib/hdf5-1.8.16/*.log
-
     - name: Setup boost
       run: |
         set -e
         cd lib
-        mkdir boost
+        mkdir -p boost
         cd boost
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
@@ -57,7 +45,7 @@ jobs:
       run: |
         set -e
         cd lib
-        mkdir cxxtest
+        mkdir -p cxxtest
         cd cxxtest
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
         tar -zxf cxxtest-4.4.tar.gz
@@ -67,7 +55,7 @@ jobs:
       run: |
         set -e
         cd lib
-        mkdir lapack
+        mkdir -p lapack
         cd lapack
         curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
         tar -zxf lapack-3.6.0.tgz
@@ -83,3 +71,10 @@ jobs:
         cd yell-build
         cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ../yell
         make
+
+    - name: Upload HDF5 Error Logs
+      if: failure()
+      uses: actions/upload-artifact@v2
+      with:
+        name: hdf5-error-logs
+        path: lib/hdf5-1.8.16/*.log
