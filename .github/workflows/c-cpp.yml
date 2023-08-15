@@ -12,7 +12,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
+  
+    - name: List directories for debugging
+      run: |
+        pwd
+        ls -al
+        
     - name: Install dependencies from apt
       run: |
         sudo apt-get update
