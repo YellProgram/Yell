@@ -62,7 +62,7 @@ jobs:
         cd lib
         mkdir boost
         cd boost
-        curl -LOv --user-agent "Mozilla/5.0" http://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
         mv boost_1_60_0/boost .
 
