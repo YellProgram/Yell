@@ -13,16 +13,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Add older repository for gfortran
+    - name: Manually install gfortran-7
       run: |
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-        sudo apt-get update
-
-    - name: Install specific gfortran and gcc versions
-      run: |
-        sudo apt-get install -y gfortran-7 gcc-7
-        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-7 50
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 50
+        wget -O gfortran-7.tar.xz https://ftp.gnu.org/gnu/gcc/gcc-7.5.0/gcc-7.5.0.tar.xz
+        tar xf gfortran-7.tar.xz
+        cd gcc-7.5.0
+        ./contrib/download_prerequisites
+        mkdir build && cd build
+        ../configure --enable-language=fortran
+        make -j$(nproc) && sudo make install
+      shell: /usr/bin/bash -e {0}
         
     - name: Compile levmar
       run: |
