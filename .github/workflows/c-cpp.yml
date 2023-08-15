@@ -74,12 +74,5 @@ jobs:
         set -e
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ../yell
+        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ..
         make
-
-    - name: Upload HDF5 Error Logs
-      if: failure()
-      uses: actions/upload-artifact@v2
-      with:
-        name: hdf5-error-logs
-        path: lib/hdf5-1.8.16/*.log
