@@ -20,9 +20,10 @@ jobs:
         cd gcc-7.5.0
         ./contrib/download_prerequisites
         mkdir build && cd build
-        ../configure --enable-language=fortran
+        ../configure --disable-multilib --enable-language=fortran
         make -j$(nproc) && sudo make install
       shell: /usr/bin/bash -e {0}
+
         
     - name: Compile levmar
       run: |
