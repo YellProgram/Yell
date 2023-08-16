@@ -18,17 +18,30 @@ jobs:
         pwd
         ls -al
         
-    - name: Install dependencies from apt
+    - name: Setup HDF5
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gfortran libhdf5-dev libhdf5-cpp-103
+        mkdir -p lib
+        cd lib
+        rm -rf hdf5-1.8.6  # This ensures the directory is cleared if it exists
+        tar -xf ../hdf5-1.8.6.tar
+        cd hdf5-1.8.6
+        ./configure --prefix=$(pwd)/../hdf5-install 2> hdf5_configure_errors.log
+        make 2> hdf5_make_errors.log
+        make install 2> hdf5_make_install_errors.log
+      shell: /usr/bin/bash -e {0}
 
-    - name: Compile levmar
+    - name: Setup Libraries
       run: |
         set -e
-        cd lib
-        mkdir -p levmar
-        cd levmar
+        
+        setup_lib() {
+          cd lib
+          mkdir -p $1
+          cd $1
+        }
+
+        # Compile levmar
+        setup_lib levmar
         curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
         tar -zxf levmar-2.6.tgz
         mkdir levmar-build
@@ -36,32 +49,20 @@ jobs:
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         make
 
-    - name: Setup boost
-      run: |
-        set -e
-        cd lib
-        mkdir -p boost
-        cd boost
+        # Setup boost
+        setup_lib boost
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
         mv boost_1_60_0/boost .
 
-    - name: Setup cxxtest
-      run: |
-        set -e
-        cd lib
-        mkdir -p cxxtest
-        cd cxxtest
+        # Setup cxxtest
+        setup_lib cxxtest
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
         tar -zxf cxxtest-4.4.tar.gz
         mv cxxtest-4.4/* .
 
-    - name: Setup LAPACK
-      run: |
-        set -e
-        cd lib
-        mkdir -p lapack
-        cd lapack
+        # Setup LAPACK
+        setup_lib lapack
         curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
         tar -zxf lapack-3.6.0.tgz
         mkdir lapack-build
