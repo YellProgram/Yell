@@ -24,7 +24,7 @@ jobs:
         cd lib
         mkdir -p hdf5
         cd hdf5
-        tar -zxf ../../hdf5-1.8.16.tar
+        tar -xf ../../hdf5-1.8.16.tar
         cd hdf5-1.8.16
         ./configure --prefix=/usr/local --enable-cxx
         make
