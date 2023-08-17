@@ -50,6 +50,8 @@ jobs:
         make
         #AS edit
         cd ../..
+        pwd
+        ls -al
 
         # Setup boost
         setup_lib boost
