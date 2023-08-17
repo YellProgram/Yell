@@ -49,7 +49,7 @@ jobs:
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         make
         #AS edit
-        cd ../..
+        cd ../../..
         pwd
         ls -al
 
@@ -58,6 +58,11 @@ jobs:
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
         mv boost_1_60_0/boost .
+        #AS edit
+        cd ../../..
+        pwd
+        ls -al
+
 
         # Setup cxxtest
         setup_lib cxxtest
