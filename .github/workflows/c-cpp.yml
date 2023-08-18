@@ -12,10 +12,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-      
-    - name: Debug Boost Directory
-      run: |
-        ls -al ${GITHUB_WORKSPACE}
 
     - name: Compile HDF5 manually
       run: |
@@ -67,6 +63,9 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
+    - name: Debug Boost Directory
+      run: |
+        ls -al ${GITHUB_WORKSPACE}/lib
 
     - name: Compile Yell
       run:  |
