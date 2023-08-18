@@ -15,7 +15,6 @@ jobs:
 
     - name: Compile HDF5 manually
       run: |
-        set -e
         mkdir -p lib/hdf5
         cd lib/hdf5
         tar -xf ../../hdf5-1.8.16.tar
@@ -63,9 +62,20 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
+        
+
     - name: List contents of directory
       run: ls -alh ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
 
+    - name: Check if file exists
+      run: |
+        if [[ ! -f ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
+          echo "File does not exist!"
+          exit 1
+        else
+          echo "File exists!"
+        fi
+        
     - name: Compile Yell
       run:  |
         set -e
