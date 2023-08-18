@@ -65,7 +65,7 @@ jobs:
 
     - name: Debug Boost Directory
       run: |
-        ls -al ${GITHUB_WORKSPACE}/lib
+         find ${GITHUB_WORKSPACE}/lib/cctbx_stubs -type d -print0 | xargs -0 ls -al
 
     - name: Compile Yell
       run:  |
