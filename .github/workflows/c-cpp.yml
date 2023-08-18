@@ -68,8 +68,8 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
-   - name: Compile Yell
-     run:  |
+    - name: Compile Yell
+      run:  |
         set -e
         mkdir yell-build
         cd yell-build
