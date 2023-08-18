@@ -82,6 +82,6 @@ jobs:
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake --debug-output -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2 -I${GITHUB_WORKSPACE}/lib" ..
+        cmake --debug-output -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib" ..
         make
 
