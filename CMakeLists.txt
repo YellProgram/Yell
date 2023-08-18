@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.2)
 project (YELL)
-add_library(cctbx cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp)
+add_library(my_cctbx cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp)
 # Define Paths
 set(CMAKE_SOURCE_DIR ${GITHUB_WORKSPACE} CACHE PATH "Source directory root")
 set(LEVMAR_PATH ${CMAKE_SOURCE_DIR}/lib/levmar)
