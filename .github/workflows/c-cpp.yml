@@ -17,7 +17,11 @@ jobs:
       run: |
         pwd
         ls -al
-        
+    
+    - name: Debug Boost Directory
+      run: |
+        ls -al ${GITHUB_WORKSPACE}/lib
+
     - name: Compile HDF5 manually
       run: |
         set -e
@@ -68,9 +72,6 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
-    - name: Debug Boost Directory
-      run: |
-        ls -al ${GITHUB_WORKSPACE}/lib/boost
 
     - name: Compile Yell
       run:  |
