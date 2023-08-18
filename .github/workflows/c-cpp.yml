@@ -19,16 +19,16 @@ jobs:
         ls -al
         
     - name: Compile HDF5 manually
-     run: |
-      set -e
-      cd lib
-      mkdir -p hdf5
-      cd hdf5
-      tar -xf ../../hdf5-1.8.16.tar
-      cd hdf5-1.8.16
-      ./configure --prefix=/usr/local --enable-cxx
-      make
-      sudo make install
+      run: |
+        set -e
+        cd lib
+        mkdir -p hdf5
+        cd hdf5
+        tar -xf ../../hdf5-1.8.16.tar
+        cd hdf5-1.8.16
+        ./configure --prefix=/usr/local --enable-cxx
+        make
+        sudo make install
 
     - name: Setup Libraries
       run: |
@@ -50,26 +50,35 @@ jobs:
           cd $1
         }
 
-        # Compile levmar
-        setup_lib levmar
-        curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
-        tar -zxf levmar-2.6.tgz
-        mkdir levmar-build
-        cd levmar-build
-        cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
-        make
+        # # Compile levmar
+        # setup_lib levmar
+        # curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
+        # tar -zxf levmar-2.6.tgz
+        # mkdir levmar-build
+        # cd levmar-build
+        # cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
+        # make
+        # #AS edit
+        # cd ../../..
+        # pwd
+        # ls -al
 
-        # Setup boost
-        setup_lib boost
-        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
-        unzip boost_1_60_0.zip
-        mv boost_1_60_0/boost .
+        # # Setup boost
+        # setup_lib boost
+        # curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
+        # unzip boost_1_60_0.zip
+        # mv boost_1_60_0/boost .
+        # #AS edit
+        # cd ../../..
+        # pwd
+        # ls -al
 
-        # Setup cxxtest
-        setup_lib cxxtest
-        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
-        tar -zxf cxxtest-4.4.tar.gz
-        mv cxxtest-4.4/* .
+
+        # # Setup cxxtest
+        # setup_lib cxxtest
+        # curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
+        # tar -zxf cxxtest-4.4.tar.gz
+        # mv cxxtest-4.4/* .
 
         # Setup LAPACK
         setup_lib lapack
