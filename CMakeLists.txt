@@ -16,7 +16,7 @@ set(BOOST_INCLUDEDIR lib/boost)
 set(HDF5_INCLUDE_DIRS lib/hdf5/include)
 
 set(HDF5_LIB_DIRS lib/hdf5/lib)
-set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
+set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl) # szip z We can skip them for now
 
 IF(APPLE)
   set(LAPACK_LIBRARIES "-framework accelerate")
