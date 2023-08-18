@@ -19,16 +19,26 @@ jobs:
         ls -al
         
     - name: Compile HDF5 manually
+     run: |
+      set -e
+      cd lib
+      mkdir -p hdf5
+      cd hdf5
+      tar -xf ../../hdf5-1.8.16.tar
+      cd hdf5-1.8.16
+      ./configure --prefix=/usr/local --enable-cxx
+      make
+      sudo make install
+
+    - name: Setup Libraries
       run: |
-        set -e
+      set -e
+      
+      setup_lib() {
         cd lib
-        mkdir -p hdf5
-        cd hdf5
-        tar -xf ../../hdf5-1.8.16.tar
-        cd hdf5-1.8.16
-        ./configure --prefix=/usr/local --enable-cxx
-        make
-        sudo make install
+        mkdir -p $1
+        cd $1
+      }
 
     - name: Setup Libraries
       run: |
