@@ -12,15 +12,10 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-  
-    - name: List directories for debugging
-      run: |
-        pwd
-        ls -al
-    
+      
     - name: Debug Boost Directory
       run: |
-        ls -al ${GITHUB_WORKSPACE}/lib
+        ls -al ${GITHUB_WORKSPACE}
 
     - name: Compile HDF5 manually
       run: |
