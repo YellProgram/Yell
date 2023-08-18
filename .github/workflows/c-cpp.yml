@@ -68,10 +68,10 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
-    - name: Compile Yell
-      run: |
+   - name: Compile Yell
+     run:  |
         set -e
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2" ..
+        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2 -I${GITHUB_WORKSPACE}/lib/boost" ..
         make
