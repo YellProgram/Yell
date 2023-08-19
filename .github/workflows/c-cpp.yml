@@ -15,6 +15,7 @@ jobs:
 
     - name: Compile HDF5 manually
       run: |
+        set -e
         mkdir -p lib/hdf5
         cd lib/hdf5
         tar -xf ../../hdf5-1.8.16.tar
@@ -40,21 +41,18 @@ jobs:
         cd levmar-build
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         make
-        #make install
 
         # Setup boost
         setup_lib boost
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
         mv boost_1_60_0/boost .
-        make install
 
         # Setup cxxtest
         setup_lib cxxtest
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/cxxtest/cxxtest/4.4/cxxtest-4.4.tar.gz
         tar -zxf cxxtest-4.4.tar.gz
         mv cxxtest-4.4/* .
-        make install
 
         # Setup LAPACK
         setup_lib lapack
@@ -64,28 +62,25 @@ jobs:
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
-        make install
 
-        
-
-    - name: List contents of directory
-      run: ls -alh ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
-
-    - name: Check if file exists
+      - name: Check if file exists
       run: |
-        if [[ ! -f ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
+        if [[ ! -f /lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
           echo "File does not exist!"
           exit 1
         else
           echo "File exists!"
         fi
-        
-    - name: Compile Yell
+    - name: Debug Boost Directory
       run: |
+         find ${GITHUB_WORKSPACE}/lib/cctbx_stubs -type d -print0 | xargs -0 ls -al
+
+    - name: Compile Yell
+      run:  |
         set -e
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake --debug-output -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib" -DCMAKE_INSTALL_PREFIX:PATH=${GITHUB_WORKSPACE}/install ..
+        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2 -I${GITHUB_WORKSPACE}/lib/boost" ..
         make
-        make install
+
