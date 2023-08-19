@@ -81,11 +81,11 @@ jobs:
         fi
         
     - name: Compile Yell
-      run:  |
+      run: |
         set -e
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake --debug-output -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib" ..
+        cmake --debug-output -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib" -DCMAKE_INSTALL_PREFIX:PATH=${GITHUB_WORKSPACE}/install ..
         make
         make install
