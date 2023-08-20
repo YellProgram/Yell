@@ -63,10 +63,21 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
-     - name: List Boost headers
+    - name: Setup and Compile Boost
+      run: |
+        set -e
+        mkdir -p lib/boost
+        cd lib/boost
+        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
+        unzip boost_1_60_0.zip
+        cd boost_1_60_0
+        ./bootstrap.sh
+        ./b2 --prefix=${GITHUB_WORKSPACE}/lib/boost install
+
+    - name: List Boost headers
       run: |
         ls -la ${GITHUB_WORKSPACE}/lib/
-        
+
     - name: Check if file exists
       run: |
         ls -la /lib/cctbx_stubs/cctbx/sgtbx/
