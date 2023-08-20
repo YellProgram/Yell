@@ -63,7 +63,7 @@ jobs:
         cmake -G "Unix Makefiles" ../lapack-3.6.0
         make
 
-      - name: Check if file exists
+    - name: Check if file exists
       run: |
         if [[ ! -f /lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
           echo "File does not exist!"
@@ -71,16 +71,16 @@ jobs:
         else
           echo "File exists!"
         fi
+
     - name: Debug Boost Directory
       run: |
          find ${GITHUB_WORKSPACE}/lib/cctbx_stubs -type d -print0 | xargs -0 ls -al
 
     - name: Compile Yell
-      run:  |
+      run: |
         set -e
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
         cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2 -I${GITHUB_WORKSPACE}/lib/boost" ..
         make
-
