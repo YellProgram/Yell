@@ -73,9 +73,9 @@ jobs:
     #       echo "File exists!"
     #     fi
 
-    - name: Debug Boost Directory
+    - name: List Boost headers
       run: |
-         find ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx -type d -print0 | xargs -0 ls -al
+        ls -la ${GITHUB_WORKSPACE}/lib/boost
 
     - name: Compile Yell
       run: |
