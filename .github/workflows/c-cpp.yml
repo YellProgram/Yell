@@ -75,7 +75,7 @@ jobs:
 
     - name: List Boost headers
       run: |
-        ls -la ${GITHUB_WORKSPACE}/lib/boost
+        ls -la ${GITHUB_WORKSPACE}/lib/
 
     - name: Compile Yell
       run: |
