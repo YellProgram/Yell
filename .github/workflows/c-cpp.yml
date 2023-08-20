@@ -65,6 +65,7 @@ jobs:
 
     - name: Check if file exists
       run: |
+        ls -la /lib/cctbx_stubs/cctbx/sgtbx/
         if [[ ! -f /lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
           echo "File does not exist!"
           exit 1
