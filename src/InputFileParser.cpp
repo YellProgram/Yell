@@ -111,6 +111,7 @@ InputParser::InputParser() : InputParser::base_type(start)
   scattering_type.add
           ("x-ray", XRay)
           ("neutron", Neutron)
+          ("electron", Electrons)
           ;
 
   refinable_parameters %=

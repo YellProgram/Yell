@@ -43,7 +43,7 @@ struct correlation_tuple {
   double correlation;
 };
 
-bool larger_correlation (correlation_tuple i,correlation_tuple j) { return i.correlation>j.correlation; }
+bool larger_correlation (correlation_tuple i,correlation_tuple j) { return abs(i.correlation)>abs(j.correlation); }
 
 void sort_correlations(vector<correlation_tuple>& inp) {
   std::sort(inp.begin(),inp.end(),larger_correlation);
@@ -82,7 +82,7 @@ void print_correlations(double* covar, vector<double> refined_params,vector<stri
         t=0;
       correlation_tuple corr={i,j,t};
       correlations.push_back(corr);
-      if(corr.correlation>0.9)
+      if(abs(corr.correlation)>0.9)
         correlations_larger_then_09.push_back(corr);
     }
   
@@ -100,7 +100,7 @@ void print_correlations(double* covar, vector<double> refined_params,vector<stri
   }
   else if (correlations.size()>0)
   {
-    REPORT(MAIN) << "All collreations:\n";
+    REPORT(MAIN) << "All correlations:\n";
     sort_correlations(correlations);
     print_correlation_tuple(correlations,refined_variable_names);
   }
@@ -222,7 +222,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.2.1\n";
+    REPORT(MAIN) << "Yell 1.2.3\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to arkadiy.simonov@chem.ox.ac.uk or directly to our issue tracker https://github.com/YellProgram/Yell/issues\n\n";
 

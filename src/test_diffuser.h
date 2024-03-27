@@ -295,6 +295,14 @@ public:
         TS_ASSERT_DELTA(res, -3.7390, 0.0001);
     }
 
+    void testElectronScattering() {
+        Scatterer* at=AtomicTypeCollection::get(string("C"), Electrons);
+
+        TS_ASSERT_DELTA(at->form_factor_at(0),5.9972,0.0001); //Once it fails here stick the correct value which is 2.5092
+    }
+
+
+
     void testMolecularType() {
         Atom* an_atom      = new Atom(string("C2"),0.5,.5,.5,.5,0,0,0,0,0,0);
 

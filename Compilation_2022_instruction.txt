@@ -1,0 +1,41 @@
+Compilation on Mac 13 Dec 2022:
+
+boost library is at https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip/download, downloaded by hand
+same for
+http://sourceforge.net/projects/cxxtest/files/cxxtest/4.4/
+http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
+
+
+Follow the following by hand
+mkdir levmar
+cd levmar
+wget http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz .
+tar -zxf levmar-2.6.tgz
+rm levmar-2.6.tgz
+mkdir levmar-build
+cd levmar-build
+cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DCMAKE_CONFIGURATION_TYPES:STRING=“Release” ../levmar-2.6
+
+# not doing -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" rather keep lapack;blas
+
+make
+cd ..
+mkdir include
+cp levmar-2.6/*.h include
+mkdir lib
+cp levmar-build/*.a lib
+
+The hdf5 library is this one:
+https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.8/hdf5-1.8.16/src/CMake-hdf5-1.8.16.zip
+Configuring with CMAKE (lots of red warnings of incompatibility with CMAKE)
+Turning on Build static libs
+
+Run into a compilation error, trying the new CMAKE version instead
+turn on "build static executables"
+
+Get stuck with -static keyword very early with "ld: library not found for -lcrt0.o"
+
+
+
+
+

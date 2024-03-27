@@ -41,8 +41,9 @@
 #include <vector>
 #include <string>
 
-#include <cctbx/eltbx/neutron.h> //this two are for AtomicType
-#include <cctbx/eltbx/xray_scattering.h> //this two are for AtomicType
+#include <cctbx/eltbx/neutron.h> //these three are for AtomicType
+#include <cctbx/eltbx/electron_scattering.h>
+#include <cctbx/eltbx/xray_scattering.h>
 #include <cctbx/eltbx/xray_scattering/gaussian.h>
 
 #include <cctbx/uctbx.h> //These guys are for cell and 
@@ -356,7 +357,7 @@ class LaueSymmetry
     {
       double t;
       vec3<int> size = map.size();
-      if(generator_symbol=="-x,-y,-z")
+      if(generator_symbol=="-x,-y,-z") // -1
         for(int i=size[0]/2; i<size[0]; ++i)
           for(int j=1; j<size[1]; ++j)
             for(int k=1; k<size[2]; ++k)
@@ -365,7 +366,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(size[0]-i,size[1]-j,size[2]-k) = t;
             }
-      else if(generator_symbol=="-x,y,z")
+      else if(generator_symbol=="-x,y,z") // mx
         for(int i=size[0]/2; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=0; k<size[2]; ++k)
@@ -374,7 +375,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(size[0]-i,j,k) = t;
             }
-      else if(generator_symbol=="x,-y,z")
+      else if(generator_symbol=="x,-y,z") //my
         for(int i=0; i<size[0]; ++i)
           for(int j=size[1]/2; j<size[1]; ++j)
             for(int k=0; k<size[2]; ++k)
@@ -383,7 +384,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(i,size[1]-j,k) = t;
             }
-      else if(generator_symbol=="x,y,-z")
+      else if(generator_symbol=="x,y,-z") //mz
         for(int i=0; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=size[2]/2; k<size[2]; ++k)
@@ -392,7 +393,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(i,j,size[2]-k) = t;
             }
-      else if(generator_symbol=="z,x,y")      
+      else if(generator_symbol=="z,x,y")      //3 along 111
         for(int i=0; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=0; k<size[2]; ++k)
@@ -402,7 +403,7 @@ class LaueSymmetry
               map.at(k,i,j) = t;
               map.at(j,k,i) = t;
             }
-      else if(generator_symbol=="y,x,z")
+      else if(generator_symbol=="y,x,z") //mx-y
         for(int i=0; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=0; k<size[2]; ++k)
@@ -411,7 +412,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(j,i,k) = t;
             }
-      else if(generator_symbol=="-y,x-y,z") // three-fold rotation axis
+      else if(generator_symbol=="-y,x-y,z") // three-fold rotation axis in hexagonal settings
         if(map.grid.reciprocal_flag) 
         {
           //we need to apply symmetry element reciprocal to -y,x-y,z namely y,-x-y,z and -x-y,x,z
@@ -436,7 +437,7 @@ class LaueSymmetry
                 map.at(size[0]/2+j-i,size[0]-i,k) = t;
               }
         }
-      else if(generator_symbol=="y,x,-z")
+      else if(generator_symbol=="y,x,-z") //2-fold xy direction
         for(int i=0; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=size[2]/2; k<size[2]; ++k)
@@ -445,7 +446,7 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(j,i,size[2]-k) = t;
             }
-      else if(generator_symbol=="y,-x,z") // Four fold rotation applied four times. 
+      else if(generator_symbol=="y,-x,z") // Four-fold rotation applied four times.
         for(int j=size[0]/2; j<size[1]; ++j)
           for(int i=size[1]/2; i<size[0]; ++i)
              for(int k=0; k<size[2]; ++k)
@@ -455,6 +456,18 @@ class LaueSymmetry
               map.at(j,size[1]-i,k) = t;
               map.at(size[0]-j,i,k) = t;
               map.at(size[0]-i,size[1]-j,k) = t;
+            }
+
+        // And then a special case for j=0 since there we need to make sure that -y coordinate is again at 0 pixel, or is it????
+        int j=0;
+        for(int i=1; i<size[0]; ++i)
+            for(int k=0; k<size[2]; ++k)
+            {
+                t=(map.at(i,0,k) + map.at(0,size[1]-i,k) + map.at(0,i,k) + map.at(size[0]-i,0,k))/4;
+                map.at(i,0,k) = t;
+                map.at(0,size[1]-i,k) = t;
+                map.at(0,i,k) = t;
+                map.at(size[0]-i,0,k) = t;
             }
     }
     
@@ -623,7 +636,7 @@ ADPMode* rot_mode(ChemicalUnit* unit,vec3<double> axis , vec3<double> point_on_a
 ADPMode combine_modes(vector<ADPMode> modes);
 vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1,ChemicalUnitNode* node2,vector<double> corr);
 
-enum ScatteringType {XRay, Neutron}; //TODO: after changing to C++11 change to enum class
+enum ScatteringType {XRay, Neutron, Electrons}; //TODO: after changing to C++11 change to enum class
 
 class Scatterer;
 
@@ -696,7 +709,9 @@ private:
 	cctbx::eltbx::xray_scattering::gaussian gauss;
 };
 
-//gives access to computation of X-ray atomic form factor
+// TODO: add tests
+// TODO: remove copy-pastes in this code
+//gives access to computation of Neutron atomic form factor
 class NeutronScattererAtom : public Scatterer {
 public:
     NeutronScattererAtom()
@@ -717,6 +732,29 @@ public:
 private:
     cctbx::eltbx::neutron::neutron_news_1992_table scat_table_entry;
 };
+
+class ElectronScattererAtom : public Scatterer {
+public:
+    ElectronScattererAtom()
+    {}
+
+    ElectronScattererAtom(string const & _label) {
+        cctbx::eltbx::electron_scattering::peng1996 wk(_label);
+        gauss=wk.fetch();
+    }
+
+    double form_factor_at(double d_star_sq) {
+        return gauss.at_d_star_sq(d_star_sq); //TODO: check funny sequence here. The entry with _c seems to be real which is ok for normal scattering though
+    }
+
+    complex<double> form_factor_at_c(vec3<double> s, double d_star_sq) {
+        return form_factor_at(d_star_sq);
+    }
+
+private:
+    cctbx::eltbx::xray_scattering::gaussian gauss;
+};
+
 
 class MolecularScatterer : public Scatterer {
 public:

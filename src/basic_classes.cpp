@@ -277,6 +277,9 @@ Scatterer* AtomicTypeCollection::get(string const & label, ScatteringType scatte
              case Neutron:
                  t = new NeutronScattererAtom(stripped_label);
                  break;
+             case Electrons:
+                 t = new ElectronScattererAtom(stripped_label);
+                 break;
          }
        AtomicTypeCollection::add(stripped_label, t);
        return t;
