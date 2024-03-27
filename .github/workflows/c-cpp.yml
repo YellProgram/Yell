@@ -13,17 +13,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Compile HDF5 manually
-      run: |
-        set -e
-        mkdir -p lib/hdf5
-        cd lib/hdf5
-        tar -xf ../../hdf5-1.8.16.tar
-        cd hdf5-1.8.16
-        ./configure --prefix=/usr/local --enable-cxx
-        make
-        sudo make install
-
     - name: Setup Libraries
       run: |
         set -e
@@ -96,5 +85,5 @@ jobs:
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-O2 -I${GITHUB_WORKSPACE}/lib/boost" ..
+        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" ..
         make
