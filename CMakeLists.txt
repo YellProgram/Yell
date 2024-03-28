@@ -52,6 +52,11 @@ include_directories( ${CCTBX_PATH}
 )
 link_directories(${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib) #${HDF5_LIB_DIRS}
 
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+    message(STATUS "dir='${dir}'")
+endforeach()
+
 # Manualy get what we need from cctbx
 add_library(cctbx 
 ${CCTBX_PATH}/cctbx/sgtbx/change_of_basis_op.cpp
