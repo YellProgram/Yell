@@ -69,9 +69,7 @@ jobs:
 
     - name: Check if file exists
       run: |
-        echo ${{ github.workspace }}
-        echo $GITHUB_WORKSPACE
-        ls -la /lib/cctbx_stubs/cctbx/sgtbx/
+        ls -la ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
         if [[ ! -f /lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
           echo "File does not exist!"
           exit 1
