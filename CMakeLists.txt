@@ -37,13 +37,6 @@ IF(MINGW)
 ENDIF(MINGW)
 
 
-#find_package(HDF5)
-#find_package(Boost)
-#find_package(LAPACK)
-#find_package(BLAS)
-#find_package(ZLIB)
-
-
 #FindBoost FindCxxTest FindBLAS FindHDF5 FindLAPACK FindZLIB FindHDF5
 
 include_directories( ${CCTBX_PATH}
