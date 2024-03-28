@@ -7,19 +7,11 @@ include(cmake/hdf5.cmake)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
 set(CXXTEST_PATH ../libs/cxxtest-4.4 CACHE PATH "Path to cxxtest")
-set(LEVMAR_PATH ../libs/levmar CACHE PATH "Path to levmar library")
-
-#set(SZIP_PATH lib/szip) /Users/arkadiy/ag/yell/libs/cctbx
-#set(ZLIB_PATH lib/zlib)
+set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
 
 set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
 
-#Unfortunately find_package(HDF5) by default finds dynamic libraries
-#set(HDF5_INCLUDE_DIRS lib/hdf5/include)
-#set(HDF5_INCLUDE_DIRS ../libs/CMake-hdf5-1.10.5/hdf5-1.10.5/c++/src)
-#set(HDF5_BUILD_DIR ../libs/CMake-hdf5-1.10.5-build)
 
-#set(HDF5_LIB_DIRS lib/hdf5/lib)
 set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 
 IF(APPLE)
@@ -38,8 +30,6 @@ IF(MINGW)
 ENDIF(MINGW)
 
 
-#FindBoost FindCxxTest FindBLAS FindHDF5 FindLAPACK FindZLIB FindHDF5
-
 include_directories( ${CCTBX_PATH}
         ${LEVMAR_PATH}/include
         ${BOOST_INCLUDEDIR}
@@ -47,6 +37,7 @@ include_directories( ${CCTBX_PATH}
 )
 link_directories(${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib)
 
+#DUMP all include libs
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 foreach(dir ${dirs})
     message(STATUS "dir='${dir}'")
