@@ -28,8 +28,9 @@ jobs:
         tar -zxf levmar-2.6.tgz
         mkdir levmar-build
         cd levmar-build
+        cmake --help
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
-        make
+        cmake --build .
 
         # Setup boost
         setup_lib boost
