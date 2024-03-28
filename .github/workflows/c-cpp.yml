@@ -77,7 +77,7 @@ jobs:
 
     - name: Compile Yell
       run: |
-#        set -e
+        #set -e
         rm -rf yell-build
         mkdir yell-build
         cd yell-build
