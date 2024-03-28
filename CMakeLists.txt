@@ -31,7 +31,7 @@ ENDIF(MINGW)
 
 
 include_directories( ${CCTBX_PATH}
-        ${LEVMAR_PATH}/levmar2.6
+        ${LEVMAR_PATH}/levmar-2.6
         ${BOOST_INCLUDEDIR}
         ${CXXTEST_PATH}
 )
