@@ -101,5 +101,5 @@ jobs:
         #rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles"  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" ..
+        cmake -G "Unix Makefiles"  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" -DCMAKE_CONFIGURATION_TYPES:STRING="Release"  ..
         make
