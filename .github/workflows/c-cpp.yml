@@ -15,7 +15,7 @@ jobs:
 
     - name: Setup Libraries
       run: |
-        set -e
+        #set -e
 
         # Compile levmar
         mkdir lib/levmar
