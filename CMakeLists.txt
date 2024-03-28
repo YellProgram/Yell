@@ -3,7 +3,7 @@ project (YELL)
 
 include(cmake/hdf5.cmake)
 
-#set (CMAKE_CXX_STANDARD 11)
+set (CMAKE_CXX_STANDARD 98)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
 set(CXXTEST_PATH ../libs/cxxtest-4.4 CACHE PATH "Path to cxxtest")
