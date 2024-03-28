@@ -31,11 +31,11 @@ ENDIF(MINGW)
 
 
 include_directories( ${CCTBX_PATH}
-        ${LEVMAR_PATH}/include
+        ${LEVMAR_PATH}/levmar2.6
         ${BOOST_INCLUDEDIR}
         ${CXXTEST_PATH}
 )
-link_directories(${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib)
+link_directories(${LEVMAR_PATH}/lib ${LEVMAR_PATH}/levmar-build ${LAPACK_PATH}/lib)
 
 #DUMP all include libs
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
