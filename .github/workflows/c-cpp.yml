@@ -67,6 +67,7 @@ jobs:
       run: |
         ls -la ${GITHUB_WORKSPACE}/lib/
         ls -la ${GITHUB_WORKSPACE}/lib/levmar
+        ls -la ${GITHUB_WORKSPACE}/lib/levmar/levmar-build
         
 #    - name: Check if file exists
 #      run: |
