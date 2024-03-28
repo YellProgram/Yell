@@ -18,10 +18,10 @@ jobs:
       with:
         version: "12.0"
 
-    - name: List Boost headers
+    - name: List LLVM folder
       run: |
-       ls -la ${GITHUB_WORKSPACE}
        ls -la ${GITHUB_WORKSPACE}/llvm
+       ls -la ${GITHUB_WORKSPACE}/llvm/include
        #/home/runner/work/Yell/Yell/llvm
 
     - name: "Check selected compiler"
@@ -96,5 +96,5 @@ jobs:
         #rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles"  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" ..
+        cmake -G "Unix Makefiles"  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost -I${GITHUB_WORKSPACE}/llvm/include" ..
         make
