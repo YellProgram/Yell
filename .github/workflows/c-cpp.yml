@@ -51,7 +51,7 @@ jobs:
         mkdir lapack-build
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
-        make
+        cmake --build .
 
     - name: Setup and Compile Boost
       run: |
