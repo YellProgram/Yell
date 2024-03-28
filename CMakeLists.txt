@@ -12,7 +12,7 @@ set(LEVMAR_PATH ../libs/levmar CACHE PATH "Path to levmar library")
 #set(SZIP_PATH lib/szip) /Users/arkadiy/ag/yell/libs/cctbx
 #set(ZLIB_PATH lib/zlib)
 
-set(BOOST_INCLUDEDIR CACHE PATH lib/boost/boost_1_60_0)
+set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
 
 #Unfortunately find_package(HDF5) by default finds dynamic libraries
 #set(HDF5_INCLUDE_DIRS lib/hdf5/include)
@@ -42,15 +42,10 @@ ENDIF(MINGW)
 
 include_directories( ${CCTBX_PATH}
         ${LEVMAR_PATH}/include
-        #${HDF5_INCLUDE_DIRS}
-        #${HDF5_INCLUDE_DIRS}/../../src
-        #${HDF5_BUILD_DIR}
         ${BOOST_INCLUDEDIR}
         ${CXXTEST_PATH}
-        #${HDF5_PATH}/c++/src
-        #${HDF5_PATH}/src
 )
-link_directories(${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib) #${HDF5_LIB_DIRS}
+link_directories(${LEVMAR_PATH}/lib ${LAPACK_PATH}/lib)
 
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 foreach(dir ${dirs})
