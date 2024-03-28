@@ -33,7 +33,7 @@ jobs:
         tar -zxf levmar-2.6.tgz
         mkdir levmar-build
         cd levmar-build
-        cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
+        cmake -G "Unix Makefiles" -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         cmake --build .
         
     - name: Setup CXXtest
