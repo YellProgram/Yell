@@ -67,6 +67,7 @@ jobs:
       run: |
         ls -la ${GITHUB_WORKSPACE}/lib/
         ls -la ${GITHUB_WORKSPACE}/lib/boost
+        ls -la ${GITHUB_WORKSPACE}/lib/boost/boost_1_60_0
 
 #    - name: Check if file exists
 #      run: |
