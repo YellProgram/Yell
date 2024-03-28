@@ -7,13 +7,22 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Setup Libraries
+    - name: Install LLVM and Clang
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "12.0"
+
+    - name: "Check selected compiler"
+      run: |
+        cmake --help
+
+    - name: Setup levmar
       run: |
         #set -e
 
@@ -24,10 +33,12 @@ jobs:
         tar -zxf levmar-2.6.tgz
         mkdir levmar-build
         cd levmar-build
-        cmake --help
-        cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
+        cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CONFIGURATION_TYPES:STRING="Release" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 ../levmar-2.6
+        #-DCMAKE_LINKER=lld
         cmake --build .
-
+        
+    - name: Setup CXXtest
+      run: |
         # Setup cxxtest
         mkdir lib/cxxtest
         cd lib/cxxtest
@@ -35,6 +46,8 @@ jobs:
         tar -zxf cxxtest-4.4.tar.gz
         mv cxxtest-4.4/* .
 
+    - name: Setup LAPACK
+      run: |
         # Setup LAPACK
         mkdir lib/lapack
         cd lib/lapack
@@ -43,22 +56,21 @@ jobs:
         mkdir lapack-build
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
-        cmake --build .
+        #cmake --build .
 
     - name: Setup and Compile Boost
       run: |
-        set -e
         mkdir -p lib/boost
         cd lib/boost
         curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
         unzip boost_1_60_0.zip
         cd boost_1_60_0
 
-    - name: List Boost headers
-      run: |
-        ls -la ${GITHUB_WORKSPACE}/lib/
-        ls -la ${GITHUB_WORKSPACE}/lib/levmar
-        ls -la ${GITHUB_WORKSPACE}/lib/levmar/levmar-build
+   # - name: List Boost headers
+   #   run: |
+   #     ls -la ${GITHUB_WORKSPACE}/lib/
+   #     ls -la ${GITHUB_WORKSPACE}/lib/levmar
+   #     ls -la ${GITHUB_WORKSPACE}/lib/levmar/levmar-build
         
 #    - name: Check if file exists
 #      run: |
@@ -74,9 +86,9 @@ jobs:
 
     - name: Compile Yell
       run: |
-        set -e
-        rm -rf yell-build
+        #set -e
+        #rm -rf yell-build
         mkdir yell-build
         cd yell-build
-        cmake -G "Unix Makefiles" -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" ..
+        cmake -G "Unix Makefiles"  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" ..
         make
