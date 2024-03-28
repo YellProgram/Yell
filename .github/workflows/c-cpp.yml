@@ -18,11 +18,11 @@ jobs:
       with:
         version: "12.0"
 
-   - name: List Boost headers
-     run: |
+    - name: List Boost headers
+      run: |
        ls -la ${GITHUB_WORKSPACE}
        ls -la ${GITHUB_WORKSPACE}/llvm
-#/home/runner/work/Yell/Yell/llvm
+       #/home/runner/work/Yell/Yell/llvm
 
     - name: "Check selected compiler"
       run: |
