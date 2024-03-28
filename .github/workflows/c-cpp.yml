@@ -13,7 +13,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Setup Libraries
+    - name: Setup levmar
       run: |
         #set -e
 
@@ -27,7 +27,9 @@ jobs:
         cmake --help
         cmake -G "Unix Makefiles" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 -DLAPACKBLAS_LIB_NAMES:STRING=" -framework accelerate" -DCMAKE_CONFIGURATION_TYPES:STRING="Release" ../levmar-2.6
         cmake --build .
-
+        
+    - name: CXXtest
+      run: |
         # Setup cxxtest
         mkdir lib/cxxtest
         cd lib/cxxtest
@@ -35,6 +37,8 @@ jobs:
         tar -zxf cxxtest-4.4.tar.gz
         mv cxxtest-4.4/* .
 
+    - name: setup LAPACK
+      run: |
         # Setup LAPACK
         mkdir lib/lapack
         cd lib/lapack
