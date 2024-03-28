@@ -3,15 +3,16 @@ project (YELL)
 
 include(cmake/hdf5.cmake)
 
-set(LEVMAR_PATH ../libs/levmar CACHE PATH "Path to levmar library")
+
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
 set(CXXTEST_PATH ../libs/cxxtest-4.4 CACHE PATH "Path to cxxtest")
+set(LEVMAR_PATH ../libs/levmar CACHE PATH "Path to levmar library")
 
 #set(SZIP_PATH lib/szip) /Users/arkadiy/ag/yell/libs/cctbx
 #set(ZLIB_PATH lib/zlib)
 
-set(BOOST_INCLUDEDIR ../libs/boost_1_60_0/)
+set(BOOST_INCLUDEDIR CACHE PATH lib/boost/boost_1_60_0/)
 
 #Unfortunately find_package(HDF5) by default finds dynamic libraries
 #set(HDF5_INCLUDE_DIRS lib/hdf5/include)

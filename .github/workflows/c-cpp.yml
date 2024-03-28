@@ -66,6 +66,7 @@ jobs:
     - name: List Boost headers
       run: |
         ls -la ${GITHUB_WORKSPACE}/lib/
+        ls -la ${GITHUB_WORKSPACE}/lib/boost
 
 #    - name: Check if file exists
 #      run: |
