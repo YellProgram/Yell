@@ -67,15 +67,15 @@ jobs:
       run: |
         ls -la ${GITHUB_WORKSPACE}/lib/
 
-    - name: Check if file exists
-      run: |
-        ls -la ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
-        if [[ ! -f /lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
-          echo "File does not exist!"
-          exit 1
-        else
-          echo "File exists!"
-        fi
+#    - name: Check if file exists
+#      run: |
+#        ls -la ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
+#        if [[ ! -f ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
+#          echo "File does not exist!"
+#          exit 1
+#        else
+#          echo "File exists!"
+#         fi
 
    
 
