@@ -36,7 +36,8 @@ jobs:
         mv cxxtest-4.4/* .
 
         # Setup LAPACK
-        setup_lib lapack
+        mkdir lib/lapack
+        cd lib/lapack
         curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
         tar -zxf lapack-3.6.0.tgz
         mkdir lapack-build
