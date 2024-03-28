@@ -61,7 +61,7 @@ jobs:
         unzip boost_1_60_0.zip
         cd boost_1_60_0
         #./bootstrap.sh
-        ./b2 --prefix=${GITHUB_WORKSPACE}/lib/boost install
+        #./b2 --prefix=${GITHUB_WORKSPACE}/lib/boost install
 
     - name: List Boost headers
       run: |
