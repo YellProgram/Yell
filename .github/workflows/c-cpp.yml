@@ -8,7 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    env:
+      CC: clang
+      CXX: clang++
+      
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -22,6 +25,8 @@ jobs:
       run: |
        ls -la ${GITHUB_WORKSPACE}/llvm
        ls -la ${GITHUB_WORKSPACE}/llvm/include
+       ls -la ${GITHUB_WORKSPACE}/llvm/include/c++
+       ls -la ${GITHUB_WORKSPACE}/llvm/include/c++/13
        #/home/runner/work/Yell/Yell/llvm
 
     - name: "Check selected compiler"
