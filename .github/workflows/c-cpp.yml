@@ -64,8 +64,8 @@ jobs:
     - name: List LAPACK
       run: |
        ls -la ${GITHUB_WORKSPACE}/lib
-       ls -la ${GITHUB_WORKSPACE}/lib/lapack
-       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lib
+       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
+       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
 
     - name: Setup and Compile Boost
       run: |
