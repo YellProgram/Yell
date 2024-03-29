@@ -21,14 +21,6 @@ jobs:
       with:
         version: "12.0"
 
-    - name: List LLVM folder
-      run: |
-       ls -la ${GITHUB_WORKSPACE}/llvm
-       ls -la ${GITHUB_WORKSPACE}/llvm/include
-       ls -la ${GITHUB_WORKSPACE}/llvm/include/c++
-       # ls -la ${GITHUB_WORKSPACE}/llvm/include/c++/13
-       #/home/runner/work/Yell/Yell/llvm
-
     - name: "Check selected compiler"
       run: |
         cmake --help
@@ -68,6 +60,12 @@ jobs:
         cd lapack-build
         cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
         cmake --build .
+
+    - name: List LAPACK
+      run: |
+       ls -la ${GITHUB_WORKSPACE}/lib
+       ls -la ${GITHUB_WORKSPACE}/lib/lapack
+       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lib
 
     - name: Setup and Compile Boost
       run: |
