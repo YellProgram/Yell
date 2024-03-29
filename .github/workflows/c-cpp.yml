@@ -75,24 +75,6 @@ jobs:
         unzip boost_1_60_0.zip
         cd boost_1_60_0
 
-   # - name: List Boost headers
-   #   run: |
-   #     ls -la ${GITHUB_WORKSPACE}/lib/
-   #     ls -la ${GITHUB_WORKSPACE}/lib/levmar
-   #     ls -la ${GITHUB_WORKSPACE}/lib/levmar/levmar-build
-        
-#    - name: Check if file exists
-#      run: |
-#        ls -la ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/
-#        if [[ ! -f ${GITHUB_WORKSPACE}/lib/cctbx_stubs/cctbx/sgtbx/change_of_basis_op.cpp ]]; then
-#          echo "File does not exist!"
-#          exit 1
-#        else
-#          echo "File exists!"
-#         fi
-
-   
-
     - name: Compile Yell
       run: |
         #set -e
@@ -101,3 +83,7 @@ jobs:
         cd yell-build
         cmake -G "Unix Makefiles"  -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" -DCMAKE_BUILD_TYPE:STRING="Release"  ..
         cmake --build .
+
+    - name: Test Yell
+      run: ctest
+  
