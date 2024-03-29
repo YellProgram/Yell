@@ -67,7 +67,7 @@ jobs:
         mkdir lapack-build
         cd lapack-build
         cmake -G "Unix Makefiles" ../lapack-3.6.0
-        #cmake --build .
+        cmake --build .
 
     - name: Setup and Compile Boost
       run: |
@@ -102,4 +102,4 @@ jobs:
         mkdir yell-build
         cd yell-build
         cmake -G "Unix Makefiles"  -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" -DCMAKE_BUILD_TYPE:STRING="Release"  ..
-        make
+        cmake --build .
