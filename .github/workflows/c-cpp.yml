@@ -85,5 +85,6 @@ jobs:
         cmake --build .
 
     - name: Test Yell
-      run: ctest
-  
+      run: | 
+        cd yell-build
+        ctest
