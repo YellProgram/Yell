@@ -18,7 +18,7 @@ IF(APPLE)
   set(LAPACK_LIBRARIES "-framework accelerate")
 ELSE(APPLE)
 IF(UNIX)
-  set(LAPACK_LIBRARIES f2c lapack blas dl)
+  set(LAPACK_LIBRARIES  lapack blas) #f2c dl
 #  find_package(LAPACK)
 ENDIF(UNIX)
 ENDIF(APPLE)
