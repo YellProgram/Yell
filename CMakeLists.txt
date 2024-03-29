@@ -6,7 +6,7 @@ include(cmake/hdf5.cmake)
 set (CMAKE_CXX_STANDARD 98)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
-set(CXXTEST_PATH ../libs/cxxtest-4.4 CACHE PATH "Path to cxxtest")
+set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtest")
 set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
 
 set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
