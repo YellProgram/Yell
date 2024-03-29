@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required (VERSION 3.10)
 project (YELL)
 
 include(cmake/hdf5.cmake)
@@ -6,11 +6,10 @@ include(cmake/hdf5.cmake)
 set (CMAKE_CXX_STANDARD 98)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
-set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtest")
+set(CXXTEST_PATH ../libs/cxxtest-4.4 CACHE PATH "Path to cxxtest")
 set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
 
 set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
-
 
 set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 
@@ -82,7 +81,8 @@ target_link_libraries(yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
 # cxxtest
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CMAKE_CURRENT_LIST_DIR}/lib/cxxtest)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CXXTEST_PATH})
+
 
 find_package(CxxTest)
 if(CXXTEST_FOUND)
