@@ -77,16 +77,16 @@ add_executable(yell src/main.cpp)
 
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
-target_link_libraries(yell yell-lib levmar cctbx  #${HDF5_LIBRARIES}
-        ${LAPACK_LIBRARIES})
+target_link_libraries(yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
 # cxxtest
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CMAKE_CURRENT_LIST_DIR}/lib/cxxtest)
+
 find_package(CxxTest)
 if(CXXTEST_FOUND)
     enable_testing()
     CXXTEST_ADD_TEST(test-yell test_runner.cpp ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
-    target_link_libraries(test-yell yell-lib levmar cctbx ${HDF5_LIBRARIES} ${LAPACK_LIBRARIES})
+    target_link_libraries(test-yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
 endif()
