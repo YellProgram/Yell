@@ -83,9 +83,11 @@ jobs:
         cd yell-build
         cmake -G "Unix Makefiles"  -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" -DCMAKE_BUILD_TYPE:STRING="Release"  ..
         cmake --build .
-        ctest
+        ls -la
 
-    # - name: Test Yell
-    #   run: | 
-    #     cd yell-build
+    - name: Test Yell
+      run: |
+        cd yell-build
+        ctest --extra-verbose
+
         
