@@ -90,4 +90,9 @@ jobs:
         cd yell-build
         ctest --extra-verbose
 
-        
+    - name: Upload compiled file
+      uses: actions/upload-artifact@v4
+      with:
+        name: Yell
+        path: yell-build/yell
+
