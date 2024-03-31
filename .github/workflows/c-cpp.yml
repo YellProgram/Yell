@@ -5,9 +5,12 @@ on:
     branches:
       - master
 
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    matrix:
+        runs-on: [ubuntu-latest, windows-latest]
+    #runs-on: ubuntu-latest
     env:
       CC: clang
       CXX: clang++
