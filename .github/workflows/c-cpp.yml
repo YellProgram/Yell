@@ -8,13 +8,16 @@ on:
 
 jobs:
   build:
-    matrix:
-        runs-on: [ubuntu-latest, windows-latest]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     #runs-on: ubuntu-latest
     env:
       CC: clang
       CXX: clang++
-      
+
+    runs-on: ${{ matrix.os }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
