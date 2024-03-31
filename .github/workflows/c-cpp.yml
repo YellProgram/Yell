@@ -5,27 +5,27 @@ on:
     branches:
       - master
 
-
 jobs:
   build:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-    #runs-on: ubuntu-latest
-    env:
-      CC: clang
-      CXX: clang++
+
+#    env:
+#      CC: clang
+#      CXX: clang++
 
     runs-on: ${{ matrix.os }}
+    #runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-
-    - name: Install LLVM and Clang
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "12.0"
+#
+#    - name: Install LLVM and Clang
+#      uses: KyleMayes/install-llvm-action@v1
+#      with:
+#        version: "12.0"
 
     - name: "Check selected compiler"
       run: |
