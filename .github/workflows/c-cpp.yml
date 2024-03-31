@@ -67,11 +67,11 @@ jobs:
         cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
         cmake --build .
 
-    - name: List LAPACK
-      run: |
-       ls -la ${GITHUB_WORKSPACE}/lib
-       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
-       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
+#    - name: List LAPACK
+#      run: |
+#       ls -la ${GITHUB_WORKSPACE}/lib
+#       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
+#       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
 
     - name: Setup and Compile Boost
       run: |
@@ -89,7 +89,7 @@ jobs:
         cd yell-build
         cmake -G "Unix Makefiles"  -DCMAKE_CXX_FLAGS:STRING="-I${GITHUB_WORKSPACE}/lib/boost" -DCMAKE_BUILD_TYPE:STRING="Release"  ..
         cmake --build .
-        ls -la
+        ls
 
     - name: Test Yell
       run: |
