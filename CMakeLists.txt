@@ -8,6 +8,7 @@ set (CMAKE_CXX_STANDARD 98)
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
 set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtest")
 set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
+set(LAPACK_PATH lib/lapack/lapack-build CACHE PATH "Path to lapack and blas")
 
 set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
 
@@ -21,18 +22,12 @@ IF(UNIX)
 #  find_package(LAPACK)
 ENDIF(UNIX)
 ENDIF(APPLE)
-IF(MINGW)
-    message("This path is not tested")
+IF(MINGW) #Windows on github actions
+    set(LAPACK_LIBRARIES lapack blas)
 #    set(LAPACK_PATH lib/lapack)
 #    set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
 #    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 ENDIF(MINGW)
-
-IF(WIN32)
-    set(LAPACK_LIBRARIES liblapack libblas)
-    message("Windows libraries added")
-ENDIF(WIN32)
-
 
 include_directories( ${CCTBX_PATH}
         ${LEVMAR_PATH}/levmar-2.6

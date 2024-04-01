@@ -67,11 +67,12 @@ jobs:
         cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
         cmake --build .
 
-#    - name: List LAPACK
-#      run: |
+    - name: List LAPACK
+      run: |
+        ls ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
 #       ls -la ${GITHUB_WORKSPACE}/lib
 #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
-#       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
+
 
     - name: Setup and Compile Boost
       run: |
