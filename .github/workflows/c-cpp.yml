@@ -69,7 +69,8 @@ jobs:
 
     - name: List LAPACK
       run: |
-        ls ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/lib
+        ls ${GITHUB_WORKSPACE}/lib/lapack/
+        ls ${GITHUB_WORKSPACE}/lib/lapack/lapack-build/
 #       ls -la ${GITHUB_WORKSPACE}/lib
 #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
 
