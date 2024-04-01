@@ -87,8 +87,7 @@ function(DownloadHDF5For targetName)
         add_dependencies(hdf5_local download_hdf5)
         target_link_libraries(hdf5_local INTERFACE ${CMAKE_DL_LIBS})
         if (WIN32)
-            #apparently on github actions with gnu compilers stupid prefix does not
-            message("WIN32 got triggeredd")
+            #apparently on github actions with gnu compilers stupid prefix does not appear in hdf5 library
             #set(STUPID_PREFIX "lib")
         endif ()
         if (CMAKE_BUILD_TYPE MATCHES Release)

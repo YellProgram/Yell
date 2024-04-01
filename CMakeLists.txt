@@ -22,11 +22,16 @@ IF(UNIX)
 ENDIF(UNIX)
 ENDIF(APPLE)
 IF(MINGW)
-    set(LAPACK_PATH lib/lapack)
-    set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
-    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
-    set(HDF5_LIBRARIES libhdf5_cpp libhdf5_hl_cpp libhdf5 libhdf5_hl libszip libzlib)
+    message("This path is not tested")
+#    set(LAPACK_PATH lib/lapack)
+#    set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
+#    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 ENDIF(MINGW)
+
+IF(WIN32)
+    set(LAPACK_LIBRARIES liblapack libblas)
+    message("Windows libraries added")
+ENDIF(WIN32)
 
 
 include_directories( ${CCTBX_PATH}
