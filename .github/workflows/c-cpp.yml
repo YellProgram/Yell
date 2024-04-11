@@ -114,6 +114,11 @@ jobs:
         path: yell-build/yell.exe
 
     - name: List all linked libraries
+      if: matrix.os == 'windows-latest'
       run: |
         ldd yell-build/yell.exe
 
+    - name: List all linked libraries linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        ldd yell-build/yell
