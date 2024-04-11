@@ -222,7 +222,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.2.3\n";
+    REPORT(MAIN) << "Yell 1.2.4\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to arkadiy.simonov@chem.ox.ac.uk or directly to our issue tracker https://github.com/YellProgram/Yell/issues\n\n";
 
