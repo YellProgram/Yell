@@ -18,7 +18,10 @@ IF(APPLE)
   set(LAPACK_LIBRARIES "-framework accelerate")
 ELSE(APPLE)
 IF(UNIX)
-  set(LAPACK_LIBRARIES  lapack blas gfortran) #f2c dl
+  #set(LAPACK_LIBRARIES  lapack blas gfortran) #f2c dl
+
+  set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
+  set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
 #  find_package(LAPACK)
 ENDIF(UNIX)
 ENDIF(APPLE)
