@@ -113,4 +113,7 @@ jobs:
         name: yell.exe
         path: yell-build/yell.exe
 
+    - name: List all linked libraries
+      run: |
+        ldd yell-build/yell.exe
 
