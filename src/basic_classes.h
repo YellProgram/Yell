@@ -1650,7 +1650,9 @@ class Minimizer {
     vector<double> parameters(p,p+parameters_number);
     
     _this->calc->calculate(parameters);
-    
+
+    //TODO: save space. Here, use in_asu
+
     //copy difference to the *x array
     for(int i=0; i<datapoints_number; i++)
       x[i] = (_this->experimental_data->at(i) - _this->calc->data().at(i))*_this->weights->at(i);
