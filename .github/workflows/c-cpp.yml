@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - replacing_minimizer
 
 jobs:
   build:
