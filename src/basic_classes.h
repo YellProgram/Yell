@@ -1600,6 +1600,19 @@ class Minimizer {
     
     covar = (double*) malloc(sizeof(double)*initial_params.size()*initial_params.size());
 
+    size_t work_memory_size = LM_DIF_WORKSZ(initial_params.size(), experimental_data->size_1d());
+
+    REPORT(MAIN) << "requested " << work_memory_size << " for minimization" << endl;
+
+    double* work = (double*) malloc(sizeof(double)*work_memory_size);
+
+      if(work==NULL){
+          REPORT(ERROR) << " failed to allocate requested memory" << endl;
+          return initial_params;
+      } else {
+          REPORT(MAIN) << "Success" << endl;
+      }
+
     double opts[5];
     opts[0] = refinement_options.tau;
     for(int i=0; i<3; ++i)
@@ -1607,9 +1620,12 @@ class Minimizer {
     opts[4] = refinement_options.difference;
     
     double info[10];
-    
-    int ret=dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
-    
+
+    int ret=dlevmar_dif(func_for_levmar, p, x,
+                        initial_params.size(),
+                        experimental_data->size_1d(),
+                        refinement_options.max_number_of_iterations,
+                        opts, info, work, covar, this);
    
     if (ret<0)
       REPORT(ERROR) << "Error, least square solution failed\n";
@@ -1624,9 +1640,7 @@ class Minimizer {
       case 7: REPORT(ERROR) << "Error, least square solution aborted. Found invalid (i.e. NaN or Inf) values in diffuse scattering\n"; break;
     }
     
-    static 
-    
-    vector<double> result(p,p+initial_params.size());
+    static vector<double> result(p,p+initial_params.size());
     
     delete p;
     delete x;
