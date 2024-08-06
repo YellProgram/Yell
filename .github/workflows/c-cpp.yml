@@ -4,121 +4,123 @@ on:
   push:
     branches:
       - master
+      - replacing_minimizer
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest] #windows-latest #So far doesn't work due to missing wget
 
-#    env:
-#      CC: clang
-#      CXX: clang++
+    #    env:
+    #      CC: clang
+    #      CXX: clang++
 
     runs-on: ${{ matrix.os }}
     #runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-#
-#    - name: Install LLVM and Clang
-#      uses: KyleMayes/install-llvm-action@v1
-#      with:
-#        version: "12.0"
+      - name: Checkout code
+        uses: actions/checkout@v3
+      #
+      #    - name: Install LLVM and Clang
+      #      uses: KyleMayes/install-llvm-action@v1
+      #      with:
+      #        version: "12.0"
 
-    - name: "Check selected compiler"
-      run: |
-        cmake --help
+      - name: "Check selected compiler"
+        run: |
+          cmake --help
 
-    - name: Setup levmar
-      run: |
-        #set -e
+      - name: Setup levmar
+        run: |
+          #set -e
+          
+          # Compile levmar
+          mkdir lib/levmar
+          cd lib/levmar
+          curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
+          tar -zxf levmar-2.6.tgz
+          mkdir levmar-build
+          cd levmar-build
+          cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CONFIGURATION_TYPES:STRING="Release" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 ../levmar-2.6
+          #-DCMAKE_LINKER=lld
+          cmake --build .
 
-        # Compile levmar
-        mkdir lib/levmar
-        cd lib/levmar
-        curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
-        tar -zxf levmar-2.6.tgz
-        mkdir levmar-build
-        cd levmar-build
-        cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CONFIGURATION_TYPES:STRING="Release" -DNEED_F2C:BOOL=0 -DBUILD_DEMO:BOOL=0 ../levmar-2.6
-        #-DCMAKE_LINKER=lld
-        cmake --build .
-        
-    - name: Setup CXXtest
-      run: |
-        # Setup cxxtest
-        mkdir lib/cxxtest
-        cd lib/cxxtest
-        curl -LOv --user-agent "Mozilla/5.0" https://github.com/CxxTest/cxxtest/releases/download/4.4/cxxtest-4.4.tar.gz
-        tar -zxf cxxtest-4.4.tar.gz
-        mv cxxtest-4.4/* .
+      - name: Setup CXXtest
+        run: |
+          # Setup cxxtest
+          mkdir lib/cxxtest
+          cd lib/cxxtest
+          curl -LOv --user-agent "Mozilla/5.0" https://github.com/CxxTest/cxxtest/releases/download/4.4/cxxtest-4.4.tar.gz
+          tar -zxf cxxtest-4.4.tar.gz
+          mv cxxtest-4.4/* .
 
-    - name: Setup LAPACK
-      run: |
-        # Setup LAPACK
-        mkdir lib/lapack
-        cd lib/lapack
-        curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
-        tar -zxf lapack-3.6.0.tgz
-        mkdir lapack-build
-        cd lapack-build
-        cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
-        cmake --build .
+      - name: Setup LAPACK
+        run: |
+          # Setup LAPACK
+          mkdir lib/lapack
+          cd lib/lapack
+          curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
+          tar -zxf lapack-3.6.0.tgz
+          mkdir lapack-build
+          cd lapack-build
+          cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
+          cmake --build .
+      
 
-#    - name: List LAPACK
-#      run: |
-#        ls lib/lapack/
-#        echo "-----------"
-#        ls lib/lapack/lapack-build/
-#       ls -la ${GITHUB_WORKSPACE}/lib
-#       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
+      #    - name: List LAPACK
+      #      run: |
+      #        ls lib/lapack/
+      #        echo "-----------"
+      #        ls lib/lapack/lapack-build/
+      #       ls -la ${GITHUB_WORKSPACE}/lib
+      #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
 
 
-    - name: Setup and Compile Boost
-      run: |
-        mkdir -p lib/boost
-        cd lib/boost
-        curl -LOv --user-agent "Mozilla/5.0" https://yer.dl.sourceforge.net/project/boost/boost/1.60.0/boost_1_60_0.zip
-        unzip boost_1_60_0.zip
-        cd boost_1_60_0
+      - name: Setup and Compile Boost
+        run: |
+          mkdir -p lib/boost
+          cd lib/boost
+          wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+          unzip boost_1_60_0.zip
+          cd boost_1_60_0
 
-    - name: Compile Yell
-      run: |
-        #set -e
-        #rm -rf yell-build
-        mkdir yell-build
-        cd yell-build
-        cmake -G "Unix Makefiles"  -DCMAKE_BUILD_TYPE:STRING="Release"  ..
-        cmake --build .
-        ls
+      - name: Compile Yell
+        run: |
+          #set -e
+          #rm -rf yell-build
+          mkdir yell-build
+          cd yell-build
+          cmake -G "Unix Makefiles"  -DCMAKE_BUILD_TYPE:STRING="Release"  ..
+          cmake --build .
+          ls
 
-    - name: Test Yell
-      run: |
-        cd yell-build
-        ctest --extra-verbose
+      - name: Test Yell
+        run: |
+          cd yell-build
+          ctest --extra-verbose
 
-    - name: Upload compiled linux
-      uses: actions/upload-artifact@v4
-      if: matrix.os == 'ubuntu-latest'
-      with:
-        name: yell-linux
-        path: yell-build/yell
+      - name: Upload compiled linux
+        uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: yell-linux
+          path: yell-build/yell
 
-    - name: Upload compiled file windows
-      uses: actions/upload-artifact@v4
-      if: matrix.os == 'windows-latest'
-      with:
-        name: yell.exe
-        path: yell-build/yell.exe
+      - name: Upload compiled file windows
+        uses: actions/upload-artifact@v4
+        if: matrix.os == 'windows-latest'
+        with:
+          name: yell.exe
+          path: yell-build/yell.exe
 
-    - name: List all linked libraries
-      if: matrix.os == 'windows-latest'
-      run: |
-        ldd yell-build/yell.exe
+      - name: List all linked libraries
+        if: matrix.os == 'windows-latest'
+        run: |
+          ldd yell-build/yell.exe
 
-    - name: List all linked libraries linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        ldd yell-build/yell
+      - name: List all linked libraries linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          ldd yell-build/yell
