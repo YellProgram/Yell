@@ -24,8 +24,8 @@ include(ExternalProject)
 
 ExternalProject_Add(
         eigen
-        #URL  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
-        SOURCE_DIR ${EIGEN_PATH}
+        URL  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+        #SOURCE_DIR ${EIGEN_PATH}
         #BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/eigen"
         #INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/eigen-install"
         CMAKE_ARGS
@@ -36,8 +36,8 @@ ExternalProject_Add(
 
 ExternalProject_Add(
         glog-lib
-        #URL  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
-        SOURCE_DIR ${GLOG_PATH}
+        URL  https://github.com/google/glog/archive/refs/tags/v0.7.1.tar.gz
+        #SOURCE_DIR ${GLOG_PATH}
 
         #BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/eigen"
         #INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/eigen-install"
@@ -51,7 +51,8 @@ ExternalProject_Add(
 
 ExternalProject_Add(ceres-solver
         PREFIX CeresSolver
-        SOURCE_DIR ${CERES_PATH}
+        URL https://ceres-solver.googlesource.com/ceres-solver/+archive/76af132d02d055db2af1322e1314b03c493c6803.tar.gz
+        #SOURCE_DIR ${CERES_PATH}
         #BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libs/ceres-solver
         #INSTALL_DIR ${CMAKE_BINARY_DIR}/ceres-solver
         LOG_DIR ${CMAKE_BINARY_DIR}/ceres-solver/log
