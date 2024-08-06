@@ -148,9 +148,7 @@ void Model::calculate(vector<double> params,bool average_flag)
     calc_intensity_map=&average_intensity_map;
   else
     calc_intensity_map=&intensity_map;
-  
 
-  
   if(direct_diffuse_scattering_calculation)
   {
     vec3<int> sym_boundary;

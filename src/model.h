@@ -402,6 +402,8 @@ public:
     ScatteringType scattering_type;
   IntensityMap& data() { return data_; }
   IntensityMap data_;
+  //TODO: For multithreading I will need to split the class "model" into two parts. All the large arrays like weights, multipliers etc will have to go to another object,
+  //this one has to be thread-safe, meaning that calculation operation should be possible to do in an instantiated object
   OptionalIntensityMap weights;
   OptionalIntensityMap reciprocal_space_multiplier;
   OptionalIntensityMap pdf_multiplier;
