@@ -51,6 +51,8 @@
 #include <assert.h>
 
 #include "OutputHandler.h"
+#include "Minimizer.h"
+
 using namespace std;
 using namespace scitbx;
 using namespace cctbx::sgtbx;
@@ -1537,7 +1539,7 @@ public:
 class MinimizerCalculator{
 public:
   /**
-   * This function shoul fill in the calculated diffuse scattering or PDF map.
+   * This function should fill in the calculated diffuse scattering or PDF map.
    * \param p - is a raw vector of model parameters
    */
   virtual void calculate(vector<double> p) = 0;
@@ -1576,28 +1578,32 @@ class Minimizer {
    * \todo add initialization of minima finding parameters, like number of iterations and so on
    * \todo make a separate file for the minimizer, or move it to core file
    */
-  Minimizer() { 
-    covar = NULL; 
-  } 
-  
+  Minimizer() {
+    covar = NULL;
+  }
+
   /**
    * Solves the problem of finding parameters which minimize I_model(params)-I_experimental in a least-square sence.
    * \param _calc - a reference to an object that calculates model diffuse scattering (or PDF). The object should implement MinimizerCalculator interface
    */
-  vector<double> minimize(const vector<double> initial_params,IntensityMap * _experimental_data, MinimizerCalculator * _calc, OptionalIntensityMap * _weights, RefinementOptions refinement_options = RefinementOptions::default_refinement_options())
+  vector<double> minimize(const vector<double> initial_params,
+                          IntensityMap * _experimental_data,
+                          MinimizerCalculator * _calc,
+                          OptionalIntensityMap * _weights,
+                          RefinementOptions refinement_options = RefinementOptions::default_refinement_options())
   {
     calc = _calc;
     experimental_data = _experimental_data;
     weights = _weights;
-    
+
     double * p = (double*) malloc(sizeof(double)*initial_params.size());
     for(int i=0; i<initial_params.size(); i++)
       p[i]=initial_params[i];
-    
+
     double * x = (double*) malloc(sizeof(double)*experimental_data->size_1d());
     for(int i=0; i<experimental_data->size_1d(); i++)
       x[i]=0;
-    
+
     covar = (double*) malloc(sizeof(double)*initial_params.size()*initial_params.size());
 
     double opts[5];
@@ -1605,50 +1611,55 @@ class Minimizer {
     for(int i=0; i<3; ++i)
       opts[i+1]=refinement_options.thresholds[i];
     opts[4] = refinement_options.difference;
-    
-    double info[10];
-    
-    int ret=dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
-    
-   
-    if (ret<0)
-      REPORT(ERROR) << "Error, least square solution failed\n";
 
-    switch((int)info[6]) {
-      case 1: REPORT(MAIN) << "Least squares solution ended normally because of small gradient\n"; break;
-      case 2: REPORT(MAIN) << "Least squares solution ended normally because of convergence\n"; break;
-      case 3: REPORT(MAIN) << "Least squares solution stopped because maximum iteraction count is exceeded\n"; break;
-      case 4: REPORT(ERROR) << "Warning, least square solution stopped because of singular matrix\n"; break;
-      case 5: REPORT(MAIN) << "Least squares solution ended normally because no further error reduction is possible.\n"; break;
-      case 6: REPORT(MAIN) << "Least squares solution ended normally because experiment and model are almost the same\n"; break;
-      case 7: REPORT(ERROR) << "Error, least square solution aborted. Found invalid (i.e. NaN or Inf) values in diffuse scattering\n"; break;
-    }
-    
-    static 
-    
-    vector<double> result(p,p+initial_params.size());
-    
+    double info[10];
+
+    CeresMinimizer minimizer;
+
+    minimizer.minimize(func_for_levmar, p, x,
+                       initial_params.size(),
+                       experimental_data->size_1d(),
+                       refinement_options.max_number_of_iterations,
+                       this);
+
+//    int ret = dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
+//
+//    if (ret<0)
+//      REPORT(ERROR) << "Error, least square solution failed\n";
+//
+//    switch((int)info[6]) {
+//      case 1: REPORT(MAIN) << "Least squares solution ended normally because of small gradient\n"; break;
+//      case 2: REPORT(MAIN) << "Least squares solution ended normally because of convergence\n"; break;
+//      case 3: REPORT(MAIN) << "Least squares solution stopped because maximum iteraction count is exceeded\n"; break;
+//      case 4: REPORT(ERROR) << "Warning, least square solution stopped because of singular matrix\n"; break;
+//      case 5: REPORT(MAIN) << "Least squares solution ended normally because no further error reduction is possible.\n"; break;
+//      case 6: REPORT(MAIN) << "Least squares solution ended normally because experiment and model are almost the same\n"; break;
+//      case 7: REPORT(ERROR) << "Error, least square solution aborted. Found invalid (i.e. NaN or Inf) values in diffuse scattering\n"; break;
+//    }
+
+    static vector<double> result(p,p+initial_params.size());
+
     delete p;
     delete x;
     return result;
   }
-  
+
   ~Minimizer() {
     free(covar);
   }
-  
+
   double * covar;
  private:
   /**
-   * the function which is called by levmar. The function has the structure that lev mar supports. the field data is used to store reference to the minimizer object, 
+   * the function which is called by levmar. The function has the structure that lev mar supports. the field data is used to store reference to the minimizer object,
    * so even though this function is technically static, it works like a normal member function
    */
-  static void func_for_levmar(double *p, double *x, int parameters_number, int datapoints_number, void *data)
+  static void func_for_levmar(double const *p, double *x, int parameters_number, int datapoints_number, void *data)
   {
     Minimizer * _this = reinterpret_cast<Minimizer*> (data);
-    
-    vector<double> parameters(p,p+parameters_number);
-    
+
+    vector<double> parameters(p,p + parameters_number);
+
     _this->calc->calculate(parameters);
 
     //TODO: save space. Here, use in_asu
@@ -1657,11 +1668,10 @@ class Minimizer {
     for(int i=0; i<datapoints_number; i++)
       x[i] = (_this->experimental_data->at(i) - _this->calc->data().at(i))*_this->weights->at(i);
   }
-  
+
   MinimizerCalculator * calc; //< model diffuse scattering of PDF calculator.
   IntensityMap * experimental_data;
   OptionalIntensityMap * weights;
-  
 };
 
 class SymmetryElement{
