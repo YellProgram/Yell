@@ -166,13 +166,12 @@ add_dependencies(yell-minimizer eigen ceres-solver) #
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 target_link_libraries(yell PUBLIC
-        yell-lib yell-minimizer levmar cctbx ${LAPACK_LIBRARIES} glog ceres)
+        yell-lib yell-minimizer levmar cctbx ceres glog ${LAPACK_LIBRARIES})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
 # cxxtest
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CXXTEST_PATH})
-
 
 find_package(CxxTest)
 if(CXXTEST_FOUND)
