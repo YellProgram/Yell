@@ -38,7 +38,7 @@ private:
 
 
 void CeresMinimizer::minimize(void (*target_function)(double const *, double *, int, int, void *), double *p, double *x, int parameter_number,
-                              int datapoints_number, int itmax, void *data) {
+                              int datapoints_number, int itmax, double* covar, void *data) {
 
     ceres::Problem problem;
 
@@ -55,6 +55,20 @@ void CeresMinimizer::minimize(void (*target_function)(double const *, double *, 
     options.max_num_iterations = itmax;
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
+
+    /*
+    ceres::Covariance::Options options;
+    ceres::Covariance covariance(options);
+
+     std::vector<std::pair<const double*, const double*> > covariance_blocks;
+     covariance_blocks.push_back(make_pair(p, p));
+
+     CHECK(covariance.Compute(covariance_blocks, &problem));
+
+
+    covariance.GetCovarianceBlock(p, p, covar);
+     *
+     */
 }
 
 /*

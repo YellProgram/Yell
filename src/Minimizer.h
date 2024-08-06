@@ -15,6 +15,7 @@ public:
                   int parameter_number, //parameter vector dimension
                   int datapoints_number, //measurement vector dimension
                   int itmax, //maximum number of iterations
+                  double* covar, //covariance matrix
                   void* data //extra data. This will be a calculator data to be passed to the calculate function
                   );
 

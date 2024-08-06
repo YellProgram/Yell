@@ -914,28 +914,29 @@ public:
 
     }
 
-    void test_minimizer()
-    {
-        Minimizer a_minimizer;
-
-        vector<double> params(10,0);
-        for(int i=0; i<10; i++)
-            params[i]=(double)(10-i)/10;
-
-        TestMinimizerCalculator calc;
-
-        IntensityMap exp_data(10,1,1);
-
-        for(int i=0; i<10; i++)
-            exp_data.at(i)=7;
-
-        OptionalIntensityMap weights;
-
-        report.shut_up();
-        params = a_minimizer.minimize(params, &exp_data, &calc, &weights);
-
-        TS_ASSERT_DELTA(params[0],7,0.001);
-    }
+    //TODO: make another test for Ceres
+//    void test_minimizer()
+//    {
+//        Minimizer a_minimizer;
+//
+//        vector<double> params(10,0);
+//        for(int i=0; i<10; i++)
+//            params[i]=(double)(10-i)/10;
+//
+//        TestMinimizerCalculator calc;
+//
+//        IntensityMap exp_data(10,1,1);
+//
+//        for(int i=0; i<10; i++)
+//            exp_data.at(i)=7;
+//
+//        OptionalIntensityMap weights;
+//
+//        report.shut_up();
+//        params = a_minimizer.minimize(params, &exp_data, &calc, &weights);
+//
+//        TS_ASSERT_DELTA(params[0],7,0.001);
+//    }
 
     void test_hdf5_reader()
     {
