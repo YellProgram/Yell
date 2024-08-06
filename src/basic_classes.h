@@ -1611,6 +1611,7 @@ class Minimizer {
     int ret=dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
 
 
+
    
     if (ret<0)
       REPORT(ERROR) << "Error, least square solution failed\n";
