@@ -158,7 +158,7 @@ void print_essential_information_about_crystal(Model& model)
   }
 }
 
-vector<double> esd_from_covar(double* covar, vector<double> refined_params) {
+vector<double> esd_from_covar(vector<double> covar, vector<double> refined_params) {
   int sz=refined_params.size();
   vector<double> res(sz);
   
@@ -222,7 +222,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.2.5\n";
+    REPORT(MAIN) << "Yell 1.2.6c\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -272,8 +272,9 @@ int main (int argc, char * const argv[]) {
         throw(TerminateProgram());
       }
 
-      Minimizer a_minimizer;
+      CeresMinimizer a_minimizer;
       vector<double> refined_params;
+      a_model.init_asu();
       refined_params = a_minimizer.minimize(a_model.refinement_parameters, experimental_diffuse_map.get_intensity_map(),
                                             &a_model, &a_model.weights, a_model.refinement_options);
 
@@ -290,9 +291,9 @@ int main (int argc, char * const argv[]) {
       a_model.refinement_parameters = refined_params;
 
       if (a_model.print_covariance_matrix)
-        print_covariance(a_minimizer.covar, refined_params);
+        print_covariance(a_minimizer.covar.data(), refined_params);
 
-      print_correlations(a_minimizer.covar, refined_params, a_model.refined_variable_names);
+      print_correlations(a_minimizer.covar.data(), refined_params, a_model.refined_variable_names);
     }
     else {
       report.last_run();

@@ -242,32 +242,154 @@ public:
      */
     vector<AtomicPair> apply_matrix_generator(vector<AtomicPair> pairs,mat3<double> transformation_matrix,int times);
 
+    /// Finds list of indices for reflections which lie within the asymmetric unit
+    vector<int> asymmetric_indices(Grid & grid) {
+        assert(grid.grid_is_compatible_with_fft());
+        assert(grid.reciprocal_flag);
 
-    //`m-3m` `m-3` `6/mmm` `6/m` `4/mmm` `4/m` `-3:R` `-3:H` `-3m:H` `-3m:R` `mmm` `2/m` `2/m:b` `-1`
+        vector<int> result;
+
+        auto sz = grid.grid_size;
+        af::c_grid<3,int> data_accessor(sz[0], sz[1], sz[2]);
+        int hmin = -sz[0]/2,
+            kmin = -sz[1]/2,
+            lmin = -sz[2]/2;
+        int hmax = hmin<0 ? -hmin : 1;
+        int kmax = kmin<0 ? -kmin : 1;
+        int lmax = lmin<0 ? -lmin : 1;
+        for(int hi=hmin; hi<hmax; ++hi)
+            for(int ki=kmin; ki<kmax; ++ki)
+                for(int li=lmin; li<lmax; ++li) {
+                    if(hkl_in_asu_fft(hi, ki, li, hmin, kmin, lmin)) {
+                        auto ind_to_consider = data_accessor(hi-hmin, ki-kmin, li-lmin);
+                        result.push_back(ind_to_consider);
+                    }
+                }
+
+        return result;
+    }
 
     //TODO: split the in asu functions for each particular symmetry, so they are fast. Choose one and use it consistently later.
+    //TODO: test this bit of code
     /// Checks if a particular h, k, l index is in asu
     template<typename T>
-    bool hkl_in_asu(T h, T k, T l){
-        if(label=="m-3m") {
-            // ASU from here: https://www.globalsino.com/EM/page4547.html
-            //0 ≤ x ≤ 1/2 and 0 ≤ y ≤ 1/2 and 0 ≤ z ≤ 1/2 and y ≤ x and z ≤ y
-            return h<=k && k<=l && l<=0;
-        } else if(label == "m-3") {
-            assert(false);
-            // 	0≤ x ≤ 2/3 and 0 ≤ y ≤ 1/3 and 0 ≤ z ≤ 1 and x ≤ (1+y)/2 and y ≤ x/2
-            return h<=0 && k<=0;
-        } else if(label == "6/mmm") {
-            //0 ≤ x ≤ 2/3 and 0 ≤ y ≤ 1/3 and 0 ≤ z ≤ 1/2 and x ≤ (1+y)/2 and y ≤ x/2
-            assert(false);
-            return h<=0 && k <= 0 && l <= 0 && true;
+    bool hkl_in_asu_fft(T h, T k, T l, T hmin, T kmin, T lmin){
+        if (label == "m-3m") {
+            return h <= k && k <= l && l <= 0;
+        } else if (label == "mmm") {
+            return h <= 0 && k <= 0 && l <= 0;
+        } else if (label == "4/mmm") {
+            return h <= k && k <= 0 && l <= 0;
+        } else if (label == "4/m") {
+            if (h == 0) {
+                return k <= 0 && l <= 0;
+            } else {
+                return h <= 0 && k < 0 && l <= 0;
+            }
+        } else if (label == "6/mmm") {
+            return h <= k && k <= 0 && l <= 0;
+        } else if (label == "6/m") {
+            if (h == 0) {
+                return k <= 0 && l <= 0;
+            } else {
+                return h <= 0 && k < 0 && l <= 0;
+            }
+        } else if (label == "m-3") {
+            if (h == k) {
+                return k <= l && l <= 0;
+            } else {
+                return h < k && h < l && l <= 0 && k <= 0;
+            }
+        } else if (label == "-3m:R") {
+            if (h == hmin) {
+                return h <= k && k <= l;
+            }
+            if (h + k + l > 0) {
+                return false;
+            } else {
+                return h <= k && k <= l && !(k > 0 && l > 0 && (-h == (k + l)));
+            }
+        } else if (label == "-3:R") {
+            if (h == 0 && k == 0 && l == 0) {
+                return true;
+            }
+            if (h + k + l == 0) {
+                if (h == hmin) {
+                    return true;
+                } else {
+                    return h <= k && k < l;
+                }
+            }
+            if (h + k + l < 0) {
+                if (h == k) {
+                    return h <= l;
+                } else {
+                    return h < k && h < l;
+                }
+            } else {
+                if (h == hmin) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        } else if (label == "-3:H") {
+            if (h == 0 && k == 0) {
+                return l <= 0;
+            }
+            if (l > 0) {
+                return (h + k < hmin);
+            }
+            if (l < 0) {
+                return (h <= 0 && h < -k) || (h + k + hmin > 0 && l == lmin);
+            }
+            if (l == 0) {
+                return h <= 0 && k < 0;
+            }
+        } else if (label == "-3m:H") {
+            if (l < 0) {
+                return k <= 0 && h <= 0;
+            } else if (l == 0) {
+                return k <= 0 && h <= k;
+            } else {
+                return false;
+            }
+        } else if (label == "2/m") {
+            if (k == kmin) {
+                return l <= 0;
+            }
+            if (l <= 0) {
+                return h < 0 || (h == 0 && k <= 0);
+            } else {
+                return false;
+            }
+        } else if (label == "2/m:b") {
+            if (l == lmin) {
+                return k <= 0;
+            }
+            if (k <= 0) {
+                return h < 0 || (h == 0 && l <= 0);
+            } else {
+                return false;
+            }
+        } else if (label == "-1") {
+            if (k == kmin || h == hmin) {
+                return true;
+            }
+            if (l == 0) {
+                return h < 0 || (h == 0 && k <= 0);
+            } else {
+                return l < 0;
+            }
+        } else {
+            return true;
         }
-
 
         return true; //in case of doubt, the full space is in ASU. Later die here.
     }
 
     bool asu_point_multiplicity(double h, double k, double l) {
+        //TODO: implement
         return 1;
     }
 };

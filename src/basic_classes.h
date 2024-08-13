@@ -52,9 +52,10 @@
 #include <assert.h>
 
 #include "OutputHandler.h"
-#include "Minimizer.h"
+#include "CeresMinimizer.h"
 #include "Grid.h"
 #include "IntensityMap.h"
+#include "CeresMinimizer.h"
 
 using namespace std;
 using namespace scitbx;
@@ -1195,6 +1196,11 @@ public:
   
   /// Accessor to calculated map
   virtual IntensityMap& data() = 0;
+
+  virtual int number_of_observations() = 0;
+
+  virtual bool refine_in_asu() = 0;
+  virtual vector<int> & asu_indices() = 0;
 };
 
 /**
@@ -1232,7 +1238,7 @@ class Minimizer {
   }
 
   /**
-   * Solves the problem of finding parameters which minimize I_model(params)-I_experimental in a least-square sence.
+   * Solves the problem of finding parameters which minimize I_model(params)-I_experimental in the Least-square sense.
    * \param _calc - a reference to an object that calculates model diffuse scattering (or PDF). The object should implement MinimizerCalculator interface
    */
   vector<double> minimize(const vector<double> initial_params,
@@ -1263,14 +1269,14 @@ class Minimizer {
 
     double info[10];
 
-    CeresMinimizer minimizer;
+    //CeresMinimizer minimizer;
 
-    minimizer.minimize(func_for_levmar, p, x,
-                       initial_params.size(),
-                       experimental_data->size_1d(),
-                       refinement_options.max_number_of_iterations,
-                       covar,
-                       this);
+//    minimizer.minimize(func_for_levmar, p, x,
+//                       initial_params.size(),
+//                       calc->number_of_observations(),
+//                       refinement_options.max_number_of_iterations,
+//                       covar,
+//                       this);
 
 //    int ret = dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
 //
@@ -1313,6 +1319,8 @@ class Minimizer {
     _this->calc->calculate(parameters);
 
     //TODO: save space. Here, use in_asu
+
+//    if _this-> calc->
 
     //copy difference to the *x array
     for(int i=0; i<datapoints_number; i++)

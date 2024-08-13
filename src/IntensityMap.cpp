@@ -4,6 +4,14 @@
 
 #include "IntensityMap.h"
 
+#include <H5Cpp.h>
+using namespace H5;
+
+template<typename T>
+DataType getH5Type();
+template <typename T>
+void creadeAndWriteDataset(H5File& file, string datasetName, T* data, hsize_t n, hsize_t* dims);
+
 
 
 IntensityMap ReadHDF5(string filename)

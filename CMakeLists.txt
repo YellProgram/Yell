@@ -150,11 +150,12 @@ add_library(yell-lib src/basic_classes.cpp
         src/IntensityMap.cpp
         src/IntensityMap.h
         src/LaueSymmetry.cpp
-        src/LaueSymmetry.h)
+        src/LaueSymmetry.h
+)
 
 add_library(yell-minimizer
-        src/Minimizer.cpp
-        src/Minimizer.h)
+        src/CeresMinimizer.cpp
+        src/CeresMinimizer.h)
 set_target_properties(yell-minimizer
         PROPERTIES
         CXX_STANDARD 17

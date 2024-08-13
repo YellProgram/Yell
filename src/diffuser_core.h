@@ -32,8 +32,7 @@
 #include "OutputHandler.h"
 #include "exceptions.h"
 
-#include <H5Cpp.h>
-using namespace H5;
+
 
 extern OutputHandler report;
 

@@ -45,7 +45,9 @@ public:
     for(int i=0; i<scatterers.size();++i)
       AtomicTypeCollection::add(boost::get<0>(scatterers[i]),boost::get<1>(scatterers[i]));
   }
-  
+
+
+
   bool unit_cell_is_initialized() {
     if(!cell_is_initialized)
       REPORT(ERROR) << "Unit cell is not defined\n";
@@ -290,6 +292,7 @@ public:
     refinement_options = RefinementOptions::default_refinement_options();
     report_pairs_outside_pdf_grid = false;
     padding = vec3<int>(0,0,0);
+    refine_in_asu_val = true;
   }
   ///\TODO: test the following part of Model
   Model(string _model) : model(_model)
@@ -359,7 +362,7 @@ public:
     
     if(!average_is_calculated || recalculate_average)
     {
-      calculate(params,AVERAGE);
+      calculate(params, AVERAGE);
       average_is_calculated = true;
     }
     
@@ -371,6 +374,13 @@ public:
     
   IntensityMap& model_scaled_to_experiment() {
     return data_;
+  }
+
+  int number_of_observations() {
+      if(refine_in_asu())
+          return asu_indices().size();
+      else
+          return intensity_map.size_1d();
   }
   
   void calculate(vector<double> params,bool);
@@ -384,6 +394,21 @@ public:
   p_vector<ADPMode> modes;
   
   RefinementOptions refinement_options;
+
+  bool refine_in_asu() {
+      return refine_in_asu_val;
+  }
+  bool refine_in_asu_val;
+
+  void init_asu() {
+      if(refine_in_asu()) {
+          asu_indices_val = cell.laue_symmetry.asymmetric_indices(grid);
+      }
+  }
+    vector<int> & asu_indices() {
+        return asu_indices_val;
+    }
+  vector<int> asu_indices_val;
     
   vec3<int> fft_grid_size;
   vector<bool> periodic_boundaries;
@@ -406,7 +431,6 @@ public:
   OptionalIntensityMap weights;
   OptionalIntensityMap reciprocal_space_multiplier;
   OptionalIntensityMap pdf_multiplier;
-  vector<int> asu_indices;
   vector<AtomicPair> atomic_pairs;
   vec3<int> padding;
   Grid grid;

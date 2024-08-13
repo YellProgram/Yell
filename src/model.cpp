@@ -88,7 +88,7 @@ void complain_about_error(Iterator start, Iterator current, Iterator end)
   REPORT(ERROR) << complain.str();
 }
 
-void Model::calculate(vector<double> params,bool average_flag)
+void Model::calculate(vector<double> params, bool average_flag)
 {
   ///\TODO: since calculate function runs several times, move parser creation to initialization stage
   InputParser a_parser;
