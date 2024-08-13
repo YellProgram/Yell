@@ -249,11 +249,11 @@ public:
 
         vector<int> result;
 
-        auto sz = grid.grid_size;
+        vec3<int> sz = grid.grid_size;
         af::c_grid<3,int> data_accessor(sz[0], sz[1], sz[2]);
-        int hmin = -sz[0]/2,
-            kmin = -sz[1]/2,
-            lmin = -sz[2]/2;
+        int hmin = -sz[0]/2;
+        int kmin = -sz[1]/2;
+        int lmin = -sz[2]/2;
         int hmax = hmin<0 ? -hmin : 1;
         int kmax = kmin<0 ? -kmin : 1;
         int lmax = lmin<0 ? -lmin : 1;
@@ -261,7 +261,7 @@ public:
             for(int ki=kmin; ki<kmax; ++ki)
                 for(int li=lmin; li<lmax; ++li) {
                     if(hkl_in_asu_fft(hi, ki, li, hmin, kmin, lmin)) {
-                        auto ind_to_consider = data_accessor(hi-hmin, ki-kmin, li-lmin);
+                        int ind_to_consider = data_accessor(hi-hmin, ki-kmin, li-lmin);
                         result.push_back(ind_to_consider);
                     }
                 }
