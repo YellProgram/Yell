@@ -374,8 +374,7 @@ public:
   }
   
   void calculate(vector<double> params,bool);
-    
-    
+
   UnitCell cell;
   IntensityMap intensity_map, average_intensity_map;
   string model;
@@ -407,6 +406,7 @@ public:
   OptionalIntensityMap weights;
   OptionalIntensityMap reciprocal_space_multiplier;
   OptionalIntensityMap pdf_multiplier;
+  vector<int> asu_indices;
   vector<AtomicPair> atomic_pairs;
   vec3<int> padding;
   Grid grid;

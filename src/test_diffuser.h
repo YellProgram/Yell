@@ -1670,8 +1670,6 @@ public:
         Grid grid(trivial_unit_cell,vec3<double>(0.1,0.1,0.1),vec3<double>(-9,-9,0),vec3<int>(180,180,1));
         LaueSymmetry laue_symmetry("m-3m",grid);
         TS_ASSERT_EQUALS(4, laue_symmetry.generators_on_map.size())
-
-
     }
     //The following block was generated with cctbx
     void test_Laue_Symmetry_1bar()  {
@@ -2516,6 +2514,24 @@ public:
 //    TS_ASSERT_EQUALS(ethalon,pairs[4]); // does not change
         TS_ASSERT_EQUALS(5,pairs.size());
     }
+
+    void test_Laue_Symmetry_hkl_in_asu() {
+        Grid grid = Grid(trivial_unit_cell,
+                             vec3<double> (1,0.5,1), //steps
+                             vec3<double> (-3,-3,-3), // lower_limits
+                             vec3<int>(6, 6, 6)); //no pixels
+
+        LaueSymmetry laue = LaueSymmetry("m-3m", (grid));
+
+        assert(laue.is_compatible_with_cell(UnitCell(grid.cell)));
+        //Go through all the positions in the unit cell
+        //Find the indices in asu and number them. Alternatively call the function from LaueSymmetry which lists the indices
+        //of all the symmetrically inequivalent positions
+        //then expand the symmetry of the cell (requires correct multiplicities on the indices)
+        //then go through all the values and make sure nothing is missing and nothing is nan
+        //
+    }
+
 
     void test_format_esd()
     {

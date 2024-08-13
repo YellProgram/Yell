@@ -90,7 +90,7 @@ void complain_about_error(Iterator start, Iterator current, Iterator end)
 
 void Model::calculate(vector<double> params,bool average_flag)
 {
-  ///\TODO: since calculate function funs several times, move parser creation to initialization stage
+  ///\TODO: since calculate function runs several times, move parser creation to initialization stage
   InputParser a_parser;
   a_parser.add_model(this);
   a_parser.formula.initialize_refinable_variables(refined_variable_names,params);

@@ -50,7 +50,7 @@ void CeresMinimizer::minimize(void (*target_function)(double const *, double *, 
     problem.AddResidualBlock(cost_function, nullptr, p);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
+    options.linear_solver_type = ceres::DENSE_QR; //probably denseNormalCholesky
     options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = itmax;
     ceres::Solver::Summary summary;

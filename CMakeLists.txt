@@ -14,7 +14,6 @@ set(LAPACK_PATH lib/lapack/lapack-build CACHE PATH "Path to lapack and blas")
 
 set(CERES_PATH ../../libs/ceres-solver)
 
-
 set(GLOG_PATH ../../libs/glog-0.7.1)
 set(EIGEN_PATH ../../libs/eigen)
 
@@ -40,7 +39,6 @@ ExternalProject_Add(
         glog-lib
         URL  https://github.com/google/glog/archive/refs/tags/v0.7.1.tar.gz
         #SOURCE_DIR ${GLOG_PATH}
-
         #BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/eigen"
         #INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/eigen-install"
         CMAKE_ARGS
@@ -62,8 +60,9 @@ ExternalProject_Add(ceres-solver
         CMAKE_ARGS
         -DCERES_THREADING_MODEL=OPENMP
         -DCMAKE_CXX_STANDARD=17
-        -DCMAKE_BUILD_TYPE=RELEASE #${CMAKE_BUILD_TYPE}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/ceres-solver
+        -DUSE_CUDA=OFF
 
         -DBUILD_BENCHMARKS=OFF
         -DBUILD_DOCUMENTATION=OFF
@@ -79,6 +78,12 @@ ExternalProject_Add(ceres-solver
         -Dglog_DIR=${CMAKE_BINARY_DIR}/glog-install
         -DSUITESPARSE=ON
         -DLAPACK=ON)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CERES_LIB ceres-debug)
+else()
+    set(CERES_LIB ceres)
+endif()
 
 
 
@@ -139,7 +144,13 @@ add_library(yell-lib src/basic_classes.cpp
                      src/InputFileParserII.cpp
                      src/InputFileParserIII.cpp
                      src/model.cpp
-                     src/OutputHandler.cpp src/exceptions.h)
+                     src/OutputHandler.cpp src/exceptions.h
+        src/Grid.cpp
+        src/Grid.h
+        src/IntensityMap.cpp
+        src/IntensityMap.h
+        src/LaueSymmetry.cpp
+        src/LaueSymmetry.h)
 
 add_library(yell-minimizer
         src/Minimizer.cpp
@@ -166,7 +177,7 @@ add_dependencies(yell-minimizer eigen ceres-solver) #
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 target_link_libraries(yell PUBLIC
-        yell-lib yell-minimizer levmar cctbx ceres glog ${LAPACK_LIBRARIES})
+        yell-lib yell-minimizer levmar cctbx ${CERES_LIB} glog ${LAPACK_LIBRARIES})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
@@ -177,5 +188,5 @@ find_package(CxxTest)
 if(CXXTEST_FOUND)
     enable_testing()
     CXXTEST_ADD_TEST(test-yell test_runner.cpp ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
-    target_link_libraries(test-yell yell-lib levmar cctbx ${LAPACK_LIBRARIES} )
+    target_link_libraries(test-yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
 endif()
