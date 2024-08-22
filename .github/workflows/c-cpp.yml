@@ -98,6 +98,7 @@ jobs:
           
       - name: Setup and Compile Boost
         run: |
+          cd lib/boost
           unzip boost_1_60_0.zip
           cd boost_1_60_0
 
