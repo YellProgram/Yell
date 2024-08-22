@@ -16,6 +16,10 @@ jobs:
           mkdir lib/boost
           cd lib/boost
           wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+          cd ..
+          mkdir lapack
+          cd lapack
+          wget -O lapack-3.6.0.tgz https://www.netlib.org/lapack/lapack-3.6.0.tgz
 
       # - name: Cache it
       #   uses: actions/upload-artifact@v4
@@ -79,7 +83,7 @@ jobs:
           # Setup LAPACK
           mkdir lib/lapack
           cd lib/lapack
-          curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
+          # curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
           tar -zxf lapack-3.6.0.tgz
           mkdir lapack-build
           cd lapack-build
