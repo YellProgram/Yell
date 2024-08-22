@@ -103,7 +103,13 @@ jobs:
       #        ls lib/lapack/lapack-build/
       #       ls -la ${GITHUB_WORKSPACE}/lib
       #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
-          
+
+
+      - uses: actions/download-artifact@master
+        with:
+          name: boost_1_60_0.zip
+          path: lib/boost/
+
       - name: Setup and Compile Boost
         run: |
           ls
