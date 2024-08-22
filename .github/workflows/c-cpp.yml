@@ -89,7 +89,7 @@ jobs:
       - name: Setup LAPACK
         run: |
           # Setup LAPACK
-#          mkdir lib/lapackkk
+#          mkdir lib/lapackkkk
           ls
           pwd
           cd lib/lapack
@@ -101,7 +101,6 @@ jobs:
           cd lapack-build
           cmake -G "Unix Makefiles" -DCMAKE_Fortran_FLAGS:STRING="-fallow-argument-mismatch" ../lapack-3.6.0 
           cmake --build .
-      
 
       #    - name: List LAPACK
       #      run: |
