@@ -159,3 +159,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           ldd yell-build/yell
+
+      - uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            lib/lapack/lapack-3.6.0.tgz
+            lib/boost/boost_1_60_0.zip
