@@ -7,6 +7,15 @@ on:
       - replacing_minimizer
 
 jobs:
+  check-static:
+      runs-on: windows-latest
+      steps:
+        - name: find static libs
+          run: |
+            ls /c/mingw64/
+            ls /c/mingw64/lib/
+            echo "::set-output name=run_jobs::false"
+
   cache-boost:
     runs-on: ubuntu-latest
     steps:
