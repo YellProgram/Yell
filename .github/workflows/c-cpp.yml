@@ -98,6 +98,8 @@ jobs:
           
       - name: Setup and Compile Boost
         run: |
+          ls
+          pwd
           cd lib/boost
           ls
           pwd
