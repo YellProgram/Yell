@@ -28,8 +28,9 @@ ENDIF(APPLE)
 IF(MINGW) #Windows on github actions
 #    set(LAPACK_LIBRARIES lapack blas gfortran)
 #    set(LAPACK_PATH lib/lapack)
+
     set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
-    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
+    set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++ -Wl,-Bstatic")
 ENDIF(MINGW)
 
 include_directories( ${CCTBX_PATH}
