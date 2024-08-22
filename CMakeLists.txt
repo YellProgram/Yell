@@ -31,9 +31,16 @@ IF(MINGW) #Windows on github actions
 
     set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
 #    set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++ -Wl,-Bstatic")
+# Ensure static libraries are used where possible
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+set(BUILD_SHARED_LIBS OFF)
+
     set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl,-Bstatic")
     #-Bstatic -lstdc++ -lpthread -Wl,-Bstatic
     #
+set(PTHREAD_STATIC_LIB "C:/mingw64/x86_64-w64-mingw32/lib/libpthread.a")
+
 ENDIF(MINGW)
 
 include_directories( ${CCTBX_PATH}
@@ -83,7 +90,7 @@ add_executable(yell src/main.cpp)
 
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
-target_link_libraries(yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
+target_link_libraries(yell yell-lib levmar cctbx ${LAPACK_LIBRARIES} ${PTHREAD_STATIC_LIB})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
