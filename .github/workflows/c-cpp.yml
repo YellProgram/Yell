@@ -99,8 +99,10 @@ jobs:
       - name: Setup and Compile Boost
         run: |
           cd lib/boost
+          ls
+          pwd
           unzip boost_1_60_0.zip
-          cd boost_1_60_0
+          #cd boost_1_60_0
 
       - name: Compile Yell
         run: |
