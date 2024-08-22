@@ -12,6 +12,7 @@ jobs:
       steps:
         - name: find static libs
           run: |
+            ls C:/mingw64/x86_64-w64-mingw32/lib
             ls C:/mingw64
             ls C:/mingw64/lib/
 
