@@ -12,13 +12,8 @@ jobs:
     steps:
       - name: Download code
         run: |
-          mkdir lib
-          cd lib
-          mkdir boost
-          wget -O boost/boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
-          cd ..
-          mkdir lapack
-          wget -O lapack/lapack-3.6.0.tgz https://www.netlib.org/lapack/lapack-3.6.0.tgz
+          wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+          wget -O lapack-3.6.0.tgz https://www.netlib.org/lapack/lapack-3.6.0.tgz
 #          mkdir levmar
 #          wget -O levmar/levmar-2.6.tgz http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
 
