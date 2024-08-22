@@ -95,7 +95,6 @@ jobs:
           cd lib/lapack
           ls
           pwd
-          # curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
           tar -zxf lapack-3.6.0.tgz
           mkdir lapack-build
           cd lapack-build
