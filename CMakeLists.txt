@@ -31,7 +31,7 @@ IF(MINGW) #Windows on github actions
 
     set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
 #    set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++ -Wl,-Bstatic")
-    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl, -Bstatic")
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl,-Bstatic")
     #-Bstatic -lstdc++ -lpthread -Wl,-Bstatic
     #
 ENDIF(MINGW)
