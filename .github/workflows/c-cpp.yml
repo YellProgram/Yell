@@ -22,17 +22,17 @@ jobs:
 #          mkdir levmar
 #          wget -O levmar/levmar-2.6.tgz http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
 
-#      - name: Cache boost
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: boost_1_60_0.zip
-#          path: boost_1_60_0.zip
-#
-#      - name: Cache lapack
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: lapack-3.6.0.tgz
-#          path: lapack-3.6.0.tgz
+      - name: Cache boost
+        uses: actions/upload-artifact@v4
+        with:
+          name: boost_1_60_0.zip
+          path: boost/boost_1_60_0.zip
+
+      - name: Cache lapack
+        uses: actions/upload-artifact@v4
+        with:
+          name: lapack-3.6.0.tgz
+          path: lapack/lapack-3.6.0.tgz
 
   build:
     needs: cache-boost
@@ -80,12 +80,21 @@ jobs:
           curl -LOv --user-agent "Mozilla/5.0" https://github.com/CxxTest/cxxtest/releases/download/4.4/cxxtest-4.4.tar.gz
           tar -zxf cxxtest-4.4.tar.gz
           mv cxxtest-4.4/* .
+          
+         - uses: actions/download-artifact@master
+           with:
+             name: lapack-3.6.0.tgz
+             path: lib/lapack/lapack-3.6.0.tgz
 
       - name: Setup LAPACK
         run: |
           # Setup LAPACK
-          mkdir lib/lapack
+#          mkdir lib/lapack
+          ls
+          pwd
           cd lib/lapack
+          ls
+          pwd
           # curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
           tar -zxf lapack-3.6.0.tgz
           mkdir lapack-build
@@ -101,11 +110,6 @@ jobs:
       #        ls lib/lapack/lapack-build/
       #       ls -la ${GITHUB_WORKSPACE}/lib
       #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
-
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: boost_1_60_0.zip
-      #     path: lib/boost/boost_1_60_0.zip
           
       - name: Setup and Compile Boost
         run: |
