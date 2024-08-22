@@ -81,10 +81,10 @@ jobs:
           tar -zxf cxxtest-4.4.tar.gz
           mv cxxtest-4.4/* .
           
-         - uses: actions/download-artifact@master
-           with:
-             name: lapack-3.6.0.tgz
-             path: lib/lapack/lapack-3.6.0.tgz
+      - uses: actions/download-artifact@master
+        with:
+          name: lapack-3.6.0.tgz
+          path: lib/lapack/lapack-3.6.0.tgz
 
       - name: Setup LAPACK
         run: |
@@ -95,6 +95,7 @@ jobs:
           cd lib/lapack
           ls
           pwd
+          # curl -LOv --user-agent "Mozilla/5.0" https://www.netlib.org/lapack/lapack-3.6.0.tgz
           tar -zxf lapack-3.6.0.tgz
           mkdir lapack-build
           cd lapack-build
