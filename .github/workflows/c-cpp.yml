@@ -12,13 +12,16 @@ jobs:
     steps:
       - name: Download code
         run: |
+          mkdir lib
+          mkdir lib/boost
+          cd lib/boost
           wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
 
-      - name: Cache it
-        uses: actions/upload-artifact@v4
-        with:
-          name: boost_1_60_0.zip
-          path: boost_1_60_0.zip
+      # - name: Cache it
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: boost_1_60_0.zip
+      #     path: boost_1_60_0.zip
 
   build:
     needs: cache-boost
@@ -91,10 +94,10 @@ jobs:
       #       ls -la ${GITHUB_WORKSPACE}/lib
       #       ls -la ${GITHUB_WORKSPACE}/lib/lapack/lapack-build
 
-      - uses: actions/download-artifact@master
-        with:
-          name: boost_1_60_0.zip
-          path: lib/boost/boost_1_60_0.zip
+      # - uses: actions/download-artifact@master
+      #   with:
+      #     name: boost_1_60_0.zip
+      #     path: lib/boost/boost_1_60_0.zip
           
       - name: Setup and Compile Boost
         run: |
