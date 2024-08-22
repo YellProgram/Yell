@@ -7,6 +7,19 @@ on:
       - replacing_minimizer
 
 jobs:
+  cache-boost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download code
+        run: |
+          wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+
+      - name: Cache it
+        uses: actions/upload-artifact@v4
+        with:
+          name: boost_1_60_0.zip
+          path: boost_1_60_0.zip
+
   build:
     strategy:
       matrix:
