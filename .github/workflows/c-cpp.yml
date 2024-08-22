@@ -89,7 +89,7 @@ jobs:
       - name: Setup LAPACK
         run: |
           # Setup LAPACK
-#          mkdir lib/lapack
+#          mkdir lib/lapackk
           ls
           pwd
           cd lib/lapack
