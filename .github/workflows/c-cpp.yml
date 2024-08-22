@@ -13,20 +13,26 @@ jobs:
       - name: Download code
         run: |
           mkdir lib
-          mkdir lib/boost
-          cd lib/boost
-          wget -O boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
+          cd lib
+          mkdir boost
+          wget -O boost/boost_1_60_0.zip https://sourceforge.net/projects/boost/files/boost/1.60.0/boost_1_60_0.zip
           cd ..
           mkdir lapack
-          cd lapack
-          wget -O lapack-3.6.0.tgz https://www.netlib.org/lapack/lapack-3.6.0.tgz
+          wget -O lapack/lapack-3.6.0.tgz https://www.netlib.org/lapack/lapack-3.6.0.tgz
+          mkdir levmar
+          wget -O levmar/levmar-2.6.tgz http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
 
-      # - name: Cache it
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      
-      #     name: boost_1_60_0.zip
-      #     path: boost_1_60_0.zip
+      - name: Cache boost
+        uses: actions/upload-artifact@v4
+        with:
+          name: boost_1_60_0.zip
+          path: boost_1_60_0.zip
+          
+      - name: Cache lapack
+        uses: actions/upload-artifact@v4
+        with:
+          name: lapack-3.6.0.tgz
+          path: lapack-3.6.0.tgz
 
   build:
     needs: cache-boost
@@ -57,11 +63,10 @@ jobs:
       - name: Setup levmar
         run: |
           #set -e
-          
           # Compile levmar
           mkdir lib/levmar
           cd lib/levmar
-          curl -LOv --user-agent "Mozilla/5.0" http://users.ics.forth.gr/~lourakis/levmar/levmar-2.6.tgz
+          curl -LOv --user-agent "Mozilla/5.0" 
           tar -zxf levmar-2.6.tgz
           mkdir levmar-build
           cd levmar-build
