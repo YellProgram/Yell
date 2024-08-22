@@ -64,7 +64,6 @@ jobs:
         run: |
           #set -e
           # Compile levmar
-#          mkdir lib/levmar
           cd lib/levmar
           tar -zxf levmar-2.6.tgz
           mkdir levmar-build
