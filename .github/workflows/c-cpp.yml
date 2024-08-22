@@ -21,13 +21,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: boost_1_60_0.zip
-          path: boost/boost_1_60_0.zip
+          path: boost_1_60_0.zip
 
       - name: Cache lapack
         uses: actions/upload-artifact@v4
         with:
           name: lapack-3.6.0.tgz
-          path: lapack/lapack-3.6.0.tgz
+          path: lapack-3.6.0.tgz
 
   build:
     needs: cache-boost
