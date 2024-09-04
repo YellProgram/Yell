@@ -48,6 +48,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator,qi::locals<string>,ChemicalUnit*(), skipper_type > chemical_unit_assignement;
   qi::rule<Iterator,AtomicAssembly*(), skipper_type> atomic_assembly;
   qi::rule<Iterator,string()> valid_identifier;
+
   typedef qi::symbols<char,StructurePartRef> ReferenceTable;                                                                                         
   ReferenceTable references;                                       
   qi::rule<Iterator,StructurePartRef()> identifier;

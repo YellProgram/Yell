@@ -27,6 +27,7 @@
 
 
 #include <string>
+#include <fstream>
 
 #include "basic_classes.h"
 #include "diffuser_core.h"
@@ -196,33 +197,14 @@ void calculate_Jacobians(Model& a_model) {
       WriteHDF5("PDF_Jacobian_" + refined_params_names[i] + ".h5", jacobian);
     }
   }
-    
-  
 }
 
-//if(a_model.grid.grid_is_compatible_with_fft())
-//{
-//  IntensityMap normalized_delta_pdf = a_model.model_scaled_to_experiment();
-//  normalized_delta_pdf.scale_and_fft(1/a_model.refinement_parameters[0]);
-//  WriteHDF5("delta-pdf.h5",normalized_delta_pdf);
-//  
-//  if(experimental_diffuse_map.is_loaded)
-//  {
-//    IntensityMap normalized_d2_pdf = a_model.model_scaled_to_experiment();
-//    normalized_d2_pdf.subtract(*experimental_diffuse_map.get_intensity_map());
-//    normalized_d2_pdf.scale_and_fft(1/a_model.refinement_parameters[0]);
-//    WriteHDF5("delta-delta-pdf.h5",normalized_d2_pdf);
-//    
-//    experimental_diffuse_map.get_intensity_map()->scale_and_fft(1/a_model.refinement_parameters[0]);
-//    WriteHDF5("exp-delta-pdf.h5",*experimental_diffuse_map.get_intensity_map());
-//  }
-//}
 
 OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.2.5\n";
+    REPORT(MAIN) << "Yell 1.2.6\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -285,7 +267,17 @@ int main (int argc, char * const argv[]) {
         REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
       REPORT(MAIN) << "]\n";
 
-      report.last_run();
+      std::ofstream out_refined_params("refined_parameters.txt");
+
+        out_refined_params << "Refined parameters are:\nScale " << refined_params[0]<<
+                           "\nRefinableVariables\n[\n";
+
+        for (int i = 1; i < refined_params.size(); ++i)
+            out_refined_params << a_model.refined_variable_names[i] << '=' << refined_params[i]<< ";\n";
+        out_refined_params << "]\n";
+
+
+        report.last_run();
       a_model.calculate(refined_params);
       a_model.refinement_parameters = refined_params;
 
