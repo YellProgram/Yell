@@ -32,11 +32,13 @@ IF(MINGW) #Windows on github actions
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
     set(BUILD_SHARED_LIBS OFF)
 
+
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
     #-Bstatic -lstdc++ -lpthread -Wl,-Bstatic #this should work as well, but doesn't
 
     #on github actions pthread should be hard-coded, otherwise it is linked dynamically
     set(PTHREAD_STATIC_LIB "C:/mingw64/x86_64-w64-mingw32/lib/libpthread.a")
+
 
 ENDIF(MINGW)
 

@@ -43,6 +43,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest] #windows-latest #So far doesn't work due to missing wget
+        compilers: [clang]
 
     #    env:
     #      CC: clang
