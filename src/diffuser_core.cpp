@@ -61,8 +61,7 @@ IntensityMap ReadHDF5(string filename)
   
   for(int i=no_dimensions; i<3; i++)
     dims_out[i]=1; //fill additional dimensions if input matrix has less then 3 dimensions
-    
-  
+
   double * temp_map_holder = (double*) malloc(dims_out[0]*dims_out[1]*dims_out[2] * sizeof(double));
   
   dataset.read(temp_map_holder, PredType::NATIVE_DOUBLE);
@@ -180,13 +179,21 @@ string format_esd(double val,double esd)
 {
   std::ostringstream res;
   
-  if(esd==0) //special case, if standard deviation is not set, report the result as-is
+  if(esd==0 || isnan(esd)) //special case, if standard deviation is not set, report the result as-is
   {
     res << val << '(' << esd << ')';
     return res.str();
   }
-    
-  int leading_power = floor(log(esd)/log((double)10)); //the position of the leading digit. positive are to the right of the zero, negative - to the left
+
+  int leading_power_parameter=1000;
+  if (abs(val)>=1e-32) {
+      leading_power_parameter = floor(log(abs(val))/log((double)10));
+  }
+
+    //the position of the leading digit. positive are to the right of the zero, negative - to the left
+    //we take abs of the esd because in ill-defined cases they can be calculated as negative
+  int leading_power_esd = floor(log(abs(esd))/log((double)10));
+  int leading_power = min(leading_power_esd, leading_power_parameter); //This way we will make sure that if a parameter is very very small, but not insignificant, it would still be reported
   int leading_digit = floor(esd * pow((double)10,-leading_power)); //the digits of the esd which should be reported
   if(leading_digit==1) {
     leading_power -= 1;
