@@ -329,8 +329,6 @@ class LaueSymmetry
     }
     
     vector<AtomicPair> filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs);
-    // радужная пена - это подарок нам из ЛСД
-    // все чувства задействованы
     void apply_patterson_symmetry(IntensityMap& map)
     {
       for (int i=0; i<generators_on_map.size(); ++i)
@@ -357,15 +355,20 @@ class LaueSymmetry
     {
       double t;
       vec3<int> size = map.size();
-      if(generator_symbol=="-x,-y,-z") // -1
-        for(int i=size[0]/2; i<size[0]; ++i)
-          for(int j=1; j<size[1]; ++j)
-            for(int k=1; k<size[2]; ++k)
-            {
-              t=(map.at(i,j,k) + map.at(size[0]-i,size[1]-j,size[2]-k))/2;
-              map.at(i,j,k) = t;
-              map.at(size[0]-i,size[1]-j,size[2]-k) = t;
-            }
+      if(generator_symbol=="-x,-y,-z") {
+      	// -1
+      	for(int i=0; i<=size[0]/2; ++i)
+      		for(int j=0; j<size[1]; ++j)
+      			for(int k=0; k<size[2]; ++k)
+      			{
+      				int ii = i==0? 0 : size[0]-i;
+      				int ij = j==0? 0 : size[1]-j;
+      				int ik = k==0? 0 : size[2]-k;
+      				t = (map.at(i,j,k) + map.at(ii, ij, ik))/2;
+      				map.at(i,j,k) = t;
+      				map.at(ii, ij, ik) = t;
+      			}
+      }
       else if(generator_symbol=="-x,y,z") // mx
         for(int i=size[0]/2; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
@@ -446,29 +449,31 @@ class LaueSymmetry
               map.at(i,j,k) = t;
               map.at(j,i,size[2]-k) = t;
             }
-      else if(generator_symbol=="y,-x,z") // Four-fold rotation applied four times.
-        for(int j=size[0]/2; j<size[1]; ++j)
-          for(int i=size[1]/2; i<size[0]; ++i)
-             for(int k=0; k<size[2]; ++k)
-            {
-              t=(map.at(i,j,k) + map.at(j,size[1]-i,k) + map.at(size[0]-j,i,k) + map.at(size[0]-i,size[1]-j,k))/4;
-              map.at(i,j,k) = t;
-              map.at(j,size[1]-i,k) = t;
-              map.at(size[0]-j,i,k) = t;
-              map.at(size[0]-i,size[1]-j,k) = t;
-            }
+      else if(generator_symbol=="y,-x,z") {
+	      // Four-fold rotation applied four times.
+      	for(int j=size[0]/2; j<size[1]; ++j)
+      		for(int i=size[1]/2; i<size[0]; ++i)
+      			for(int k=0; k<size[2]; ++k)
+      			{
+      				t=(map.at(i,j,k) + map.at(j,size[1]-i,k) + map.at(size[0]-j,i,k) + map.at(size[0]-i,size[1]-j,k))/4;
+      				map.at(i,j,k) = t;
+      				map.at(j,size[1]-i,k) = t;
+      				map.at(size[0]-j,i,k) = t;
+      				map.at(size[0]-i,size[1]-j,k) = t;
+      			}
 
-        // And then a special case for j=0 since there we need to make sure that -y coordinate is again at 0 pixel, or is it????
-        int j=0;
-        for(int i=1; i<size[0]; ++i)
-            for(int k=0; k<size[2]; ++k)
-            {
-                t=(map.at(i,0,k) + map.at(0,size[1]-i,k) + map.at(0,i,k) + map.at(size[0]-i,0,k))/4;
-                map.at(i,0,k) = t;
-                map.at(0,size[1]-i,k) = t;
-                map.at(0,i,k) = t;
-                map.at(size[0]-i,0,k) = t;
-            }
+      	// And then a special case for j=0 since there we need to make sure that -y coordinate is again at 0 pixel, or is it????
+      	int j=0;
+      	for(int i=1; i<size[0]; ++i)
+      		for(int k=0; k<size[2]; ++k)
+      		{
+      			t=(map.at(i,0,k) + map.at(0,size[1]-i,k) + map.at(0,i,k) + map.at(size[0]-i,0,k))/4;
+      			map.at(i,0,k) = t;
+      			map.at(0,size[1]-i,k) = t;
+      			map.at(0,i,k) = t;
+      			map.at(size[0]-i,0,k) = t;
+      		}
+      }
     }
     
     bool is_compatible_with_cell(const UnitCell& cell);
@@ -660,7 +665,6 @@ class AtomicTypeCollection
 	};
 
 class Scatterer {
-  
 public:
   virtual complex<double> form_factor_at_c(vec3<double>s, double d_star_sq)=0;
   virtual double form_factor_at(double d_star_sq)=0;
