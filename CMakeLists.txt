@@ -49,6 +49,23 @@ ExternalProject_Add(
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/glog-install
 )
 
+ExternalProject_Add(
+        extern_gflags
+        URL https://github.com/gflags/gflags/archive/v2.2.2.zip
+        URL_HASH SHA256=19713a36c9f32b33df59d1c79b4958434cb005b5b47dc5400a7a4b078111d9b5
+        CMAKE_ARGS
+        -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
+        -DGFLAGS_BUILD_STATIC_LIBS=ON
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DBUILD_SHARED_LIBS=OFF
+        -DGFLAGS_BUILD_SHARED_LIBS=OFF
+        -DGFLAGS_BUILD_gflags_LIB=ON
+        -DGFLAGS_BUILD_gflags_nothreads_LIB=ON
+        -DGFLAGS_NAMESPACE=google
+        -DGFLAGS_BUILD_TESTING=OFF
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/gflags-install
+)
+
 ExternalProject_Add(ceres-solver
         PREFIX CeresSolver
         URL https://ceres-solver.googlesource.com/ceres-solver/+archive/76af132d02d055db2af1322e1314b03c493c6803.tar.gz
@@ -167,18 +184,18 @@ target_include_directories(yell-minimizer PUBLIC ${CMAKE_BINARY_DIR}/ceres-solve
 
 DownloadHDF5For(yell-lib)
 
-link_directories(${CMAKE_BINARY_DIR}/glog-install/lib/ ${CMAKE_BINARY_DIR}/ceres-solver/lib)
+link_directories(${CMAKE_BINARY_DIR}/gflags-install/lib/ ${CMAKE_BINARY_DIR}/glog-install/lib/ ${CMAKE_BINARY_DIR}/ceres-solver/lib)
 
 add_definitions(-DGLOG_USE_GLOG_EXPORT)
 
 add_executable(yell src/main.cpp)
-add_dependencies(ceres-solver glog-lib)
+add_dependencies(ceres-solver extern_gflags glog-lib)
 add_dependencies(yell-minimizer eigen ceres-solver) #
 
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 target_link_libraries(yell PUBLIC
-        yell-lib yell-minimizer levmar cctbx ${CERES_LIB} glog ${LAPACK_LIBRARIES})
+        yell-lib yell-minimizer levmar cctbx ${CERES_LIB} glog gflags ${LAPACK_LIBRARIES})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
