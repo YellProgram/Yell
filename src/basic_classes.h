@@ -392,9 +392,10 @@ class LaueSymmetry
           for(int j=0; j<size[1]; ++j)
             for(int k=size[2]/2; k<size[2]; ++k)
             {
-              t=(map.at(i,j,k) + map.at(i,j,size[2]-k))/2;
+            	int ik = k==0? 0 : size[2]-k;
+              t=(map.at(i,j,k) + map.at(i,j,ik))/2;
               map.at(i,j,k) = t;
-              map.at(i,j,size[2]-k) = t;
+              map.at(i,j,ik) = t;
             }
       else if(generator_symbol=="z,x,y")      //3 along 111
         for(int i=0; i<size[0]; ++i)
