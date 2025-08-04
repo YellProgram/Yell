@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - replacing_minimizer
+      - Static-compilation
 
 jobs:
   check-static:
