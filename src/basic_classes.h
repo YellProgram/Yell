@@ -407,7 +407,7 @@ class LaueSymmetry
               map.at(k,i,j) = t;
               map.at(j,k,i) = t;
             }
-      else if(generator_symbol=="y,x,z") //mx-y element
+      else if(generator_symbol=="y,x,z") //mx-y
         for(int i=0; i<size[0]; ++i)
           for(int j=0; j<size[1]; ++j)
             for(int k=0; k<size[2]; ++k)
