@@ -57,7 +57,8 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
 
 
     ceres::Covariance::Options opt;
-//    opt.algorithm_type = ceres::DENSE_SVD;
+   opt.algorithm_type = ceres::DENSE_SVD;
+    opt.null_space_rank = -1;
     ceres::Covariance covariance(opt);
 
     std::vector<std::pair<const double*, const double*> > covariance_blocks;

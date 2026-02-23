@@ -32,5 +32,5 @@ add_library(
         ${bitshuffle_sources}
 )
 
-install(TARGETS bitshuffle DESTINATION lib)
+install(TARGETS bitshuffle DESTINATION lib )
 install(FILES ${bitshuffle_headers} DESTINATION include/bitshuffle)

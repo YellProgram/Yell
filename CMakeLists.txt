@@ -8,7 +8,7 @@ set (CMAKE_CXX_STANDARD 98)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
-set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtest")
+set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtestt")
 set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
 set(LAPACK_PATH lib/lapack/lapack-build CACHE PATH "Path to lapack and blas")
 
