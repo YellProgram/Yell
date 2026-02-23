@@ -3,9 +3,21 @@
 
 #include <scitbx/array_family/tiny.h>
 #include <scitbx/array_family/operator_traits_builtin.h>
-#include <boost/optional.hpp>
 
 namespace scitbx {
+
+  // Minimal optional<T> to avoid boost::optional dependency.
+  template <typename T>
+  class optional {
+  public:
+    optional() : has_value_(false), value_() {}
+    explicit optional(T const& v) : has_value_(true), value_(v) {}
+    operator bool() const { return has_value_; }
+    T const& operator*() const { return value_; }
+  private:
+    bool has_value_;
+    T value_;
+  };
 
   //! Three-dimensional vector.
   /*! This class can be used to represent points, vectors, normals
@@ -168,16 +180,16 @@ namespace scitbx {
       /*! Safe implementation guarding against division-by-zero
           and rounding errors.
        */
-      boost::optional<NumType>
+      optional<NumType>
       angle_rad(
         vec3 const& other) const
       {
         NumType den = length() * other.length();
-        if (den == 0) return boost::optional<NumType>();
+        if (den == 0) return optional<NumType>();
         NumType c = ((*this) * other) / den;
         if      (c < -1) c = -1;
         else if (c >  1) c =  1;
-        return boost::optional<NumType>(NumType(std::acos(c)));
+        return optional<NumType>(NumType(std::acos(c)));
       }
 
       //! Return the reflection vector.

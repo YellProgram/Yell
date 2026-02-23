@@ -3,8 +3,6 @@
 
 #include <cctbx/eltbx/basic.h>
 #include <cctbx/eltbx/xray_scattering.h>
-#include <boost/optional.hpp>
-#include <boost/config.hpp>
 #include <stdexcept>
 #include <ctype.h>
 

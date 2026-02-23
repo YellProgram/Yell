@@ -3,12 +3,23 @@
 
 #include <cctbx/eltbx/basic.h>
 #include <cctbx/eltbx/xray_scattering/gaussian.h>
-#include <boost/optional.hpp>
-#include <boost/config.hpp>
 #include <stdexcept>
 #include <ctype.h>
 
 namespace cctbx { namespace eltbx { namespace xray_scattering {
+
+  // Minimal optional<T> to avoid boost::optional dependency.
+  template <typename T>
+  class optional {
+  public:
+    optional() : has_value_(false), value_() {}
+    explicit optional(T const& v) : has_value_(true), value_(v) {}
+    operator bool() const { return has_value_; }
+    T const& operator*() const { return value_; }
+  private:
+    bool has_value_;
+    T value_;
+  };
 
   static const char *standard_labels[] = {
     "H", "D", "T",
@@ -63,21 +74,21 @@ namespace cctbx { namespace eltbx { namespace xray_scattering {
   }
 
   inline
-  boost::optional<std::string>
+  optional<std::string>
   get_standard_label(
     std::string const& label,
     bool exact=false,
-    bool optional=false)
+    bool allow_missing=false)
   {
-    if (label == "const") return boost::optional<std::string>(label);
-    if (label == "TX" || label == "XX") return boost::optional<std::string>(label);
+    if (label == "const") return optional<std::string>(label);
+    if (label == "TX" || label == "XX") return optional<std::string>(label);
     std::string work_label = basic::strip_label(label, exact);
     const char* result = 0;
     int m = 0;
     for (const char **std_lbl = standard_labels; *std_lbl; std_lbl++) {
       int i = basic::match_labels(work_label, *std_lbl);
       if (i < 0 /* exact match */) {
-        return boost::optional<std::string>(*std_lbl);
+        return optional<std::string>(*std_lbl);
       }
       if (i > m && !isdigit((*std_lbl)[i-1])) {
         m = i;
@@ -85,11 +96,11 @@ namespace cctbx { namespace eltbx { namespace xray_scattering {
       }
     }
     if (exact || result == 0) {
-      if (optional) return boost::optional<std::string>();
+      if (allow_missing) return optional<std::string>();
       throw std::invalid_argument(
         "Unknown scattering type label: \"" + label + "\"");
     }
-    return boost::optional<std::string>(result);
+    return optional<std::string>(result);
   }
 
   inline

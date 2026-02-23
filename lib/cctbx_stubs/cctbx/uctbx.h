@@ -2,8 +2,6 @@
 #define CCTBX_UCTBX_H
 
 #include <cmath>
-#include <boost/numeric/conversion/cast.hpp>
-#include <boost/optional.hpp>
 #include <scitbx/constants.h>
 #include <scitbx/sym_mat3.h>
 #include <scitbx/array_family/tiny_types.h>
@@ -34,6 +32,19 @@ namespace cctbx {
 
   //! Unit Cell Toolbox namespace.
   namespace uctbx {
+
+  // Minimal optional<T> to avoid boost::optional dependency.
+  template <typename T>
+  class optional {
+  public:
+    optional() : has_value_(false), value_() {}
+    explicit optional(T const& v) : has_value_(true), value_(v) {}
+    operator bool() const { return has_value_; }
+    T const& operator*() const { return value_; }
+  private:
+    bool has_value_;
+    T value_;
+  };
 
   //! Conversion of d-spacing measures.
   inline double d_star_sq_as_stol_sq(double d_star_sq)
@@ -397,7 +408,7 @@ namespace cctbx {
         uc_mat3 result = orth_;
         for(unsigned i=0;i<3;i++) {
           CCTBX_ASSERT(gridding[i] > 0);
-          double f = 1. / boost::numeric_cast<double>(gridding[i]);
+          double f = 1. / static_cast<double>(gridding[i]);
           for(unsigned j=0;j<9;j+=3) result[i+j] *= f;
         }
         return result;
@@ -625,7 +636,7 @@ namespace cctbx {
 
       //! Angle in degrees formed by sites 1, 2 and 3 for fractional coordinates.
       template <class FloatType>
-      boost::optional<FloatType>
+      optional<FloatType>
       angle(fractional<FloatType> const& site_frac_1,
             fractional<FloatType> const& site_frac_2,
             fractional<FloatType> const& site_frac_3) const
@@ -635,11 +646,11 @@ namespace cctbx {
         FloatType length_12 = vec_12.length();
         FloatType length_32 = vec_32.length();
         if (length_12 == 0 || length_32 == 0) {
-          return boost::optional<FloatType>();
+          return optional<FloatType>();
         }
         const FloatType cos_angle = std::max(-1.,std::min(1.,
           (vec_12 * vec_32)/(length_12 * length_32)));
-        return boost::optional<FloatType>(
+        return optional<FloatType>(
           std::acos(cos_angle) / scitbx::constants::pi_180);
       }
 
@@ -648,7 +659,7 @@ namespace cctbx {
           The sign of the angle is the sign of (u x v).w
        */
       template <class FloatType>
-      boost::optional<FloatType>
+      optional<FloatType>
       dihedral(fractional<FloatType> const& site_frac_1,
                fractional<FloatType> const& site_frac_2,
                fractional<FloatType> const& site_frac_3,
@@ -660,16 +671,16 @@ namespace cctbx {
         cartesian<FloatType> u_cross_v = u.cross(v);
         cartesian<FloatType> v_cross_w = v.cross(w);
         FloatType norm_u_cross_v = u_cross_v.length_sq();
-        if (norm_u_cross_v == 0) return boost::optional<FloatType>();
+        if (norm_u_cross_v == 0) return optional<FloatType>();
         FloatType norm_v_cross_w = v_cross_w.length_sq();
-        if (norm_v_cross_w == 0) return boost::optional<FloatType>();
+        if (norm_v_cross_w == 0) return optional<FloatType>();
         FloatType cos_angle = std::max(-1.,std::min(1.,
           u_cross_v * v_cross_w / std::sqrt(norm_u_cross_v * norm_v_cross_w)));
         FloatType angle = std::acos(cos_angle) / scitbx::constants::pi_180;
         if (u_cross_v * w < 0) {
           angle *= -1;
         }
-        return boost::optional<FloatType>(angle);
+        return optional<FloatType>(angle);
       }
 
       /*! \brief Shortest length^2 of a vector of fractional coordinates

@@ -131,7 +131,7 @@ namespace scitbx { namespace af {
 
   template <typename ElementType, std::size_t N, class PredicateType>
   inline
-  boost::optional<std::size_t>
+  optional<std::size_t>
   first_index(tiny_plain<ElementType, N> const& a,
                PredicateType p)
   {
@@ -140,7 +140,7 @@ namespace scitbx { namespace af {
 
   template <typename ElementType, std::size_t N, class PredicateType>
   inline
-  boost::optional<std::size_t>
+  optional<std::size_t>
   last_index(tiny_plain<ElementType, N> const& a,
                PredicateType p)
   {

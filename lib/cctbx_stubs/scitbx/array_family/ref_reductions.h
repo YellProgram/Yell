@@ -5,10 +5,23 @@
 #include <scitbx/math/approx_equal.h>
 #include <scitbx/array_family/ref.h>
 #include <scitbx/array_family/misc_functions.h>
-#include <boost/optional.hpp>
 #include <complex>
 
 namespace scitbx { namespace af {
+
+  // Minimal optional<T> to avoid optional dependency.
+  template <typename T>
+  class optional {
+  public:
+    optional() : has_value_(false), value_() {}
+    explicit optional(T const& v) : has_value_(true), value_(v) {}
+    operator bool() const { return has_value_; }
+    T const& operator*() const { return value_; }
+    optional& operator=(T const& v) { has_value_ = true; value_ = v; return *this; }
+  private:
+    bool has_value_;
+    T value_;
+  };
 
   template <typename ElementType1, typename AccessorType1,
             typename ElementType2, typename AccessorType2>
@@ -56,28 +69,28 @@ namespace scitbx { namespace af {
   }
 
   template<typename ElementType, typename AccessorType, class PredicateType>
-  boost::optional<std::size_t>
+  optional<std::size_t>
   first_index(const_ref<ElementType, AccessorType> const& a,
               PredicateType p)
   {
     typedef
       typename const_ref<ElementType, AccessorType>::const_iterator
       iter;
-    boost::optional<std::size_t> result;
+    optional<std::size_t> result;
     iter i = std::find_if(a.begin(), a.end(), p);
     if (i != a.end()) result = i - a.begin();
     return result;
   }
 
   template<typename ElementType, typename AccessorType, class PredicateType>
-  boost::optional<std::size_t>
+  optional<std::size_t>
   last_index(const_ref<ElementType, AccessorType> const& a,
              PredicateType p)
   {
     typedef
       typename const_ref<ElementType, AccessorType>::const_reverse_iterator
                iter;
-    boost::optional<std::size_t> result;
+    optional<std::size_t> result;
     iter i = std::find_if(a.rbegin(), a.rend(), p);
     if (i != a.rend()) result = a.rend() - i - 1;
     return result;
@@ -280,10 +293,10 @@ namespace scitbx { namespace af {
     }
 
     std::size_t n;
-    boost::optional<ElementType> min;
-    boost::optional<ElementType> max;
-    boost::optional<ElementType> sum;
-    boost::optional<ElementType> mean;
+    optional<ElementType> min;
+    optional<ElementType> max;
+    optional<ElementType> sum;
+    optional<ElementType> mean;
   };
 
   template <typename ElementType, typename AccessorType>
