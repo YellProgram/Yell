@@ -63,6 +63,7 @@ ExternalProject_Add(
         -DGFLAGS_BUILD_gflags_nothreads_LIB=ON
         -DGFLAGS_NAMESPACE=google
         -DGFLAGS_BUILD_TESTING=OFF
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 #fix that maybe?
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/gflags-install
 )
 
@@ -182,7 +183,7 @@ target_include_directories(yell-minimizer PUBLIC ${CMAKE_BINARY_DIR}/ceres-solve
         ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3
         ${CMAKE_BINARY_DIR}/glog-install/include)
 
-DownloadHDF5For(yell-lib)
+DownloadHDF5For(yell-lib )
 
 link_directories(${CMAKE_BINARY_DIR}/gflags-install/lib/ ${CMAKE_BINARY_DIR}/glog-install/lib/ ${CMAKE_BINARY_DIR}/ceres-solver/lib)
 

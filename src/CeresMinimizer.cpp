@@ -10,11 +10,9 @@
 //TODO: figure out stopping criteria, report it reasonably
 //TODO: figure out how to get the covariances out
 
-
 #include "ceres/ceres.h"
 #include "glog/logging.h"
 #include "IntensityMap.h"
-
 
 /**
    * Solves the problem of finding parameters which minimize I_model(params)-I_experimental in the Least-square sense.
