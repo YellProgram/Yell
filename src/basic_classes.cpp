@@ -17,7 +17,6 @@
   along with Yell.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "basic_classes.h"
 #include "diffuser_core.h"
 #include <math.h>
