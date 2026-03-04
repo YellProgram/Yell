@@ -26,6 +26,7 @@ private:
     OptionalIntensityMap *  weights;
 
     int parameters_number;
+    mutable std::vector<double> last_eval_params_;
 
 
     //void func_for_levmar(double *p, double *x, int parameters_number, int datapoints_number, void *data)
