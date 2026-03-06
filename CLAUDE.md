@@ -9,7 +9,7 @@ experimental data using Ceres Solver.
 
 - **Source root**: `/Users/asimonov/ag/C++/Yell/Yell`
 - **Build dir**: `cmake-build-debug` (CLion default; CMake out-of-source)
-- **Active branch**: `replacing_minimizer`
+- **Active branch**: `parameterized_model` (parse-once + ExprPtr; branched from `replacing_minimizer`)
 - **C++ standard**: C++20
 - **Current version**: 1.2.9c (in `src/main.cpp`)
 
@@ -110,17 +110,16 @@ Expected output for `single_pair`:
 
 ### Parse-once model (replacing_minimizer branch)
 
+`Model(string)` constructor calls `parse_model_()`, which runs the Boost.Spirit parser
+once — building the full structure (atoms, pools, correlators, ExprPtr trees).
+
 `Model::calculate(params)` is the hot path called by the minimizer at every step:
 
-- **First call** (`model_parsed_ == false`): runs the Boost.Spirit parser, builds the
-  full structure (atoms, pools, correlators), captures ExprPtr trees in
-  `parameterized_atoms_`. Sets `model_parsed_ = true`.
-- **Subsequent calls**: updates atoms via `ParameterizedAtomData::update(p)` —
-  re-evaluates ExprPtr trees with new parameter values. Clears cached pairs on each
-  pool. No re-parsing.
-
-**TODO**: Move the parsing out of `calculate()` into `Model`'s constructor/initializer
-so `calculate()` always takes the fast path. (Task B.4 in roadmap)
+- Updates atoms via `ParameterizedAtomData::update(p)` — re-evaluates ExprPtr trees.
+- Calls `pool->invoke_correlators(p)` which calls `modifier.update(p)` on each
+  `PairModifier` before generating pairs. `SubstitutionalCorrelation` stores an
+  `ExprPtr` for its joint probability; `update(p)` evaluates it.
+- Clears and rebuilds pair caches each call. No re-parsing.
 
 ### ExprPtr expression trees
 
