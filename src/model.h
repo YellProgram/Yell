@@ -24,6 +24,8 @@
 #include "basic_classes.h"
 #include "precompiled_header.h"
 #include "FormulaParser.h"
+#include "ExprFormulaParser.h"
+#include "ParameterizedAtom.h"
 #include <boost/fusion/tuple.hpp>
 
 
@@ -164,53 +166,76 @@ public:
   }
   
   /**
-   * Creates an atom with isotropic ADP
+   * Creates an atom with isotropic ADP from ExprPtr parameter trees.
+   * Evaluates current values, creates the Atom, and stores the ExprPtr trees
+   * in parameterized_atoms_ for parse-once re-evaluation.
    */
-  Atom* construct_atom_isotropic_adp(string name,vector<double> params)  {
-    return new Atom(name,params[0],
+  Atom* construct_atom_isotropic_adp(string name, vector<yell::ExprPtr> param_exprs)  {
+    Eigen::VectorXd p = Eigen::VectorXd::Map(
+        refinement_parameters.data(), refinement_parameters.size());
+    Atom* atom = new Atom(name, param_exprs[0]->eval(p),
                     1,//we assign probability to 1 because it will be changed by Variant afterwards anyway
-                    params[1],params[2],params[3],params[4],cell.cell.reciprocal_metrical_matrix(),scattering_type);
+                    param_exprs[1]->eval(p), param_exprs[2]->eval(p),
+                    param_exprs[3]->eval(p), param_exprs[4]->eval(p),
+                    cell.cell.reciprocal_metrical_matrix(), scattering_type);
+    ParameterizedAtomData pad;
+    pad.param_exprs = param_exprs;
+    pad.isotropic   = true;
+    pad.atom_ptr    = atom;
+    pad.unit_cell   = cell.cell;
+    parameterized_atoms_.push_back(pad);
+    return atom;
   }
-  
+
   /**
-   * This function creates an atom from atom name and a vector of atomic parameters. The atom should be deleted elsewhere (normally its pointer should be given to AtomicAssembly which will take care of it)
+   * Creates an atom with anisotropic ADP from ExprPtr parameter trees.
+   * Evaluates current values, creates the Atom, and stores the ExprPtr trees
+   * in parameterized_atoms_ for parse-once re-evaluation.
    */
-  Atom* construct_atom(string name,vector<double> params)  {
-    
-    double a=cell.cell.parameters()[0];
-    double b=cell.cell.parameters()[1];
-    double c=cell.cell.parameters()[2];
-    
+  Atom* construct_atom(string name, vector<yell::ExprPtr> param_exprs)  {
+    Eigen::VectorXd p = Eigen::VectorXd::Map(
+        refinement_parameters.data(), refinement_parameters.size());
+    double a = cell.cell.parameters()[0];
+    double b = cell.cell.parameters()[1];
+    double c = cell.cell.parameters()[2];
     //Also transforms input adps from angstroems^2 into fractional values
-    return new Atom(name,params[0],
+    Atom* atom = new Atom(name, param_exprs[0]->eval(p),
                     1, //we assign probability to 1 because it will be changed by Variant afterwards anyway
-                    params[1],params[2],params[3],
-                    params[4]/a/a,
-                    params[5]/b/b,
-                    params[6]/c/c,
-                    params[7]/a/b,
-                    params[8]/a/c,
-                    params[9]/b/c,
+                    param_exprs[1]->eval(p), param_exprs[2]->eval(p),
+                    param_exprs[3]->eval(p),
+                    param_exprs[4]->eval(p)/a/a,
+                    param_exprs[5]->eval(p)/b/b,
+                    param_exprs[6]->eval(p)/c/c,
+                    param_exprs[7]->eval(p)/a/b,
+                    param_exprs[8]->eval(p)/a/c,
+                    param_exprs[9]->eval(p)/b/c,
                     scattering_type);
+    ParameterizedAtomData pad;
+    pad.param_exprs = param_exprs;
+    pad.isotropic   = false;
+    pad.atom_ptr    = atom;
+    pad.unit_cell   = cell.cell;
+    parameterized_atoms_.push_back(pad);
+    return atom;
   }
   
   void set_scale(double inp) {  
     refinement_parameters[0]=inp;
   }
   
-  void set_refinable_parameters(FormulaParser& formula,vector<boost::fusion::tuple<string,double> > inp) {  
+  void set_refinable_parameters(FormulaParser& formula, ExprFormulaParser& expr_formula,
+                                vector<boost::fusion::tuple<string,double> > inp) {
     refinement_parameters.resize(inp.size()+1);
     refined_variable_names.resize(inp.size()+1);
-    
-    for(int i=0; i<inp.size(); ++i)
+
+    for(int i=0; i<(int)inp.size(); ++i)
     {
-      
       refined_variable_names[i+1]=boost::fusion::get<0>(inp[i]);
       refinement_parameters[i+1]=boost::fusion::get<1>(inp[i]);
     }
-    
-    // If this is a first parser run
+
     formula.initialize_refinable_variables(refined_variable_names,refinement_parameters);
+    expr_formula.initialize_refinable_variables(refined_variable_names,refinement_parameters);
   }
   
   void initialize_unit_cell(vector<double> params)  {
@@ -293,6 +318,7 @@ public:
     report_pairs_outside_pdf_grid = false;
     padding = vec3<int>(0,0,0);
     refine_in_asu_val = true;
+    model_parsed_ = false;
   }
   ///\TODO: test the following part of Model
   Model(string _model) : model(_model)
@@ -392,6 +418,8 @@ public:
   vector<double> refinement_parameters;
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;
+  vector<ParameterizedAtomData> parameterized_atoms_;
+  bool model_parsed_;
   
   RefinementOptions refinement_options;
 

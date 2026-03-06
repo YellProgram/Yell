@@ -23,6 +23,7 @@
 #include "basic_classes.h"
 #include "precompiled_header.h"
 #include "FormulaParser.h"
+#include "ExprFormulaParser.h"
 #include "model.h"
 #include <boost/fusion/tuple.hpp>
 #include <boost/fusion/include/boost_tuple.hpp>
@@ -62,6 +63,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator,ChemicalUnit*(), skipper_type> symmetric_chemical_unit;
   qi::rule<Iterator,double()> number;
   FormulaParser formula;
+  ExprFormulaParser expr_formula;
   qi::rule<Iterator,void()> rest_of_the_line;
   qi::rule<Iterator,void(),skipper_type> unit_cell; //this parser does not return anything because it adds the variants directly to model->cell
   qi::rule<Iterator,vector<SubstitutionalCorrelation*>(), skipper_type> substitutional_correlation;

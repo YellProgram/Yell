@@ -90,30 +90,43 @@ void complain_about_error(Iterator start, Iterator current, Iterator end)
 
 void Model::calculate(vector<double> params, bool average_flag)
 {
-  ///\TODO: since calculate function runs several times, move parser creation to initialization stage
-  InputParser a_parser;
-  a_parser.add_model(this);
-  a_parser.formula.initialize_refinable_variables(refined_variable_names,params);
-  a_parser.formula.array = params;
+  if (!model_parsed_) {
+    // First call: full parse to build structure, atom tree, ExprPtr trees.
+    InputParser a_parser;
+    a_parser.add_model(this);
+    a_parser.formula.initialize_refinable_variables(refined_variable_names,params);
+    a_parser.formula.array = params;
 
-  Iterator start = model.begin();
-  Iterator end = model.end();
-  bool r;
-  try{
-    r = qi::phrase_parse(start,end,a_parser,a_parser.skipper_no_assignement);
-  }catch(const qi::expectation_failure<Iterator>& e)
-  {
-    complain_about_error(model.begin(), e.first, model.end());
-    throw(TerminateProgram());
+    Iterator start = model.begin();
+    Iterator end = model.end();
+    bool r;
+    try{
+      r = qi::phrase_parse(start,end,a_parser,a_parser.skipper_no_assignement);
+    }catch(const qi::expectation_failure<Iterator>& e)
+    {
+      complain_about_error(model.begin(), e.first, model.end());
+      throw(TerminateProgram());
+    }
+
+    if(!r || start!=end)
+    {
+      string rest(start,end);
+      REPORT(ERROR) << "Parsing failed, the rest of the file is:\n" << rest;
+      throw "Parsing failed";
+    }
+
+    model_parsed_ = true;
+  } else {
+    // Subsequent calls: update atom parameters from ExprPtr trees, then
+    // clear cached pairs so invoke_correlators rebuilds them with new values.
+    refinement_parameters = params;
+    Eigen::VectorXd p = Eigen::VectorXd::Map(params.data(), params.size());
+    for (auto& pad : parameterized_atoms_)
+      pad.update(p);
+    for (auto* pool : pools)
+      pool->pairs.clear();
   }
-  
-  if(!r || start!=end)
-  {
-    string rest(start,end);
-    REPORT(ERROR) << "Parsing failed, the rest of the file is:\n" << rest;
-    throw "Parsing failed";
-  }
-  
+
   vector<AtomicPair> pairs;
   vector<AtomicPairPool*>::iterator pool;
   for(pool=pools.begin(); pool!=pools.end(); pool++)

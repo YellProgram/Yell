@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <string>
+#include <utility>
 #include "precompiled_header.h"
 #include <math.h>
 
@@ -35,8 +36,11 @@ struct FormulaParser : qi::grammar<Iterator, double()>{
   FormulaParser();
   
   typedef qi::rule<Iterator, double()> formula_parser_rule;
+  typedef std::pair<std::string,double> NamedValue;
+
   formula_parser_rule start;
   formula_parser_rule term,fact,expr,assignment,identifier,special_function;
+  qi::rule<Iterator,NamedValue()> named_assignment;
   qi::rule<Iterator,string()> valid_identifier;
   typedef qi::symbols<char,double> ReferenceTable;
   ReferenceTable references;

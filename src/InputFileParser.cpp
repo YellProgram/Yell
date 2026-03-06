@@ -27,6 +27,17 @@ void report_after_refinement(string inp) {
   REPORT(AFTER_REFINEMENT) << inp;
 }
 
+// Mirror a formula assignment (name, evaluated double) into ExprFormulaParser
+// as a frozen literal.  Refinable variables have already been registered as
+// ParamRef leaves via initialize_refinable_variables(); ordinary assignments
+// (ll=-12.8, gs=-ll*2/104, etc.) are constants that do not change during
+// refinement, so lit(value) is correct.
+static void mirror_to_expr(ExprFormulaParser& efp,
+                            FormulaParser::NamedValue nv)
+{
+    efp.add_assignment(nv.first, yell::lit(nv.second));
+}
+
 InputParser::InputParser() : InputParser::base_type(start)
 {
   using namespace qi;
@@ -69,7 +80,8 @@ InputParser::InputParser() : InputParser::base_type(start)
     > "]"
     ;
   
-  maybe_assignments = *(formula.assignment >> ';');
+  maybe_assignments = *(formula.named_assignment[
+      phoenix::bind(&mirror_to_expr, phoenix::ref(expr_formula), _1)] >> ';');
   
   program_option =
       (lit("Cell") > repeat(6)[number])                 [phoenix::bind(&Model::initialize_unit_cell,*ref(model),_1)]
@@ -95,7 +107,7 @@ InputParser::InputParser() : InputParser::base_type(start)
        > lexeme[point_group_symbol >> !char_("-:/a-zA-Z0-9")])  [phoenix::bind(&Model::set_point_group,*ref(model),_1)]
     | (lit("Scale") > double_ > -(omit[lit('(')>int_>lit(')')]))[phoenix::bind(&Model::set_scale,*ref(model),_1)]
     | (lit("PrintCovarianceMatrix")> bool_)                     [phoenix::bind(&Model::set_print_covariance_matrix,*ref(model),_1)]
-    | refinable_parameters                                      [phoenix::bind(&Model::set_refinable_parameters,*ref(model),ref(formula),_1)]
+    | refinable_parameters                                      [phoenix::bind(&Model::set_refinable_parameters,*ref(model),ref(formula),ref(expr_formula),_1)]
     | program_option2
   ;
 
@@ -293,7 +305,8 @@ void InputParser::InputParserI()
   number %= formula | double_;
 
   skipper_no_assignement = boost::spirit::ascii::space | comment;
-  skipper = omit[(formula.assignment >> ';')] | skipper_no_assignement;
+  skipper = omit[(formula.named_assignment[
+      phoenix::bind(&mirror_to_expr, phoenix::ref(expr_formula), _1)] >> ';')] | skipper_no_assignement;
 
   comment = lit("#") >> *(char_ - eol) >> eol;
 
@@ -380,8 +393,8 @@ void InputParser::InputParserIII()
   atomic_assembly = ('[' >> *chemical_unit >> ']')[_val = phoenix::new_<AtomicAssembly>(_1)] ;
 
   atom =
-    (atom_name >> repeat(10)[lexeme[formula]]) [_val = phoenix::bind(&Model::construct_atom,*ref(model),_1,_2)] //Uaniso and p
-  | (atom_name > repeat(5)[lexeme[formula]])   [_val = phoenix::bind(&Model::construct_atom_isotropic_adp,*ref(model),_1,_2)]
+    (atom_name >> repeat(10)[lexeme[expr_formula]]) [_val = phoenix::bind(&Model::construct_atom,*ref(model),_1,_2)] //Uaniso and p
+  | (atom_name > repeat(5)[lexeme[expr_formula]])   [_val = phoenix::bind(&Model::construct_atom_isotropic_adp,*ref(model),_1,_2)]
   ;
 
   molecular_scatterer =

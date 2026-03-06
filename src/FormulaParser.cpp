@@ -50,6 +50,13 @@ bool sqrt_is_ok(double x) {
   }
 }
 
+static FormulaParser::NamedValue make_named(FormulaParser::ReferenceTable& table,
+                                             std::string key, double val)
+{
+    FormulaParser::add_key(table, key, val);
+    return std::make_pair(key, val);
+}
+
 FormulaParser::FormulaParser() : FormulaParser::base_type(start),current_array_value(0)
 {
   using namespace qi;
@@ -87,7 +94,9 @@ FormulaParser::FormulaParser() : FormulaParser::base_type(start),current_array_v
   // added minus to the charecters
   valid_identifier %= alpha >> *char_("a-zA-Z0-9_");
   identifier %= references >> !(alnum | '=');
-  assignment = (valid_identifier >> '=' >> expr[_val = _1])[phoenix::bind(&add_key,ref(references),_1,_2)];//    
+  assignment = (valid_identifier >> '=' >> expr[_val = _1])[phoenix::bind(&add_key,ref(references),_1,_2)];//
+  named_assignment = (valid_identifier >> '=' >> expr)[
+      _val = phoenix::bind(&make_named, ref(references), _1, _2)];
   start %= expr;
   
 

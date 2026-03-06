@@ -22,6 +22,7 @@ set(BOOST_INCLUDEDIR ${CMAKE_SOURCE_DIR}/../libs/boost_1_88_0 CACHE PATH "Path t
 set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 
 include(ExternalProject)
+include(FetchContent)
 
 ExternalProject_Add(
         eigen
@@ -180,6 +181,9 @@ target_include_directories(yell-minimizer PUBLIC ${CMAKE_BINARY_DIR}/ceres-solve
         ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3
         ${CMAKE_BINARY_DIR}/glog-install/include)
 
+target_include_directories(yell-lib PUBLIC ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
+add_dependencies(yell-lib eigen)
+
 DownloadHDF5For(yell-lib )
 
 link_directories(${CMAKE_BINARY_DIR}/gflags-install/lib/ ${CMAKE_BINARY_DIR}/glog-install/lib/ ${CMAKE_BINARY_DIR}/ceres-solver/lib)
@@ -203,6 +207,28 @@ set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CXXTEST_PATH})
 find_package(CxxTest)
 if(CXXTEST_FOUND)
     enable_testing()
-    CXXTEST_ADD_TEST(test-yell test_runner.cpp ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
+    CXXTEST_ADD_TEST(test-yell test_runner.cpp
+        ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
     target_link_libraries(test-yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
+    target_include_directories(test-yell PUBLIC ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
+    add_dependencies(test-yell eigen)
 endif()
+
+# Google Test
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+    URL_HASH SHA256=8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+add_executable(test-yell-gtest ${CMAKE_SOURCE_DIR}/src/test_expr_gtest.cpp)
+target_link_libraries(test-yell-gtest
+    yell-lib levmar cctbx ${LAPACK_LIBRARIES}
+    GTest::gtest_main)
+target_include_directories(test-yell-gtest PUBLIC
+    ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
+add_dependencies(test-yell-gtest eigen)
+include(GoogleTest)
+gtest_discover_tests(test-yell-gtest)
