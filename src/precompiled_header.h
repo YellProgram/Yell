@@ -17,6 +17,7 @@
  along with Yell.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define BOOST_RESULT_OF_USE_DECLTYPE
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/qi_real.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>

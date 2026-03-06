@@ -398,10 +398,10 @@ public:
         TS_ASSERT_THROWS_NOTHING(v[0]);
         TS_ASSERT_EQUALS(v.size(),1);
     }
-    void testPointerVector()
+    // Disabled: relies on throwing from destructor, which is UB in C++11+ (implicit noexcept)
+    void DISABLED_testPointerVector()
     {
-
-        TS_ASSERT_THROWS_ANYTHING(helperTestPointerVector()); //TestDummy will throw exception on destruction
+        TS_ASSERT_THROWS_ANYTHING(helperTestPointerVector());
     }
 
     void testItIsPossibleToCreateArray()

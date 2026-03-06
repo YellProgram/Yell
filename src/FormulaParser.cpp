@@ -53,19 +53,18 @@ bool sqrt_is_ok(double x) {
 FormulaParser::FormulaParser() : FormulaParser::base_type(start),current_array_value(0)
 {
   using namespace qi;
-  using phoenix::bind;
   using phoenix::ref;
   
   fact %= double_ | '(' >> expr >> ')' | identifier | assignment | array_element | special_function; //
     special_function =
-            ("exp(" >> expr >> ')') [_val = bind(&adopted_exp,_1)]
-                    | ("log(" >> expr >> ')') [_pass = bind(&log_is_ok,_1)][_val = bind(&adopted_log,_1)]
-                    | ("sin(" >> expr >> ')') [_val = bind(&adopted_sin,_1)]
-                    | ("cos(" >> expr >> ')') [_val = bind(&adopted_cos,_1)]
-                    | ("sqrt(">> expr >> ')') [_pass = bind(&sqrt_is_ok,_1)][_val = bind(&adopted_sqrt,_1)]
-                    | ("abs(" >> expr >> ')') [_val = bind(&adopted_abs,_1)]
-                    | ("mod(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_mod,_1,_2)]
-                    | ("pow(" >> expr >> ',' >> expr >> ')') [_val = bind(&adopted_pow,_1,_2)]
+            ("exp(" >> expr >> ')') [_val = phoenix::bind(&adopted_exp,_1)]
+                    | ("log(" >> expr >> ')') [_pass = phoenix::bind(&log_is_ok,_1)][_val = phoenix::bind(&adopted_log,_1)]
+                    | ("sin(" >> expr >> ')') [_val = phoenix::bind(&adopted_sin,_1)]
+                    | ("cos(" >> expr >> ')') [_val = phoenix::bind(&adopted_cos,_1)]
+                    | ("sqrt(">> expr >> ')') [_pass = phoenix::bind(&sqrt_is_ok,_1)][_val = phoenix::bind(&adopted_sqrt,_1)]
+                    | ("abs(" >> expr >> ')') [_val = phoenix::bind(&adopted_abs,_1)]
+                    | ("mod(" >> expr >> ',' >> expr >> ')') [_val = phoenix::bind(&adopted_mod,_1,_2)]
+                    | ("pow(" >> expr >> ',' >> expr >> ')') [_val = phoenix::bind(&adopted_pow,_1,_2)]
             ;
 
     term %= fact[_val = _1]
@@ -81,14 +80,14 @@ FormulaParser::FormulaParser() : FormulaParser::base_type(start),current_array_v
 
   // Deprecated
   //array_element =
-  //lit("~i")[_val = bind(&extract_array_value,ref(array),ref(current_array_value)++)]
+  //lit("~i")[_val = phoenix::bind(&extract_array_value,ref(array),ref(current_array_value)++)]
   //;
 
   // copypaste from InputParser better make a separate grammar for this
   // added minus to the charecters
   valid_identifier %= alpha >> *char_("a-zA-Z0-9_");
   identifier %= references >> !(alnum | '=');
-  assignment = (valid_identifier >> '=' >> expr[_val = _1])[bind(add_key,ref(references),_1,_2)];//    
+  assignment = (valid_identifier >> '=' >> expr[_val = _1])[phoenix::bind(&add_key,ref(references),_1,_2)];//    
   start %= expr;
   
 

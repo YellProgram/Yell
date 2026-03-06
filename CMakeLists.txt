@@ -3,7 +3,7 @@ project (YELL)
 
 include(cmake/hdf5.cmake)
 
-set (CMAKE_CXX_STANDARD 98)
+set (CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -17,7 +17,7 @@ set(CERES_PATH ../../libs/ceres-solver)
 set(GLOG_PATH ../../libs/glog-0.7.1)
 set(EIGEN_PATH ../../libs/eigen)
 
-set(BOOST_INCLUDEDIR lib/boost/boost_1_60_0 CACHE PATH "Path to boost library")
+set(BOOST_INCLUDEDIR ${CMAKE_SOURCE_DIR}/../libs/boost_1_88_0 CACHE PATH "Path to boost library" FORCE)
 
 set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 
@@ -158,9 +158,6 @@ add_library(yell-lib src/basic_classes.cpp
                      src/basic_io.cpp
                      src/FormulaParser.cpp
                      src/InputFileParser.cpp
-                     src/InputFileParserI.cpp
-                     src/InputFileParserII.cpp
-                     src/InputFileParserIII.cpp
                      src/model.cpp
                      src/OutputHandler.cpp src/exceptions.h
         src/Grid.cpp
@@ -176,7 +173,7 @@ add_library(yell-minimizer
         src/CeresMinimizer.h)
 set_target_properties(yell-minimizer
         PROPERTIES
-        CXX_STANDARD 17
+        CXX_STANDARD 20
 )
 
 target_include_directories(yell-minimizer PUBLIC ${CMAKE_BINARY_DIR}/ceres-solver/include
