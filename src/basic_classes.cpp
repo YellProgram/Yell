@@ -176,6 +176,14 @@ vector<AtomicPair> LaueSymmetry::multiply_pairs_by_matrix(vector<AtomicPair> pai
 }
 
 
+inline int fastmod(int i, int j) {
+    while (i>=j)
+        i-=j;
+    while (i<0)
+        i+=j;
+    return i;
+}
+
 void add_pair_to_appropriate_place(IntensityMap &  small_piece,IntensityMap & accumulator,vec3<int> r,vector<bool> periodic) {
 	vec3<int> piece_size=small_piece.size();
 	vec3<int> acc_size=accumulator.size();
@@ -204,16 +212,16 @@ void add_pair_to_appropriate_place(IntensityMap &  small_piece,IntensityMap & ac
 	
 	for(int i=llimits[0];i<ulimits[0]; i++)
 	{
-		int is=(i-r[0])%piece_size[0];
+		int is=fastmod(i-r[0], piece_size[0]);
 		for(int j=llimits[1];j<ulimits[1]; j++)
 		{
-			int js=(j-r[1])%piece_size[1];
+			int js=fastmod(j-r[1], piece_size[1]);
 			for(int k=llimits[2];k<ulimits[2]; k++)
 			{
-				int ks=(k-r[2])%piece_size[2];
-				accumulator.at((i+acc_size[0])%acc_size[0],
-                       (j+acc_size[1])%acc_size[1],
-                       (k+acc_size[2])%acc_size[2])+=small_piece.at(is,js,ks);
+				int ks=fastmod(k-r[2], piece_size[2]);
+				accumulator.at(fastmod(i, acc_size[0]),
+				               fastmod(j, acc_size[1]),
+				               fastmod(k, acc_size[2]))+=small_piece.at(is,js,ks);
 			}
 		}
 	}

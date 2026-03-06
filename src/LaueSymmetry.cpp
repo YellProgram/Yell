@@ -243,15 +243,20 @@ void LaueSymmetry::apply_generator(IntensityMap& map, string generator_symbol)
 {
     double t;
     vec3<int> size = map.size();
-    if(generator_symbol=="-x,-y,-z") // -1
-        for(int i=size[0]/2; i<size[0]; ++i)
-            for(int j=1; j<size[1]; ++j)
-                for(int k=1; k<size[2]; ++k)
+    if(generator_symbol=="-x,-y,-z") {
+        // -1
+        for(int i=0; i<=size[0]/2; ++i)
+            for(int j=0; j<size[1]; ++j)
+                for(int k=0; k<size[2]; ++k)
                 {
-                    t=(map.at(i,j,k) + map.at(size[0]-i,size[1]-j,size[2]-k))/2;
+                    int ii = i==0? 0 : size[0]-i;
+                    int ij = j==0? 0 : size[1]-j;
+                    int ik = k==0? 0 : size[2]-k;
+                    t = (map.at(i,j,k) + map.at(ii, ij, ik))/2;
                     map.at(i,j,k) = t;
-                    map.at(size[0]-i,size[1]-j,size[2]-k) = t;
+                    map.at(ii, ij, ik) = t;
                 }
+    }
     else if(generator_symbol=="-x,y,z") // mx
         for(int i=size[0]/2; i<size[0]; ++i)
             for(int j=0; j<size[1]; ++j)
@@ -275,9 +280,10 @@ void LaueSymmetry::apply_generator(IntensityMap& map, string generator_symbol)
             for(int j=0; j<size[1]; ++j)
                 for(int k=size[2]/2; k<size[2]; ++k)
                 {
-                    t=(map.at(i,j,k) + map.at(i,j,size[2]-k))/2;
+                    int ik = k==0? 0 : size[2]-k;
+                    t=(map.at(i,j,k) + map.at(i,j,ik))/2;
                     map.at(i,j,k) = t;
-                    map.at(i,j,size[2]-k) = t;
+                    map.at(i,j,ik) = t;
                 }
     else if(generator_symbol=="z,x,y")      //3 along 111
         for(int i=0; i<size[0]; ++i)
