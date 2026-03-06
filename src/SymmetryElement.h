@@ -17,33 +17,28 @@
  along with Yell.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Legacy umbrella header — prefer including specific headers directly.
+#ifndef YELL_SYMMETRY_ELEMENT_H
+#define YELL_SYMMETRY_ELEMENT_H
 
-#ifndef basic_classes_H
-#define basic_classes_H
+#include "diffuser_core.h"
 
-#include <cctbx/sgtbx/rt_mx.h>
-#include <scitbx/array_family/versa.h>
-#include <scitbx/array_family/accessors/c_grid.h>
-#include <scitbx/fftpack/complex_to_complex_3d.h>
-
-#include "utils.h"
-#include "Scatterers.h"
-#include "ChemicalStructure.h"
-#include "AtomicPairs.h"
-#include "Calculator.h"
-#include "Minimizer.h"
-#include "SymmetryElement.h"
-#include "CeresMinimizer.h"
-
-using namespace cctbx::sgtbx;
-
-extern OutputHandler report;
-
-class Error {
+class SymmetryElement {
 public:
-    Error(string inp) : message(inp) {}
-    string message;
+    SymmetryElement(mat3<double> _permutation_matrix, vec3<double> _displacement)
+        : permutation_matrix(_permutation_matrix), displacement(_displacement) {}
+
+    SymmetryElement()
+        : permutation_matrix(mat3<double>(1,0,0,0,1,0,0,0,1)),
+          displacement(vec3<double>(0,0,0)) {}
+
+    bool operator==(SymmetryElement inp)
+    {
+        return almost_equal(displacement, inp.displacement)
+            && almost_equal(permutation_matrix, inp.permutation_matrix);
+    }
+
+    vec3<double> displacement;
+    mat3<double> permutation_matrix;
 };
 
-#endif // basic_classes_H
+#endif // YELL_SYMMETRY_ELEMENT_H
