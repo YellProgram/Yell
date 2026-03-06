@@ -60,7 +60,7 @@ public:
 
     void add_chemical_unit(ChemicalUnit* unit) { chemical_units.push_back(unit); }
 
-    double get_occupancy()           { return occupancy; }
+    double get_occupancy()           { return occupancy;   }
     void   set_occupancy(double _occ) {
         occupancy = _occ;
         for (int i = 0; i < chemical_units.size(); ++i)
