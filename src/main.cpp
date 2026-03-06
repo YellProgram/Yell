@@ -218,11 +218,10 @@ int main (int argc, char * const argv[]) {
     Model a_model(input);
     REPORT(MAIN) << "Input file read, performing a test calculation...\n";
 
-    ///estimate calculation time. Also initialize a_model.refinement_parameters
+    ///estimate calculation time
     time_t start, end;
     start = time(NULL);
-    vector<double> initial_params(100000, 0);//TODO: I do not need it now. Check.
-    a_model.calculate(initial_params, false);// Ititial run. measures time, imports initial parameters.
+    a_model.calculate(a_model.refinement_parameters, false);// Initial run. measures time.
     end = time(NULL);
 
     REPORT(MAIN) << "Parsing is ok.\n";

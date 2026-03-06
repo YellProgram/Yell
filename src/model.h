@@ -320,10 +320,13 @@ public:
     refine_in_asu_val = true;
     model_parsed_ = false;
   }
+  void parse_model_();
+
   ///\TODO: test the following part of Model
   Model(string _model) : model(_model)
   {
     init_flags();
+    parse_model_();
   }
   ///used for tests
   Model()   { 
