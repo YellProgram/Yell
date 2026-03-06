@@ -23,7 +23,9 @@
 #include "ChemicalStructure.h"
 #include "IntensityMap.h"
 #include "utils.h"
+#include "expr.hpp"
 
+#include <Eigen/Core>
 #include <vector>
 #include <string>
 
@@ -49,7 +51,7 @@ ADPMode* rot_mode(ChemicalUnit* unit, vec3<double> axis, vec3<double> point_on_a
 ADPMode  combine_modes(vector<ADPMode> modes);
 vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1,
                                                           ChemicalUnitNode* node2,
-                                                          vector<double> corr);
+                                                          vector<yell::ExprPtr> corr);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PairModifier — abstract base
@@ -60,6 +62,7 @@ public:
     virtual ~PairModifier() {}
     virtual bool generates_pairs() = 0;
     virtual void modify_pairs(AtomicPairPool* const) = 0;
+    virtual void update(const Eigen::VectorXd&) {}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,7 +156,11 @@ public:
 
     void add_modifier(PairModifier* modifier) { modifiers.push_back(modifier); }
 
-    void invoke_correlators() {
+    void invoke_correlators(const Eigen::VectorXd& p) {
+        // Update all modifiers with current parameters before generating pairs.
+        for (int i = 0; i < modifiers.size(); i++)
+            modifiers[i].update(p);
+
         vector<PairModifier*> non_generating;
         for (int i = 0; i < modifiers.size(); i++) {
             if (modifiers[i].generates_pairs())
@@ -233,11 +240,15 @@ public:
 
 class SubstitutionalCorrelation : public PairModifier {
 public:
-    SubstitutionalCorrelation(ChemicalUnit* unit1, ChemicalUnit* unit2, double _joint_probability)
-        : joint_probability(_joint_probability)
+    SubstitutionalCorrelation(ChemicalUnit* unit1, ChemicalUnit* unit2, yell::ExprPtr expr)
+        : joint_probability_expr(expr), joint_probability(0.0)
     {
         chemical_units[0] = unit1;
         chemical_units[1] = unit2;
+    }
+
+    void update(const Eigen::VectorXd& p) override {
+        joint_probability = joint_probability_expr->eval(p);
     }
 
     bool generates_pairs() { return true; }
@@ -258,6 +269,7 @@ public:
 
     ChemicalUnit* chemical_units[2];
     double joint_probability;
+    yell::ExprPtr joint_probability_expr;
 };
 
 class DoubleADPMode : public PairModifier {

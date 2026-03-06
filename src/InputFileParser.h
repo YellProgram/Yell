@@ -62,6 +62,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator,vector<double>(),skipper_type> permutation_component;
   qi::rule<Iterator,ChemicalUnit*(), skipper_type> symmetric_chemical_unit;
   qi::rule<Iterator,double()> number;
+  qi::rule<Iterator,yell::ExprPtr()> expr_number;
   FormulaParser formula;
   ExprFormulaParser expr_formula;
   qi::rule<Iterator,void()> rest_of_the_line;

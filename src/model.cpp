@@ -118,11 +118,14 @@ void Model::calculate(vector<double> params, bool average_flag)
 {
   // Update atom parameters from ExprPtr trees when sizes match.
   // (Mismatched size means a legacy timing call — skip update.)
+  Eigen::VectorXd p;
   if (params.size() == refinement_parameters.size()) {
     refinement_parameters = params;
-    Eigen::VectorXd p = Eigen::VectorXd::Map(params.data(), params.size());
+    p = Eigen::VectorXd::Map(params.data(), params.size());
     for (auto& pad : parameterized_atoms_)
       pad.update(p);
+  } else {
+    p = Eigen::VectorXd::Map(refinement_parameters.data(), refinement_parameters.size());
   }
   // Clear cached pairs so invoke_correlators rebuilds them.
   for (auto* pool : pools)
@@ -132,7 +135,7 @@ void Model::calculate(vector<double> params, bool average_flag)
   vector<AtomicPairPool*>::iterator pool;
   for(pool=pools.begin(); pool!=pools.end(); pool++)
   {
-    (*pool)->invoke_correlators();
+    (*pool)->invoke_correlators(p);
     pairs.insert(pairs.end(),(*pool)->pairs.begin(),(*pool)->pairs.end());
   }
   

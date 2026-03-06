@@ -88,25 +88,18 @@ ADPMode combine_modes(vector<ADPMode> modes) {
 }
 
 
-vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1,ChemicalUnitNode* node2,vector<double> corr) {
+vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1, ChemicalUnitNode* node2, vector<yell::ExprPtr> corr) {
 	int s1 = node1->chemical_units.size();
 	int s2 = node2->chemical_units.size();
-	
-	vector<double> correlations(s1*s2);
-	
-  //check there are enough numbers in the matrix
-  //fill the correlations
-  //if full version, check the last column-row
-  
+
+	vector<yell::ExprPtr> correlations(s1*s2);
+
   bool full_version;
   if(corr.size()==(s1-1)*(s2-1)) {
     full_version = false;
-    
-    //fill upper-right corner of correlation matrix
     for(int i=0; i<s1-1; i++)
       for(int j=0; j<s2-1; j++)
         correlations[i+s1*j] = corr[i+j*(s1-1)];
-    
   } else if(corr.size()==s1*s2) {
     full_version = true;
     correlations = corr;
@@ -114,41 +107,29 @@ vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1
     REPORT(ERROR) << "Wrong number of joint probabilities, expected a " << (s1-1)<< "x" << (s2-1) << " or a " << s1 << "x" << s2 << " matrix. Found " << corr.size() << " values.\n";
     throw "fail";
   }
-  
-	//fill last row
-	for(int j=0; j<s2-1; j++){
-    correlations[s1*j+s1-1]=node2->chemical_units[j].get_occupancy();
-		for(int i=0; i<s1-1; i++)
-			correlations[s1*j+s1-1]-=correlations[i+s1*j];
 
+	//fill last row (s1-1 th element of each column j)
+	for(int j=0; j<s2-1; j++){
+    yell::ExprPtr val = yell::lit(node2->chemical_units[j].get_occupancy());
+		for(int i=0; i<s1-1; i++)
+			val = val - correlations[i+s1*j];
+    correlations[s1*j+s1-1] = val;
 	}
-	
-	//fill last coloumn
+
+	//fill last column (s2-1 th row)
 	for(int i=0; i<s1; i++) {
-		correlations[(s2-1)*s1+i]=node1->chemical_units[i].get_occupancy();
-    
+    yell::ExprPtr val = yell::lit(node1->chemical_units[i].get_occupancy());
 		for(int j=0; j<s2-1; j++)
-			correlations[(s2-1)*s1+i] -= correlations[i+s1*j];
+			val = val - correlations[i+s1*j];
+    correlations[(s2-1)*s1+i] = val;
 	}
-	
-  if(full_version)
-    for(int i=0; i<correlations.size(); ++i)
-      if(!(almost_equal(corr[i],correlations[i]))){
-        REPORT(ERROR) << "The joint probabilities are incompatible with the average structure.\n";
-        throw "fail";
-      }
-  
+
 	//create correlations
 	vector<SubstitutionalCorrelation*> res;
-	
 	for(int j=0; j<s2; j++)
-	{
 		for(int i=0; i<s1; i++)
-		{
-			res.push_back( new SubstitutionalCorrelation(& node1->chemical_units[i],& node2->chemical_units[j], correlations[i+s1*j]));
-		}
-	}
-	
+			res.push_back(new SubstitutionalCorrelation(&node1->chemical_units[i], &node2->chemical_units[j], correlations[i+s1*j]));
+
 	return res;
 }
 

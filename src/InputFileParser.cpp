@@ -242,7 +242,7 @@ InputParser::InputParser() : InputParser::base_type(start)
 static void do_correlators(
     vector<SubstitutionalCorrelation*>& out,
     StructurePartRef a, StructurePartRef b,
-    vector<double> c, bool& pass)
+    vector<yell::ExprPtr> c, bool& pass)
 {
     try { out = Model::correlators_from_cuns_(a, b, c); }
     catch (...) { pass = false; }
@@ -278,10 +278,12 @@ void InputParser::InputParserI()
     ;
   multiplicity_correlation = lit("Multiplicity") > number[_val = phoenix::new_<MultiplicityCorrelation>(_1)];
 
+  expr_number = lexeme[expr_formula];
+
   substitutional_correlation =
     lit("SubstitutionalCorrelation")
     > "("
-    > (identifier > "," > identifier > "," > number % ',')[
+    > (identifier > "," > identifier > "," > expr_number % ',')[
         phoenix::bind(&do_correlators, _val, _1, _2, _3, _pass)]
     > ")"
     ;

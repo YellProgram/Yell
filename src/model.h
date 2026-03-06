@@ -293,7 +293,7 @@ public:
   void add_variant(ChemicalUnitNode* var)  {
     cell.add_node(var);
   }
-  static vector<SubstitutionalCorrelation*> correlators_from_cuns_(StructurePartRef _var1,StructurePartRef _var2,vector<double> params)  {
+  static vector<SubstitutionalCorrelation*> correlators_from_cuns_(StructurePartRef _var1,StructurePartRef _var2,vector<yell::ExprPtr> params)  {
     ChemicalUnitNode* var1= boost::get<ChemicalUnitNode*>(_var1);
     ChemicalUnitNode* var2= boost::get<ChemicalUnitNode*>(_var2);
     return correlators_from_cuns(var1,var2,params);
