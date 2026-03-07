@@ -891,6 +891,13 @@ TEST(ModelParseOnce, SecondCallWithDifferentParamsChangesResult)
     EXPECT_TRUE(differs);
 }
 
+TEST(ModelParseOnce, MixedDerivativesKeyword)
+{
+    std::string ms = "Cell 4 4 4 90 90 90\nDiffuseScatteringGrid 0 0 0 1 1 1 1 1 1\nLaueSymmetry -1\nDerivatives mixed\nUnitCell []\nCorrelations []\n";
+    Model m(ms);
+    EXPECT_EQ(m.derivatives_mode, MIXED);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PattersonPeak tests
 // ─────────────────────────────────────────────────────────────────────────────

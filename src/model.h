@@ -35,7 +35,7 @@ typedef boost::variant<ChemicalUnit*,ChemicalUnitNode*,ADPMode*> StructurePartRe
 
 enum R_FACTORS {R1, R2};
 enum WEIGHTED_OPTIONS {WEIGHTED, UNWEIGHTED};
-enum DerivativesMode {FINITE_DIFFERENCE, ANALYTICAL};
+enum DerivativesMode {FINITE_DIFFERENCE, ANALYTICAL, MIXED};
 
 
 class Model : public MinimizerCalculator {
@@ -268,6 +268,10 @@ public:
     direct_diffuse_scattering_calculation=method;
   }
 
+  void set_use_mixed_derivatives(bool inp) {
+    use_mixed_derivatives = inp;
+  }
+
   void set_scattering_type(ScatteringType t) {
       scattering_type = t;
   }
@@ -306,7 +310,9 @@ public:
   void init_flags()  {
     calculate_jacobians=false;
     direct_diffuse_scattering_calculation = true;
+    use_mixed_derivatives = false;
     print_covariance_matrix=false;
+
     cell_is_initialized=false;
     average_is_calculated = false;
     grid_initialized = false;
@@ -500,6 +506,7 @@ public:
   bool average_is_calculated;
   bool recalculate_average;
   bool direct_diffuse_scattering_calculation;
+  bool use_mixed_derivatives;
   bool refinement_flag;
   bool dump_pairs;
   bool report_pairs_outside_pdf_grid;

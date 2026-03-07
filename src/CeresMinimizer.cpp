@@ -51,8 +51,12 @@ public:
         }
 
         if (jacobians && jacobians[0]) {
-            Eigen::MatrixXd J = model_->compute_analytical_jacobian_direct(
-                p, *exp_, *weights_);
+            Eigen::MatrixXd J;
+            if (model_->derivatives_mode == MIXED) {
+                J = model_->compute_jacobian_mixed(p, *exp_, *weights_);
+            } else {
+                J = model_->compute_analytical_jacobian_direct(p, *exp_, *weights_);
+            }
             // Ceres expects row-major: jacobians[0][ii * n_params + j]
             for (int ii = 0; ii < n_obs; ++ii)
                 for (int j = 0; j < n_params; ++j)

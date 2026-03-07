@@ -124,6 +124,7 @@ InputParser::InputParser() : InputParser::base_type(start)
   derivatives_mode_sym.add
     ("finite_difference", FINITE_DIFFERENCE)
     ("analytical",        ANALYTICAL)
+    ("mixed",             MIXED)
     ;
 
   scattering_type.add
