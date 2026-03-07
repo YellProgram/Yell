@@ -287,6 +287,11 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
   }
 
   if (n_params > 1) {
+    // Build PattersonPeak lists for full and average contributions.
+    ScattererList scatterers;
+    vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(atomic_pairs, scatterers, full_peaks, avg_peaks);
+
     // Accumulate ∂I_full and ∂I_avg into full-size arrays (n_pixels × n_params-1),
     // then select observations by ASU at the end.
     const int n_pixels = intensity_map.size_1d();
@@ -299,23 +304,23 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     while (iter_map.next()) {
       vec3<double> s = iter_map.current_s();
       double d_star_sq = iter_map.current_d_star_square();
-      AtomicTypeCollection::update_current_form_factors(s, d_star_sq);
+      scatterers.update(s, d_star_sq);
 
       for (int k = 0; k < n_pairs; ++k) {
-        AtomicPair& pair = atomic_pairs[k];
-        std::complex<double> f1 = pair.atomic_type1->current_form_factor;
-        std::complex<double> f2 = pair.atomic_type2->current_form_factor;
-        double N = pair.multiplier;
+        const PattersonPeak& fpk = full_peaks[k];
+        const PattersonPeak& apk = avg_peaks[k];
+        std::complex<double> f1 = scatterers.f(fpk.type1_idx);
+        std::complex<double> f2 = scatterers.f(fpk.type2_idx);
 
-        double p_real = pair.p(false);
-        std::complex<double> base_real = std::conj(f1) * f2 * N *
-            std::exp(std::complex<double>(M2PISQ * (s * pair.U(false) * s),
-                                          M_2PI  * (s * pair.r(false))));
+        double p_real = fpk.coefficient / fpk.multiplier;
+        std::complex<double> base_real = std::conj(f1) * f2 * fpk.multiplier *
+            std::exp(std::complex<double>(M2PISQ * (s * fpk.U * s),
+                                          M_2PI  * (s * fpk.r)));
 
-        double p_avg = pair.p(true);
-        std::complex<double> base_avg = std::conj(f1) * f2 * N *
-            std::exp(std::complex<double>(M2PISQ * (s * pair.U(true) * s),
-                                          M_2PI  * (s * pair.r(true))));
+        double p_avg = apk.coefficient / apk.multiplier;
+        std::complex<double> base_avg = std::conj(f1) * f2 * apk.multiplier *
+            std::exp(std::complex<double>(M2PISQ * (s * apk.U * s),
+                                          M_2PI  * (s * apk.r)));
 
         for (int j = 1; j < n_params; ++j) {
           double dp_r   = dp_real_mat(k, j);
