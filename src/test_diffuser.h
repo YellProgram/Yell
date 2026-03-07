@@ -658,6 +658,31 @@ public:
         TS_ASSERT_DELTA(m, aPool.get_pair(p_atom1,p_atom1).multiplier, 0.00001);
     }
 
+    void testMultiplicityCorrelationWithVariantProbability()
+    {
+        // Simulate: Variant [ (p=0.5) Mn 1 0 0 0 0 (p=0.5) Void ]
+        // Atom Mn has multiplier 1 and occupancy 0.5
+        Atom mn(string("Mn"), 1.0, 0.5, 0, 0, 0, 1, 1, 1, 0, 0, 0);
+        
+        AtomicPairPool aPool;
+        AtomicPair& pair = aPool.get_pair(&mn, &mn);
+        
+        Eigen::VectorXd zero_p;
+        // Initial pair probability should be 0.5 * 0.5 = 0.25
+        TS_ASSERT_DELTA(0.25, pair.p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(1.0, pair.multiplier, 0.00001);
+
+        double m = 2.0;
+        MultiplicityCorrelation mcor(m);
+        mcor.modify_pairs(&aPool);
+
+        // After MultiplicityCorrelation, probability should STAY 0.25
+        // but multiplier should become 1.0 * 2.0 = 2.0
+        TS_ASSERT_DELTA(0.25, pair.p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(0.25, pair.average_p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(2.0, pair.multiplier, 0.00001);
+    }
+
 
     void testTranslationalMode()
     {
