@@ -20,6 +20,7 @@
 #include "model.h"
 #include "InputFileParser.h"
 #include "Calculator.h"
+#include <Eigen/LU>
 #include <sstream>
 #include <unordered_map>
 #include <complex>
@@ -400,4 +401,72 @@ Eigen::MatrixXd Model::compute_jacobian_mixed(
   average_intensity_map = base_I_avg;
 
   return J;
+}
+
+Eigen::MatrixXd Model::compute_full_covariance(
+    const vector<double>& params,
+    IntensityMap& exp_map,
+    OptionalIntensityMap& wts)
+{
+  const int n_params = (int)params.size(); 
+  const int n_obs    = number_of_observations();
+  const bool use_asu = refine_in_asu();
+  const vector<int>& asu = asu_indices();
+
+  // Update model to current optimum
+  calculate(params);
+  const double S = refinement_parameters[0];
+
+  // H = J^T * W^2 * J
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
+
+  // Streaming approach: process the Jacobian one column at a time to minimize memory.
+  // Column 0 is the Scale derivative map: J_S = -(I_full - I_avg)
+  vector<double> col0(n_obs);
+  for (int ii = 0; ii < n_obs; ++ii) {
+      int i = use_asu ? asu[ii] : ii;
+      col0[ii] = -(intensity_map.at(i) - average_intensity_map.at(i));
+  }
+
+  // Helper to get weight at a residual index
+  auto get_w = [&](int ii) {
+      return wts.at(use_asu ? asu[ii] : ii);
+  };
+
+  // 1. Compute H(0,0) and H(0, j)
+  for (int ii = 0; ii < n_obs; ++ii) {
+      double w = get_w(ii);
+      H(0, 0) += w * w * col0[ii] * col0[ii];
+  }
+
+  // 2. Compute other columns
+  for (int j = 1; j < n_params; ++j) {
+      IntensityMap dI_map = calculate_derivative(params, j);
+      for (int ii = 0; ii < n_obs; ++ii) {
+          int i = use_asu ? asu[ii] : ii;
+          double w = get_w(ii);
+          double J_j = -dI_map.at(i);
+          
+          H(0, j) += w * w * col0[ii] * J_j;
+          H(j, 0) = H(0, j);
+          
+          // Diagonal term
+          H(j, j) += w * w * J_j * J_j;
+      }
+      
+      // For cross-terms H(j, k) with k < j, we would need to re-read or store maps.
+      // For 5000 params, we'll re-calculate to save memory, though it is slow.
+      // Optimization: calculate_derivative is fast (FFT path).
+      for (int k = 1; k < j; ++k) {
+          IntensityMap dI_map_k = calculate_derivative(params, k);
+          for (int ii = 0; ii < n_obs; ++ii) {
+              int i = use_asu ? asu[ii] : ii;
+              double w = get_w(ii);
+              H(k, j) += w * w * (-dI_map_k.at(i)) * (-dI_map.at(i));
+          }
+          H(j, k) = H(k, j);
+      }
+  }
+
+  return H.inverse();
 }

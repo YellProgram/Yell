@@ -238,6 +238,11 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         }
     }
     
+    if (model && model->print_covariance_matrix) {
+        Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
+        covar = vector<double>(cov.data(), cov.data() + cov.size());
+    }
+
     for (double* pb : p_pointers) delete[] pb;
     
     return result;

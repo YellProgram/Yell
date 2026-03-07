@@ -510,6 +510,13 @@ public:
       IntensityMap& exp_map,
       OptionalIntensityMap& wts);
 
+  /// Compute the full covariance matrix (N_params x N_params) including the Scale.
+  /// Uses a memory-efficient streaming approach for the Hessian accumulation.
+  Eigen::MatrixXd compute_full_covariance(
+      const vector<double>& params,
+      IntensityMap& exp_map,
+      OptionalIntensityMap& wts);
+
   vec3<int> fft_grid_size;
   vector<bool> periodic_boundaries;
 //  int number_of_parameters;
