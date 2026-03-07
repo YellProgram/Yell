@@ -84,7 +84,8 @@ InputParser::InputParser() : InputParser::base_type(start)
       phoenix::bind(&mirror_to_expr, phoenix::ref(expr_formula), _1)] >> ';');
   
   program_option =
-      (lit("Cell") > repeat(6)[number])                 [phoenix::bind(&Model::initialize_unit_cell,*ref(model),_1)]
+      (lit("RefineBlocks") > +lexeme[as_string[+char_("0-9-")]]) [phoenix::bind(&Model::set_active_blocks_str,*ref(model),_1)]
+    | (lit("Cell") > repeat(6)[number])                 [phoenix::bind(&Model::initialize_unit_cell,*ref(model),_1)]
     | (lit("DiffuseScatteringGrid") > repeat(9)[number])[phoenix::bind(&Model::initialize_intensity_grid,*ref(model),_1)]
     | (lit("MaxNumberOfIterations") > int_)             [phoenix::bind(&Model::set_max_number_of_iterations,*ref(model),_1)]
     | (lit("MinimizerTau") > double_)                   [phoenix::bind(&Model::set_tau,*ref(model),_1)]

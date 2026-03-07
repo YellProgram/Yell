@@ -460,10 +460,12 @@ Eigen::MatrixXd Model::compute_full_covariance(
       int e1 = std::min(b1 + actual_batch_size, n_params);
       vector<IntensityMap> maps1;
       for (int j = b1; j < e1; ++j) {
+          if (!param_is_active(j)) { maps1.emplace_back(grid); continue; }
           maps1.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, j, scale, max_processors));
       }
 
       for (int j = b1; j < e1; ++j) {
+          if (!param_is_active(j)) continue;
           const IntensityMap& mj = maps1[j - b1];
           for (int ii = 0; ii < n_obs; ++ii) {
               int i = use_asu ? asu[ii] : ii;
@@ -471,6 +473,7 @@ Eigen::MatrixXd Model::compute_full_covariance(
               double Jj = -mj.at(i);
               H(0, j) += w * w * col0[ii] * Jj;
               for (int k = b1; k <= j; ++k) {
+                  if (!param_is_active(k)) continue;
                   double Jk = -maps1[k - b1].at(i);
                   H(k, j) += w * w * Jk * Jj;
               }
@@ -483,12 +486,15 @@ Eigen::MatrixXd Model::compute_full_covariance(
           int e2 = std::min(b2 + actual_batch_size, b1);
           vector<IntensityMap> maps2;
           for (int k = b2; k < e2; ++k) {
+              if (!param_is_active(k)) { maps2.emplace_back(grid); continue; }
               maps2.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, k, scale, max_processors));
           }
 
           for (int j = b1; j < e1; ++j) {
+              if (!param_is_active(j)) continue;
               const IntensityMap& mj = maps1[j - b1];
               for (int k = b2; k < e2; ++k) {
+                  if (!param_is_active(k)) continue;
                   const IntensityMap& mk = maps2[k - b2];
                   for (int ii = 0; ii < n_obs; ++ii) {
                       int i = use_asu ? asu[ii] : ii;

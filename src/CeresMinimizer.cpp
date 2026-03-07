@@ -236,6 +236,12 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         problem.AddResidualBlock(cost_function, nullptr, p_pointers);
     }
 
+    // Freeze inactive blocks so Ceres neither varies them nor includes them in covariance.
+    for (size_t b = 0; b < p_pointers.size(); ++b) {
+        if (!model->block_is_active((int)b + 1))
+            problem.SetParameterBlockConstant(p_pointers[b]);
+    }
+
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR; 
     options.minimizer_progress_to_stdout = true;

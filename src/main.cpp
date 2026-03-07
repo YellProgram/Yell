@@ -232,7 +232,13 @@ int main (int argc, char * const argv[]) {
     REPORT(MAIN) << "Scattering is calculated in " << difftime(end, start) << " sec.\n";
     print_essential_information_about_crystal(a_model);
 
-    REPORT(MAIN) << "Number of refined parameters: " << a_model.refinement_parameters.size() << '\n';
+    {
+      int total = (int)a_model.refinement_parameters.size() - 1; // exclude Scale
+      int active = 0;
+      for (int i = 1; i < (int)a_model.refinement_parameters.size(); ++i)
+        if (a_model.param_is_active(i)) ++active;
+      REPORT(MAIN) << "Number of refineable parameters: " << active << '/' << total << '\n';
+    }
     /*  for(int i=0; i<a_model.refinement_parameters.size(); ++i)
         REPORT(MAIN)<< a_model.refinement_parameters[i] << ' ';
       REPORT(MAIN) << '\n';*/
@@ -265,20 +271,44 @@ int main (int argc, char * const argv[]) {
 
       vector<double> esd = esd_from_covar(a_minimizer.covar, refined_params);
 
+      // Pre-compute flat index of the first parameter in each block
+      vector<int> block_starts;
+      {
+        int off = 1;
+        for (auto& blk : a_model.parameter_blocks) {
+          block_starts.push_back(off);
+          off += (int)blk.size();
+        }
+      }
+
       REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) <<
                    "\nRefinableVariables\n[\n";
-      for (int i = 1; i < refined_params.size(); ++i)
-        REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
+      for (int i = 1; i < (int)refined_params.size(); ++i) {
+        // Print block label when starting a new block
+        for (int b = 0; b < (int)block_starts.size(); ++b) {
+          if (block_starts[b] == i) { REPORT(MAIN) << "#Block " << (b + 1) << "\n"; break; }
+        }
+        if (a_model.param_is_active(i)) {
+          REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
+        } else {
+          REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << refined_params[i] << "; #fixed\n";
+        }
+      }
       REPORT(MAIN) << "]\n";
 
       std::ofstream out_refined_params("refined_parameters.txt");
-
-        out_refined_params << "Refined parameters are:\nScale " << refined_params[0]<<
-                           "\nRefinableVariables\n[\n";
-
-        for (int i = 1; i < refined_params.size(); ++i)
-            out_refined_params << a_model.refined_variable_names[i] << '=' << refined_params[i]<< ";\n";
-        out_refined_params << "]\n";
+      out_refined_params << "Refined parameters are:\nScale " << refined_params[0] <<
+                         "\nRefinableVariables\n[\n";
+      for (int i = 1; i < (int)refined_params.size(); ++i) {
+        for (int b = 0; b < (int)block_starts.size(); ++b) {
+          if (block_starts[b] == i) { out_refined_params << "#Block " << (b + 1) << "\n"; break; }
+        }
+        if (a_model.param_is_active(i))
+          out_refined_params << a_model.refined_variable_names[i] << '=' << refined_params[i] << ";\n";
+        else
+          out_refined_params << a_model.refined_variable_names[i] << '=' << refined_params[i] << "; #fixed\n";
+      }
+      out_refined_params << "]\n";
 
 
         report.last_run();

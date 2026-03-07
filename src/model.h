@@ -25,6 +25,8 @@
 #include "precompiled_header.h"
 #include "FormulaParser.h"
 #include "ExprFormulaParser.h"
+#include <set>
+#include <sstream>
 #include "ParameterizedAtom.h"
 #include <boost/fusion/tuple.hpp>
 
@@ -221,6 +223,45 @@ public:
   void set_derivatives_mode(DerivativesMode m) { derivatives_mode = m; }
   void set_jacobian_multiplier(double v)        { jacobian_multiplier = v; }
 
+  void set_active_blocks_str(const vector<string>& tokens) {
+    active_blocks.clear();
+    for (const string& s : tokens) {
+      size_t dash = s.find('-');
+      if (dash != string::npos) {
+        int i1 = std::stoi(s.substr(0, dash));
+        int i2 = std::stoi(s.substr(dash + 1));
+        for (int i = i1; i <= i2; ++i) active_blocks.insert(i);
+      } else {
+        active_blocks.insert(std::stoi(s));
+      }
+    }
+    std::ostringstream oss;
+    oss << "Active blocks set to: ";
+    for (int b : active_blocks) oss << b << " ";
+    REPORT(MAIN) << oss.str() << "\n";
+  }
+
+// TODO: fix this. Users care about 1-based indices, so every time we are talking to users we will add 1, internally keep it 0-based
+
+  // True if the 1-based block index is active (empty set = all active).
+  bool block_is_active(int idx_1based) const {
+    if (active_blocks.empty()) return true;
+    return active_blocks.count(idx_1based) > 0;
+  }
+
+  // True if the flat parameter index (0=Scale, 1..N=RefinableVariables) is active.
+  bool param_is_active(int param_idx) const {
+    if (active_blocks.empty() || param_idx == 0) return true;
+    int offset = 1;
+    for (size_t b = 0; b < parameter_blocks.size(); ++b) {
+      int sz = (int)parameter_blocks[b].size();
+      if (param_idx >= offset && param_idx < offset + sz)
+        return block_is_active((int)b + 1);
+      offset += sz;
+    }
+    return true;
+  }
+
   void set_scale(double inp) {
     refinement_parameters[0]=inp;
   }
@@ -253,6 +294,7 @@ public:
   }
 
   vector<vector<double>> parameter_blocks;
+  set<int> active_blocks; // 1-based indices of blocks to refine; empty = all active
   
   void initialize_unit_cell(vector<double> params)  {
     cell_is_initialized = true;
