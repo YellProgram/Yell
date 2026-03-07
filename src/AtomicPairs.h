@@ -593,6 +593,12 @@ struct PattersonPeak {
     sym_mat3<double> U;
 };
 
+struct PeakSusceptibility {
+    double           d_coefficient;
+    vec3<double>     d_r;
+    sym_mat3<double> d_U;
+};
+
 /// Convert a list of AtomicPairs into two PattersonPeak lists using the
 /// given ScattererList for scatterer→index mapping.
 /// full_peaks: uses real (non-average) pair parameters.
@@ -630,6 +636,45 @@ inline void peaks_from_pairs(
         pk.U = sym_mat3<double>(pair.U(true).u11->eval(params), pair.U(true).u22->eval(params), pair.U(true).u33->eval(params),
                                 pair.U(true).u12->eval(params), pair.U(true).u13->eval(params), pair.U(true).u23->eval(params));
         avg_peaks.push_back(pk);
+    }
+}
+
+/// Convert a list of AtomicPairs into two PeakSusceptibility lists for a specific parameter index.
+inline void susceptibilities_from_pairs(
+    vector<AtomicPair>&        pairs,
+    const Eigen::VectorXd&     params,
+    int                        param_idx,
+    vector<PeakSusceptibility>& full_susc,
+    vector<PeakSusceptibility>& avg_susc)
+{
+    full_susc.clear();
+    avg_susc.clear();
+    full_susc.reserve(pairs.size());
+    avg_susc.reserve(pairs.size());
+
+    for (AtomicPair& pair : pairs) {
+        auto bake_susc = [&](bool avg) {
+            PeakSusceptibility s;
+            yell::Dual p_d   = pair.p(avg)->eval_d(params);
+            yell::Dual rx_d  = pair.r(avg).x->eval_d(params);
+            yell::Dual ry_d  = pair.r(avg).y->eval_d(params);
+            yell::Dual rz_d  = pair.r(avg).z->eval_d(params);
+            yell::Dual u11_d = pair.U(avg).u11->eval_d(params);
+            yell::Dual u22_d = pair.U(avg).u22->eval_d(params);
+            yell::Dual u33_d = pair.U(avg).u33->eval_d(params);
+            yell::Dual u12_d = pair.U(avg).u12->eval_d(params);
+            yell::Dual u13_d = pair.U(avg).u13->eval_d(params);
+            yell::Dual u23_d = pair.U(avg).u23->eval_d(params);
+
+            s.d_coefficient = p_d.derivatives()[param_idx] * pair.multiplier;
+            s.d_r = vec3<double>(rx_d.derivatives()[param_idx], ry_d.derivatives()[param_idx], rz_d.derivatives()[param_idx]);
+            s.d_U = sym_mat3<double>(u11_d.derivatives()[param_idx], u22_d.derivatives()[param_idx], u33_d.derivatives()[param_idx],
+                                     u12_d.derivatives()[param_idx], u13_d.derivatives()[param_idx], u23_d.derivatives()[param_idx]);
+            return s;
+        };
+
+        full_susc.push_back(bake_susc(false));
+        avg_susc.push_back(bake_susc(true));
     }
 }
 

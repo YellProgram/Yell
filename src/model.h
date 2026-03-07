@@ -420,6 +420,10 @@ public:
   
   void calculate(vector<double> params,bool);
 
+  /// Calculate derivative map dI/dp_j for a single parameter index j.
+  /// Corresponds to the index in refinement_parameters / yell::ParameterBlock.
+  IntensityMap calculate_derivative(const vector<double>& params, int param_idx);
+
   UnitCell cell;
   IntensityMap intensity_map, average_intensity_map;
   string model;

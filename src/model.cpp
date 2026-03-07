@@ -206,13 +206,60 @@ void Model::calculate(vector<double> params, bool average_flag)
   }
 
   apply_resolution_function_if_possible(*calc_intensity_map);
+apply_reciprocal_space_multipliers_if_possible(*calc_intensity_map);
+}
 
-  apply_reciprocal_space_multipliers_if_possible(*calc_intensity_map);
-  calc_intensity_map->to_reciprocal();
-  report.calculation_is_finished();
+IntensityMap Model::calculate_derivative(const vector<double>& params, int param_idx)
+{
+if (param_idx == 0) { // Scale derivative: ∂I/∂Scale = I_full - I_avg
+  calculate(params);
+  IntensityMap res(intensity_map);
+  for (int i = 0; i < res.size_1d(); ++i)
+    res.at(i) = intensity_map.at(i) - average_intensity_map.at(i);
+  return res;
+}
+
+// Parameter derivative: ∂I/∂p_j = Scale * (∂I_full/∂p_j - ∂I_avg/∂p_j)
+Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), params.size());
+double scale = params[0];
+
+for (auto& pad : parameterized_atoms_)
+  pad.update(q);
+
+for (auto* pool : pools)
+  pool->pairs.clear();
+
+vector<AtomicPair> pairs;
+for (auto* pool : pools) {
+  pool->invoke_correlators(q);
+  pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
+}
+pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
+
+vector<PattersonPeak> full_peaks, avg_peaks;
+peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
+
+vector<PeakSusceptibility> full_susc, avg_susc;
+susceptibilities_from_pairs(pairs, q, param_idx, full_susc, avg_susc);
+
+IntensityMap dI_full(grid);
+IntensityMap dI_avg(grid);
+
+IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(full_peaks, full_susc, scatterer_list_, dI_full);
+IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(avg_peaks,  avg_susc,  scatterer_list_, dI_avg);
+
+IntensityMap res(grid);
+for (int i = 0; i < res.size_1d(); ++i)
+  res.at(i) = scale * (dI_full.at(i) - dI_avg.at(i));
+
+apply_resolution_function_if_possible(res);
+apply_reciprocal_space_multipliers_if_possible(res);
+
+return res;
 }
 
 Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
+
     const vector<double>& params,
     IntensityMap& exp_map,
     OptionalIntensityMap& wts)

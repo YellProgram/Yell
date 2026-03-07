@@ -199,6 +199,44 @@ public:
         }
     }
 
+    /// Calculate derivative map dI/dp_j for a single parameter j.
+    static void calculate_scattering_derivative_from_patterson_peaks(
+        const vector<PattersonPeak>& peaks,
+        const vector<PeakSusceptibility>& susceptibilities,
+        ScattererList&               scatterers,
+        IntensityMap&                dI)
+    {
+        dI.init_iterator();
+        while (dI.next()) {
+            vec3<double> s       = dI.current_s();
+            double       d_sq    = dI.current_d_star_square();
+            scatterers.update(s, d_sq);
+
+            double deriv_val = 0.0;
+            for (size_t k = 0; k < peaks.size(); ++k) {
+                const PattersonPeak& pk = peaks[k];
+                const PeakSusceptibility& sk = susceptibilities[k];
+
+                complex<double> f1f2 = conj(scatterers.f(pk.type1_idx)) * scatterers.f(pk.type2_idx);
+                
+                double phase_val = M_2PI * (s * pk.r);
+                double adp_val   = M2PISQ * (s * pk.U * s);
+                complex<double> E = exp(complex<double>(adp_val, phase_val));
+
+                double d_phase = M_2PI * (s * sk.d_r);
+                double d_adp   = M2PISQ * (s * sk.d_U * s);
+
+                // Derivative of (p * E):
+                // d(p * E) = dp * E + p * E * (d_adp + i * d_phase)
+                complex<double> term1 = sk.d_coefficient * E;
+                complex<double> term2 = pk.coefficient * E * complex<double>(d_adp, d_phase);
+
+                deriv_val += real(f1f2 * (term1 + term2));
+            }
+            dI.current_array_value() = deriv_val;
+        }
+    }
+
     inline static complex<double> calculate_scattering_from_a_pair_in_a_point_c(
         complex<double> const& f1, complex<double> const& f2,
         double const& p,

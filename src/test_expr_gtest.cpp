@@ -951,3 +951,30 @@ TEST(PattersonPeakTests, ValidScattererIndices)
         EXPECT_LT(pk.type2_idx, sl.size());
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Derivative tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(DerivativeTests, CalculateDerivativeConsistentWithJacobian)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.refine_in_asu_val = false; // Compare full maps
+    std::vector<double> params = {1.5, 0.25, 0.01};
+    m.calculate(params);
+
+    // Compute full Jacobian (n_obs x n_params)
+    OptionalIntensityMap wts; // empty weights = 1.0
+    IntensityMap exp_map = m.intensity_map; // dummy experiment
+    Eigen::MatrixXd J = m.compute_analytical_jacobian_direct(params, exp_map, wts);
+
+    for (int j = 0; j < (int)params.size(); ++j) {
+        IntensityMap dI = m.calculate_derivative(params, j);
+        
+        // J(ii, j) = -d(Model_i)/dp_j * w_i
+        // calculate_derivative returns d(Model_i)/dp_j
+        for (int i = 0; i < dI.size_1d(); ++i) {
+            EXPECT_NEAR(J(i, j), -dI.at(i), 1e-10) << "Mismatch in param " << j << " pixel " << i;
+        }
+    }
+}
