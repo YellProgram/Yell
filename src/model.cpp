@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <complex>
 #include "exceptions.h"
+
 extern OutputHandler report;
 typedef iterator_ Iterator;
 
@@ -116,14 +117,11 @@ void Model::parse_model_()
 
   model_parsed_ = true;
   // Snapshot the scatterer registry into a per-model form-factor cache.
-  // Must come after parsing (all Scatterer types are registered by then).
   scatterer_list_ = ScattererList();
 }
 
 void Model::calculate(vector<double> params, bool average_flag)
 {
-  // Update atom parameters from ExprPtr trees when sizes match.
-  // (Mismatched size means a legacy timing call — skip update.)
   Eigen::VectorXd p;
   if (params.size() == refinement_parameters.size()) {
     refinement_parameters = params;
@@ -134,28 +132,22 @@ void Model::calculate(vector<double> params, bool average_flag)
   } else {
     p = Eigen::VectorXd::Map(refinement_parameters.data(), refinement_parameters.size());
   }
-  // Clear cached pairs so invoke_correlators rebuilds them.
   for (auto* pool : pools)
     pool->pairs.clear();
 
   vector<AtomicPair> pairs;
-  vector<AtomicPairPool*>::iterator pool;
-  for(pool=pools.begin(); pool!=pools.end(); pool++)
+  for(auto* pool : pools)
   {
-    (*pool)->invoke_correlators(p);
-    pairs.insert(pairs.end(),(*pool)->pairs.begin(),(*pool)->pairs.end());
+    pool->invoke_correlators(p);
+    pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
   }
-  
-//    pairs = cell.laue_symmetry.filter_pairs_from_asymmetric_unit(pairs); //We decided to use another way for multiplicity
   
   REPORT(FIRST_RUN) << "created " << pairs.size() << " pairs\n\n";
   
-  // output pairs
   if(dump_pairs)
     for(int i=0; i<pairs.size(); i++)
       REPORT(FIRST_RUN) << pairs[i].to_string(p) <<'\n';
 
-  
   if(report_pairs_outside_pdf_grid)
   {
     Grid pdf_grid = grid.in_pdf_space();
@@ -165,98 +157,123 @@ void Model::calculate(vector<double> params, bool average_flag)
    }
   
   pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, p);
-  atomic_pairs = pairs; //save them to check that everything is fine
+  atomic_pairs = pairs;
   
-  IntensityMap* calc_intensity_map;
-  if(average_flag==AVERAGE)
-    calc_intensity_map=&average_intensity_map;
-  else
-    calc_intensity_map=&intensity_map;
+  vector<PattersonPeak> full_peaks, avg_peaks;
+  peaks_from_pairs(pairs, p, scatterer_list_, full_peaks, avg_peaks);
+  calculate_from_peaks(full_peaks, avg_peaks);
+}
 
-  if(direct_diffuse_scattering_calculation)
-  {
-    vec3<int> sym_boundary;
-    for(int i=0; i<3; ++i)
-      sym_boundary[i]=calc_intensity_map->size()[i]>1;
+void Model::calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
+                                 const vector<PattersonPeak>& avg_peaks)
+{
+  auto run_calc = [&](const vector<PattersonPeak>& peaks, IntensityMap& out, bool avg) {
+    if(direct_diffuse_scattering_calculation) {
+      vec3<int> sym_boundary;
+      for(int i=0; i<3; ++i) sym_boundary[i] = out.size()[i] > 1;
+      IntensityMap padded = out.padded(sym_boundary);
+      IntnsityCalculator::calculate_scattering_from_patterson_peaks(peaks, scatterer_list_, padded);
+      cell.laue_symmetry.apply_patterson_symmetry(padded);
+      out.copy_from_padded(sym_boundary, padded);
+    } else {
+      vec3<int> sym_boundary;
+      for(int i=0; i<3; ++i) sym_boundary[i] = out.size()[i] > 1 && !(periodic_boundaries[i]);
+      IntensityMap recipr_padded = out.padded(padding);
+      recipr_padded.invert_grid();
+      IntensityMap padded = recipr_padded.padded(sym_boundary);
+      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries);
+      cell.laue_symmetry.apply_patterson_symmetry(padded);
+      recipr_padded.copy_from_padded(sym_boundary, padded);
+      recipr_padded.invert();
+      out.copy_from_padded(padding, recipr_padded);
+    }
+    apply_resolution_function_if_possible(out);
+    apply_reciprocal_space_multipliers_if_possible(out);
+  };
 
-    IntensityMap padded = calc_intensity_map->padded(sym_boundary);
+  run_calc(full_peaks, intensity_map, false);
+  run_calc(avg_peaks,  average_intensity_map, true);
 
-    vector<PattersonPeak> full_peaks, avg_peaks;
-    peaks_from_pairs(pairs, p, scatterer_list_, full_peaks, avg_peaks);
-    const vector<PattersonPeak>& active_peaks = average_flag ? avg_peaks : full_peaks;
-    IntnsityCalculator::calculate_scattering_from_patterson_peaks(active_peaks, scatterer_list_, padded);
+  intensity_map.to_reciprocal();
+  average_intensity_map.to_reciprocal();
+  report.calculation_is_finished();
+}
 
-    cell.laue_symmetry.apply_patterson_symmetry(padded);
-    calc_intensity_map->copy_from_padded(sym_boundary,padded);
-  }else
-  {
-    vec3<int> sym_boundary;
-    for(int i=0; i<3; ++i)
-      sym_boundary[i]=calc_intensity_map->size()[i]>1 && !(periodic_boundaries[i]);
-    
-    IntensityMap recipr_padded = calc_intensity_map->padded(padding); //for better fft accuracy
-    recipr_padded.invert_grid();
-    IntensityMap padded = recipr_padded.padded(sym_boundary); //for symmetry
-    vector<PattersonPeak> full_peaks_fft, avg_peaks_fft;
-    peaks_from_pairs(pairs, p, scatterer_list_, full_peaks_fft, avg_peaks_fft);
-    IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks_fft,avg_peaks_fft,scatterer_list_,padded,average_flag,fft_grid_size,periodic_boundaries);
-    cell.laue_symmetry.apply_patterson_symmetry(padded);
-    recipr_padded.copy_from_padded(sym_boundary,padded);
-    recipr_padded.invert();
-    calc_intensity_map->copy_from_padded(padding,recipr_padded);
-  }
+IntensityMap Model::calculate_derivative_from_peaks(
+    const vector<PattersonPeak>& full_peaks,
+    const vector<PattersonPeak>& avg_peaks,
+    const vector<PeakSusceptibility>& full_susc,
+    const vector<PeakSusceptibility>& avg_susc,
+    double scale)
+{
+  IntensityMap res(grid);
+  auto run_deriv = [&](const vector<PattersonPeak>& peaks, const vector<PeakSusceptibility>& susc, IntensityMap& out, bool avg) {
+    if(direct_diffuse_scattering_calculation) {
+      vec3<int> sym_boundary;
+      for(int i=0; i<3; ++i) sym_boundary[i] = out.size()[i] > 1;
+      IntensityMap padded = out.padded(sym_boundary);
+      IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(peaks, susc, scatterer_list_, padded);
+      cell.laue_symmetry.apply_patterson_symmetry(padded);
+      out.copy_from_padded(sym_boundary, padded);
+    } else {
+      vec3<int> sym_boundary;
+      for(int i=0; i<3; ++i) sym_boundary[i] = out.size()[i] > 1 && !(periodic_boundaries[i]);
+      IntensityMap recipr_padded = out.padded(padding);
+      recipr_padded.invert_grid();
+      IntensityMap padded = recipr_padded.padded(sym_boundary);
+      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries);
+      cell.laue_symmetry.apply_patterson_symmetry(padded);
+      recipr_padded.copy_from_padded(sym_boundary, padded);
+      recipr_padded.invert();
+      out.copy_from_padded(padding, recipr_padded);
+    }
+  };
 
-  apply_resolution_function_if_possible(*calc_intensity_map);
-apply_reciprocal_space_multipliers_if_possible(*calc_intensity_map);
+  IntensityMap dI_full(grid);
+  IntensityMap dI_avg(grid);
+  run_deriv(full_peaks, full_susc, dI_full, false);
+  run_deriv(avg_peaks,  avg_susc,  dI_avg,  true);
+
+  for (int i = 0; i < res.size_1d(); ++i)
+    res.at(i) = scale * (dI_full.at(i) - dI_avg.at(i));
+
+  apply_resolution_function_if_possible(res);
+  apply_reciprocal_space_multipliers_if_possible(res);
+  res.to_reciprocal();
+  return res;
 }
 
 IntensityMap Model::calculate_derivative(const vector<double>& params, int param_idx)
 {
-if (param_idx == 0) { // Scale derivative: ∂I/∂Scale = I_full - I_avg
-  calculate(params);
-  IntensityMap res(intensity_map);
-  for (int i = 0; i < res.size_1d(); ++i)
-    res.at(i) = intensity_map.at(i) - average_intensity_map.at(i);
-  return res;
-}
+  if (param_idx == 0) {
+    calculate(params);
+    IntensityMap res(intensity_map);
+    for (int i = 0; i < res.size_1d(); ++i)
+      res.at(i) = intensity_map.at(i) - average_intensity_map.at(i);
+    return res;
+  }
 
-// Parameter derivative: ∂I/∂p_j = Scale * (∂I_full/∂p_j - ∂I_avg/∂p_j)
-Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), params.size());
-double scale = params[0];
+  Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), params.size());
+  double scale = params[0];
 
-for (auto& pad : parameterized_atoms_)
-  pad.update(q);
+  yell::EvaluationCache cache;
+  for (auto& pad : parameterized_atoms_) pad.update(q, &cache);
+  for (auto* pool : pools) pool->pairs.clear();
 
-for (auto* pool : pools)
-  pool->pairs.clear();
+  vector<AtomicPair> pairs;
+  for (auto* pool : pools) {
+    pool->invoke_correlators(q);
+    pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
+  }
+  pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
 
-vector<AtomicPair> pairs;
-for (auto* pool : pools) {
-  pool->invoke_correlators(q);
-  pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
-}
-pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
+  vector<PattersonPeak> full_peaks, avg_peaks;
+  peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 
-vector<PattersonPeak> full_peaks, avg_peaks;
-peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
+  vector<PeakSusceptibility> full_susc, avg_susc;
+  susceptibilities_from_pairs(pairs, q, param_idx, full_susc, avg_susc);
 
-vector<PeakSusceptibility> full_susc, avg_susc;
-susceptibilities_from_pairs(pairs, q, param_idx, full_susc, avg_susc);
-
-IntensityMap dI_full(grid);
-IntensityMap dI_avg(grid);
-
-IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(full_peaks, full_susc, scatterer_list_, dI_full);
-IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(avg_peaks,  avg_susc,  scatterer_list_, dI_avg);
-
-IntensityMap res(grid);
-for (int i = 0; i < res.size_1d(); ++i)
-  res.at(i) = scale * (dI_full.at(i) - dI_avg.at(i));
-
-apply_resolution_function_if_possible(res);
-apply_reciprocal_space_multipliers_if_possible(res);
-
-return res;
+  return calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
 }
 
 Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
@@ -270,12 +287,10 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
 
-  for (auto* pool : pools)
-    pool->pairs.clear();
+  for (auto* pool : pools) pool->pairs.clear();
 
   vector<AtomicPair> pairs;
-  for(auto* pool : pools)
-  {
+  for(auto* pool : pools) {
     pool->invoke_correlators(q);
     pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
   }
@@ -288,11 +303,9 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
   const bool use_asu = refine_in_asu();
   const vector<int>& asu = asu_indices();
 
-  // 1. Base Intensities and Column 0 (Scale)
+  calculate_from_peaks(full_peaks, avg_peaks);
   IntensityMap cur_I_full = intensity_map;
   IntensityMap cur_I_avg  = average_intensity_map;
-  IntnsityCalculator::calculate_scattering_from_patterson_peaks(full_peaks, scatterer_list_, cur_I_full);
-  IntnsityCalculator::calculate_scattering_from_patterson_peaks(avg_peaks,  scatterer_list_, cur_I_avg);
 
   for (int ii = 0; ii < n_obs; ++ii) {
     int i = use_asu ? asu[ii] : ii;
@@ -300,25 +313,91 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     J(ii, 0) = -(cur_I_full.at(i) - cur_I_avg.at(i)) * w;
   }
 
-  // 2. Parameter Derivatives (Columns 1..N)
   if (n_params > 1) {
     for (int j = 1; j < n_params; ++j) {
       vector<PeakSusceptibility> full_susc, avg_susc;
       susceptibilities_from_pairs(pairs, q, j, full_susc, avg_susc);
 
-      IntensityMap dI_full(grid);
-      IntensityMap dI_avg(grid);
-
-      IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(full_peaks, full_susc, scatterer_list_, dI_full);
-      IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(avg_peaks,  avg_susc,  scatterer_list_, dI_avg);
+      IntensityMap dI = calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
 
       for (int ii = 0; ii < n_obs; ++ii) {
         int i = use_asu ? asu[ii] : ii;
         double w = wts.at(i);
-        J(ii, j) = -scale * (dI_full.at(i) - dI_avg.at(i)) * w;
+        J(ii, j) = -dI.at(i) * w;
       }
     }
   }
+
+  return J;
+}
+
+Eigen::MatrixXd Model::compute_jacobian_mixed(
+    const vector<double>& params,
+    IntensityMap& exp_map,
+    OptionalIntensityMap& wts)
+{
+  const int n_params = (int)params.size();
+  const int n_obs    = number_of_observations();
+  const double scale = params[0];
+  const double eps   = 1e-6;
+
+  Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
+
+  for (auto* pool : pools) pool->pairs.clear();
+
+  vector<AtomicPair> pairs;
+  for(auto* pool : pools) {
+    pool->invoke_correlators(q);
+    pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
+  }
+  pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
+  
+  vector<PattersonPeak> full_peaks_base, avg_peaks_base;
+  peaks_from_pairs(pairs, q, scatterer_list_, full_peaks_base, avg_peaks_base);
+
+  calculate_from_peaks(full_peaks_base, avg_peaks_base);
+  IntensityMap base_I_full = intensity_map;
+  IntensityMap base_I_avg  = average_intensity_map;
+
+  Eigen::MatrixXd J(n_obs, n_params);
+  const bool use_asu = refine_in_asu();
+  const vector<int>& asu = asu_indices();
+
+  for (int ii = 0; ii < n_obs; ++ii) {
+    int i = use_asu ? asu[ii] : ii;
+    double w = wts.at(i);
+    J(ii, 0) = -(base_I_full.at(i) - base_I_avg.at(i)) * w;
+  }
+
+  for (int j = 1; j < n_params; ++j) {
+    vector<PeakSusceptibility> full_susc, avg_susc;
+    susceptibilities_from_pairs(pairs, q, j, full_susc, avg_susc);
+
+    vector<PattersonPeak> full_peaks_pert = full_peaks_base;
+    vector<PattersonPeak> avg_peaks_pert  = avg_peaks_base;
+
+    for (size_t k = 0; k < full_peaks_pert.size(); ++k) {
+      full_peaks_pert[k].coefficient += eps * full_susc[k].d_coefficient;
+      full_peaks_pert[k].r           += eps * full_susc[k].d_r;
+      full_peaks_pert[k].U           += eps * full_susc[k].d_U;
+
+      avg_peaks_pert[k].coefficient  += eps * avg_susc[k].d_coefficient;
+      avg_peaks_pert[k].r            += eps * avg_susc[k].d_r;
+      avg_peaks_pert[k].U            += eps * avg_susc[k].d_U;
+    }
+
+    calculate_from_peaks(full_peaks_pert, avg_peaks_pert);
+    
+    for (int ii = 0; ii < n_obs; ++ii) {
+      int i = use_asu ? asu[ii] : ii;
+      double w = wts.at(i);
+      double dI = (intensity_map.at(i) - average_intensity_map.at(i)) - (base_I_full.at(i) - base_I_avg.at(i));
+      J(ii, j) = -scale * (dI / eps) * w;
+    }
+  }
+
+  intensity_map = base_I_full;
+  average_intensity_map = base_I_avg;
 
   return J;
 }

@@ -420,6 +420,18 @@ public:
   
   void calculate(vector<double> params,bool);
 
+  /// Helper: calculate full and average intensity maps from pre-baked peaks.
+  void calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
+                            const vector<PattersonPeak>& avg_peaks);
+
+  /// Helper: calculate derivative maps from pre-baked peaks and susceptibilities.
+  IntensityMap calculate_derivative_from_peaks(
+      const vector<PattersonPeak>& full_peaks,
+      const vector<PattersonPeak>& avg_peaks,
+      const vector<PeakSusceptibility>& full_susc,
+      const vector<PeakSusceptibility>& avg_susc,
+      double scale);
+
   /// Calculate derivative map dI/dp_j for a single parameter index j.
   /// Corresponds to the index in refinement_parameters / yell::ParameterBlock.
   IntensityMap calculate_derivative(const vector<double>& params, int param_idx);
@@ -471,6 +483,11 @@ public:
   // Returns matrix of shape (n_observations × n_params).
   // Residuals: r_i = (exp_i - data_i) * w_i, data_i = Scale*(Ifull_i - Iavg_i).
   Eigen::MatrixXd compute_analytical_jacobian_direct(
+      const vector<double>& params,
+      IntensityMap& exp_map,
+      OptionalIntensityMap& wts);
+
+  Eigen::MatrixXd compute_jacobian_mixed(
       const vector<double>& params,
       IntensityMap& exp_map,
       OptionalIntensityMap& wts);

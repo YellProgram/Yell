@@ -137,6 +137,89 @@ public:
         }
     }
 
+    /// FFT-path analytical derivative map calculation for a single parameter.
+    static void calculate_patterson_map_derivative_from_pairs_f(
+        const vector<PattersonPeak>& base_full_peaks,
+        const vector<PattersonPeak>& base_avg_peaks,
+        const vector<PeakSusceptibility>& full_susc,
+        const vector<PeakSusceptibility>& avg_susc,
+        ScattererList& scatterers,
+        IntensityMap&  deriv_patterson_map,
+        bool           average_flag,
+        vec3<int>      pair_grid_size,
+        vector<bool>   periodic_directions = vector<bool>(3, false))
+    {
+        const int n_peaks = (int)base_full_peaks.size();
+        double scale = deriv_patterson_map.size_1d();
+
+        for (int i = 0; i < deriv_patterson_map.size_1d(); ++i)
+            deriv_patterson_map.at_c(i) = 0;
+
+        Grid grid_for_pairs_p(deriv_patterson_map.unit_cell(),
+                              deriv_patterson_map.grid_steps(),
+                              deriv_patterson_map.grid_steps().each_mul(-pair_grid_size / 2),
+                              deriv_patterson_map.grid.reciprocal_flag);
+        Grid grid_for_pairs_r = grid_for_pairs_p.reciprocal();
+
+        scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
+
+        // Pre-filter peaks that have zero sensitivity to this parameter
+        struct ActivePeak { int idx; };
+        vector<ActivePeak> active_indices;
+        for (int i = 0; i < n_peaks; ++i) {
+            const auto& sk = average_flag ? avg_susc[i] : full_susc[i];
+            bool has_susc = (sk.d_coefficient != 0.0) || (sk.d_r.length_sq() != 0.0);
+            if (!has_susc) {
+                for (int m = 0; m < 6; ++m) if (sk.d_U[m] != 0.0) { has_susc = true; break; }
+            }
+            if (has_susc) {
+                active_indices.push_back({i});
+            }
+        }
+
+        omp_set_num_threads(8);
+#pragma omp parallel for
+        for (int i = 0; i < (int)active_indices.size(); ++i) {
+            int k = active_indices[i].idx;
+            const PattersonPeak& fpk = base_full_peaks[k];
+            const PattersonPeak& apk = base_avg_peaks[k];
+            const PattersonPeak& pk  = average_flag ? apk : fpk;
+            const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
+
+            IntensityMap pair_patterson_map(pair_grid_size);
+            pair_patterson_map.set_grid(grid_for_pairs_r);
+
+            vec3<int>    r_grid;
+            vec3<double> r_res;
+            grid_and_residual(apk.r, deriv_patterson_map.grid, r_grid, r_res);
+            if (!average_flag)
+                r_res += fpk.r - apk.r;
+
+            pair_patterson_map.init_iterator();
+            while (pair_patterson_map.next()) {
+                complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
+                complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
+                
+                vec3<double> s = pair_patterson_map.current_s();
+                double phase_val = M_2PI * (s * r_res);
+                double adp_val   = M2PISQ * (s * pk.U * s);
+                complex<double> E = exp(complex<double>(adp_val, phase_val));
+
+                double d_phase = M_2PI * (s * sk.d_r);
+                double d_adp   = M2PISQ * (s * sk.d_U * s);
+
+                complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
+
+                pair_patterson_map.current_array_value_c() = scale * conj(f1) * f2 * d_term;
+            }
+
+            pair_patterson_map.invert();
+
+#pragma omp critical
+            add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map, r_grid, periodic_directions);
+        }
+    }
+
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)
     {
         double d_star_square;

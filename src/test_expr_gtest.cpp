@@ -978,3 +978,25 @@ TEST(DerivativeTests, CalculateDerivativeConsistentWithJacobian)
         }
     }
 }
+
+TEST(DerivativeTests, MixedJacobianConsistentWithDirect)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.refine_in_asu_val = false; 
+    std::vector<double> params = {1.5, 0.25, 0.01};
+    
+    OptionalIntensityMap wts;
+    IntensityMap exp_map = m.intensity_map; 
+
+    Eigen::MatrixXd J_direct = m.compute_analytical_jacobian_direct(params, exp_map, wts);
+    Eigen::MatrixXd J_mixed  = m.compute_jacobian_mixed(params, exp_map, wts);
+
+    ASSERT_EQ(J_direct.rows(), J_mixed.rows());
+    ASSERT_EQ(J_direct.cols(), J_mixed.cols());
+
+    for (int j = 0; j < J_direct.cols(); ++j) {
+        for (int i = 0; i < J_direct.rows(); ++i) {
+            EXPECT_NEAR(J_direct(i, j), J_mixed(i, j), 1e-6) << "Mismatch in param " << j << " pixel " << i;
+        }
+    }
+}
