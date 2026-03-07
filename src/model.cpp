@@ -21,6 +21,7 @@
 #include "InputFileParser.h"
 #include "Calculator.h"
 #include <Eigen/LU>
+#include <Eigen/SVD>
 #include <sstream>
 #include <unordered_map>
 #include <complex>
@@ -244,6 +245,19 @@ IntensityMap Model::calculate_derivative_from_peaks(
   return res;
 }
 
+IntensityMap Model::calculate_derivative_from_susceptibilities(
+    const vector<PattersonPeak>& full_peaks,
+    const vector<PattersonPeak>& avg_peaks,
+    const vector<AtomicPair>& pairs,
+    const Eigen::VectorXd& q,
+    int param_idx,
+    double scale)
+{
+    vector<PeakSusceptibility> full_susc, avg_susc;
+    susceptibilities_from_pairs(const_cast<vector<AtomicPair>&>(pairs), q, param_idx, full_susc, avg_susc);
+    return calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
+}
+
 IntensityMap Model::calculate_derivative(const vector<double>& params, int param_idx)
 {
   if (param_idx == 0) {
@@ -271,10 +285,7 @@ IntensityMap Model::calculate_derivative(const vector<double>& params, int param
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 
-  vector<PeakSusceptibility> full_susc, avg_susc;
-  susceptibilities_from_pairs(pairs, q, param_idx, full_susc, avg_susc);
-
-  return calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
+  return calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, param_idx, scale);
 }
 
 Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
@@ -316,11 +327,7 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
   if (n_params > 1) {
     for (int j = 1; j < n_params; ++j) {
-      vector<PeakSusceptibility> full_susc, avg_susc;
-      susceptibilities_from_pairs(pairs, q, j, full_susc, avg_susc);
-
-      IntensityMap dI = calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
-
+      IntensityMap dI = calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, j, scale);
       for (int ii = 0; ii < n_obs; ++ii) {
         int i = use_asu ? asu[ii] : ii;
         double w = wts.at(i);
@@ -416,7 +423,6 @@ Eigen::MatrixXd Model::compute_full_covariance(
   calculate(params);
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
 
-  // Column 0: Scale derivative map J_S = -(I_full - I_avg)
   vector<double> col0(n_obs);
   for (int ii = 0; ii < n_obs; ++ii) {
       int i = use_asu ? asu[ii] : ii;
@@ -430,54 +436,50 @@ Eigen::MatrixXd Model::compute_full_covariance(
       H(0, 0) += w * w * col0[ii] * col0[ii];
   }
 
-  // Memory-aware batching
+
+  Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
+  const double scale = params[0];
+  
+  vector<PattersonPeak> fpeaks, apeaks;
+  peaks_from_pairs(atomic_pairs, q, scatterer_list_, fpeaks, apeaks);
+
+
   int actual_batch_size = covariance_batch_size;
   if (actual_batch_size <= 0) {
-      // Default to the largest structural block size
       for (auto& block : parameter_blocks) {
           actual_batch_size = std::max(actual_batch_size, (int)block.size());
       }
-      if (actual_batch_size <= 0) actual_batch_size = 32; // fallback
+      if (actual_batch_size <= 0) actual_batch_size = 32;
   }
   
   for (int b1 = 1; b1 < n_params; b1 += actual_batch_size) {
       int e1 = std::min(b1 + actual_batch_size, n_params);
-      
-      // Calculate and store maps for batch 1
       vector<IntensityMap> maps1;
       for (int j = b1; j < e1; ++j) {
-          maps1.push_back(calculate_derivative(params, j));
+          maps1.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, j, scale));
       }
 
-      // 1. Cross terms with Scale (Col 0) and diagonal/internal cross terms
       for (int j = b1; j < e1; ++j) {
           const IntensityMap& mj = maps1[j - b1];
           for (int ii = 0; ii < n_obs; ++ii) {
               int i = use_asu ? asu[ii] : ii;
               double w = get_w(ii);
               double Jj = -mj.at(i);
-              
               H(0, j) += w * w * col0[ii] * Jj;
-              H(j, 0) = H(0, j);
-              
               for (int k = b1; k <= j; ++k) {
-                  const IntensityMap& mk = maps1[k - b1];
-                  double Jk = -mk.at(i);
+                  double Jk = -maps1[k - b1].at(i);
                   H(k, j) += w * w * Jk * Jj;
-                  if (k != j) H(j, k) = H(k, j);
               }
           }
+          H(j, 0) = H(0, j);
+          for (int k = b1; k < j; ++k) H(j, k) = H(k, j);
       }
 
-      // 2. Cross terms with PREVIOUS batches
-      // This part still requires re-calculating the previous batch maps
-      // or storing them on disk. Given the 100x speedup goal, we should
-      // at least avoid re-calculating for the CURRENT batch.
       for (int b2 = 1; b2 < b1; b2 += actual_batch_size) {
           int e2 = std::min(b2 + actual_batch_size, b1);
           vector<IntensityMap> maps2;
           for (int k = b2; k < e2; ++k) {
-              maps2.push_back(calculate_derivative(params, k));
+              maps2.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, k, scale));
           }
 
           for (int j = b1; j < e1; ++j) {
@@ -495,5 +497,13 @@ Eigen::MatrixXd Model::compute_full_covariance(
       }
   }
 
-  return H.inverse();
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  double threshold = 1e-12 * svd.singularValues()(0);
+  Eigen::VectorXd inv_sv = svd.singularValues();
+  for (int i = 0; i < inv_sv.size(); ++i) {
+      if (inv_sv[i] > threshold) inv_sv[i] = 1.0 / inv_sv[i];
+      else inv_sv[i] = 0.0;
+  }
+  Eigen::MatrixXd cov = svd.matrixV() * inv_sv.asDiagonal() * svd.matrixU().transpose();
+  return cov;
 }
