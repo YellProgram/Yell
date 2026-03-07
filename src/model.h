@@ -526,6 +526,8 @@ public:
   bool calculate_jacobians;
     ScatteringType scattering_type;
   IntensityMap& data() { return data_; }
+  IntensityMap& get_intensity_map() { return intensity_map; }
+  IntensityMap& get_average_intensity_map() { return average_intensity_map; }
   IntensityMap data_;
   //TODO: For multithreading I will need to split the class "model" into two parts. All the large arrays like weights, multipliers etc will have to go to another object,
   //this one has to be thread-safe, meaning that calculation operation should be possible to do in an instantiated object

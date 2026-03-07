@@ -38,6 +38,8 @@ class MinimizerCalculator {
 public:
     virtual void calculate(vector<double> p) = 0;
     virtual IntensityMap& data() = 0;
+    virtual IntensityMap& get_intensity_map() = 0;
+    virtual IntensityMap& get_average_intensity_map() = 0;
     virtual int number_of_observations() = 0;
     virtual bool refine_in_asu() = 0;
     virtual vector<int>& asu_indices() = 0;

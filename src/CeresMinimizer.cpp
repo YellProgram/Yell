@@ -11,8 +11,8 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Analytical cost function: computes residuals and Jacobian via ExprPtr trees.
-// Block 0 is always Scale (size 1).
-// Blocks 1..N are structural parameters from user input.
+// Implements Variable Projection for the global Scale parameter.
+// Ceres only sees structural parameter blocks.
 // ─────────────────────────────────────────────────────────────────────────────
 class AnalyticalYellCostFunction : public ceres::CostFunction {
 public:
@@ -21,10 +21,7 @@ public:
     {
         set_num_residuals(model->number_of_observations());
         
-        // Block 0: Scale (always size 1)
-        mutable_parameter_block_sizes()->push_back(1);
-        
-        // Structural blocks
+        // Structural blocks only (Scale is internal)
         for (auto& block : model->parameter_blocks) {
             mutable_parameter_block_sizes()->push_back((int)block.size());
         }
@@ -34,53 +31,52 @@ public:
                   double* residuals,
                   double** jacobians) const override
     {
-        // 1. Flatten blocks into a single parameter vector for model evaluation
+        // 1. Flatten structural blocks. Global param 0 (Scale) starts at 1.0.
         vector<double> p;
+        p.push_back(1.0); 
         for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
             int sz = parameter_block_sizes()[b];
             p.insert(p.end(), parameters[b], parameters[b] + sz);
         }
 
-        // 2. Base model calculation
+        // 2. Base model calculation (Unscaled)
         model_->calculate(p);
 
         int n_obs = model_->number_of_observations();
         const bool use_asu = model_->refine_in_asu();
         const vector<int>& asu = model_->asu_indices();
 
-        if (use_asu) {
-            for (int ii = 0; ii < n_obs; ++ii) {
-                int i = asu[ii];
-                residuals[ii] = (exp_->at(i) - model_->data().at(i)) * weights_->at(i);
-            }
-        } else {
-            for (int i = 0; i < n_obs; ++i)
-                residuals[i] = (exp_->at(i) - model_->data().at(i)) * weights_->at(i);
+        // 3. Analytical Scale Optimization (Separable Least Squares)
+        // S = Sum(w^2 * I_exp * I_calc) / Sum(w^2 * I_calc^2)
+        double num = 0.0;
+        double den = 0.0;
+        for (int ii = 0; ii < n_obs; ++ii) {
+            int i = use_asu ? asu[ii] : ii;
+            double w = weights_->at(i);
+            double Ic = model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i);
+            double Ie = exp_->at(i);
+            num += w * w * Ie * Ic;
+            den += w * w * Ic * Ic;
+        }
+        double S = (den > 1e-15) ? (num / den) : 1.0;
+        if (S < 0) S = 0; // Physical constraint
+        model_->set_scale(S);
+        p[0] = S;
+
+        // 4. Calculate residuals using optimal S
+        for (int ii = 0; ii < n_obs; ++ii) {
+            int i = use_asu ? asu[ii] : ii;
+            residuals[ii] = (exp_->at(i) - S * (model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i))) * weights_->at(i);
         }
 
-        // 3. Streaming Jacobian calculation
+        // 5. Jacobian evaluation (streaming)
         if (jacobians) {
-            double scale = p[0];
-            
-            // Block 0: Scale Derivative (dI/dScale = I_full - I_avg)
-            if (jacobians[0]) {
-                for (int ii = 0; ii < n_obs; ++ii) {
-                    int i = use_asu ? asu[ii] : ii;
-                    double dI = model_->intensity_map.at(i) - model_->average_intensity_map.at(i);
-                    jacobians[0][ii] = -dI * weights_->at(i);
-                }
-            }
-
-            // Blocks 1..N: Structural Derivatives
-            // We reuse memory maps to keep peak usage low.
             int global_offset = 1;
-            for (size_t b = 1; b < parameter_block_sizes().size(); ++b) {
+            for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
                 int block_sz = parameter_block_sizes()[b];
                 if (jacobians[b]) {
                     for (int j = 0; j < block_sz; ++j) {
-                        // calculate_derivative(p, global_idx) handles the full logic (Direct/FFT)
                         IntensityMap dI_map = model_->calculate_derivative(p, global_offset + j);
-                        
                         for (int ii = 0; ii < n_obs; ++ii) {
                             int i = use_asu ? asu[ii] : ii;
                             jacobians[b][ii * block_sz + j] = -dI_map.at(i) * weights_->at(i);
@@ -102,12 +98,13 @@ private:
 
 class JsonIterationLogger : public ceres::IterationCallback {
 public:
-    JsonIterationLogger(const vector<double*>& p_pointers,
+    JsonIterationLogger(Model* model,
+                        const vector<double*>& p_pointers,
                         const vector<int>& block_sizes,
-                        int total_size, std::string filename)
-        : p_pointers_(p_pointers),
+                        std::string filename)
+        : model_(model),
+          p_pointers_(p_pointers),
           block_sizes_(block_sizes),
-          total_size_(total_size),
           filename_(std::move(filename)) {}
 
     ceres::CallbackReturnType operator()(const ceres::IterationSummary& summary) override {
@@ -118,6 +115,9 @@ public:
         data.step_norm     = summary.step_norm;
         data.step_accepted = summary.step_is_successful;
         
+        // Report current Scale (from Model state)
+        data.parameters.push_back(model_->refinement_parameters[0]);
+
         for (size_t b = 0; b < p_pointers_.size(); ++b) {
             for (int i = 0; i < block_sizes_[b]; ++i) {
                 data.parameters.push_back(p_pointers_[b][i]);
@@ -151,10 +151,10 @@ public:
     }
 
 private:
+    Model*          model_;
     vector<double*> p_pointers_;
     vector<int>     block_sizes_;
-    int total_size_;
-    std::string filename_;
+    std::string     filename_;
 
     struct IterationData {
         int iteration;
@@ -183,15 +183,8 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     vector<double*> p_pointers;
     vector<int> block_sizes;
 
-    // 1. Scale Block (Size 1)
-    double* p_scale = new double[1];
-    p_scale[0] = initial_params[0];
-    p_pointers.push_back(p_scale);
-    block_sizes.push_back(1);
-
-    // 2. Structural Blocks
+    // Structural blocks only
     if (!model || model->parameter_blocks.empty()) {
-        // If no blocks defined, treat all parameters > 0 as one block
         if (initial_params.size() > 1) {
             int rem = (int)initial_params.size() - 1;
             double* p_rest = new double[rem];
@@ -210,7 +203,6 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         }
     }
 
-    // 3. Problem Setup
     if (model && (model->derivatives_mode == ANALYTICAL || model->derivatives_mode == MIXED)) {
         auto* cost_function = new AnalyticalYellCostFunction(model, _experimental_data, _weights);
         problem.AddResidualBlock(cost_function, nullptr, p_pointers);
@@ -232,13 +224,14 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     last_eval_params_.resize(parameters_number);
     options.update_state_every_iteration = true;
     
-    JsonIterationLogger logger(p_pointers, block_sizes, parameters_number, "refinement_trajectory.json");
+    JsonIterationLogger logger(model, p_pointers, block_sizes, "refinement_trajectory.json");
     options.callbacks.push_back(&logger);
     
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
 
     vector<double> result;
+    result.push_back(model->refinement_parameters[0]); // Best analytical scale
     for (size_t b = 0; b < p_pointers.size(); ++b) {
         for (int i = 0; i < block_sizes[b]; ++i) {
             result.push_back(p_pointers[b][i]);
@@ -254,35 +247,49 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
     vector<double> yell_parameters;
     Model* model = dynamic_cast<Model*>(calc);
     
-    // Always Block 0 is Scale
-    yell_parameters.push_back(params[0][0]);
+    yell_parameters.push_back(1.0); // Temporary scale
 
     if (!model || model->parameter_blocks.empty()) {
-        // Fallback or legacy behavior: all structural params in block 1
         if (parameters_number > 1) {
             for (int i = 0; i < parameters_number - 1; ++i)
-                yell_parameters.push_back(params[1][i]);
+                yell_parameters.push_back(params[0][i]);
         }
     } else {
         for (size_t b = 0; b < model->parameter_blocks.size(); ++b) {
             int sz = (int)model->parameter_blocks[b].size();
             for (int i = 0; i < sz; ++i)
-                yell_parameters.push_back(params[b + 1][i]);
+                yell_parameters.push_back(params[b][i]);
         }
     }
 
     last_eval_params_ = yell_parameters;
     calc->calculate(yell_parameters);
 
-    auto datapoints_number = calc->number_of_observations();
-    if (calc->refine_in_asu()) {
-        for(int ii=0; ii<datapoints_number; ii++) {
-            auto i = calc->asu_indices()[ii];
-            residuals[ii] = (experimental_data->at(i) - calc->data().at(i))*weights->at(i);
+    int n_obs = calc->number_of_observations();
+    const bool use_asu = calc->refine_in_asu();
+    const vector<int>& asu = calc->asu_indices();
+    double num = 0.0, den = 0.0;
+    for (int ii = 0; ii < n_obs; ++ii) {
+        int i = use_asu ? asu[ii] : ii;
+        double w = weights->at(i);
+        double Ic = calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i);
+        double Ie = experimental_data->at(i);
+        num += w * w * Ie * Ic;
+        den += w * w * Ic * Ic;
+    }
+    double S = (den > 1e-15) ? (num / den) : 1.0;
+    if (S < 0) S = 0;
+    yell_parameters[0] = S;
+    if (model) model->set_scale(S);
+
+    if (use_asu) {
+        for(int ii=0; ii<n_obs; ii++) {
+            auto i = asu[ii];
+            residuals[ii] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i))) * weights->at(i);
         }
     } else {
-        for(int i=0; i<datapoints_number; i++)
-            residuals[i] = (experimental_data->at(i) - calc->data().at(i))*weights->at(i);
+        for(int i=0; i<n_obs; i++)
+            residuals[i] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i))) * weights->at(i);
     }
 
     return true;
