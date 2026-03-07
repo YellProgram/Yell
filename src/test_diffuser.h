@@ -1523,14 +1523,28 @@ public:
         Model a_model;
         a_parser.add_model(&a_model);
 
-        vector<boost::fusion::tuple<string,double> > res;
+        vector<vector<boost::fusion::tuple<std::string,double>>> res;
         run_parser("RefinableVariables[ a= 1 b=0; c=0 d=0.12(19);]",a_parser.refinable_parameters,a_skipper,res);
-        TS_ASSERT_EQUALS(4, res.size());
-        TS_ASSERT_EQUALS("a",boost::fusion::get<0>(res[0]));
-        TS_ASSERT_EQUALS(1,boost::fusion::get<1>(res[0]));
-        TS_ASSERT_EQUALS("b",boost::fusion::get<0>(res[1]));
-        TS_ASSERT_EQUALS(0,boost::fusion::get<1>(res[1]));
-        TS_ASSERT_EQUALS(0.12,boost::fusion::get<1>(res[3]));
+        TS_ASSERT_EQUALS(1, res.size());
+        TS_ASSERT_EQUALS(4, res[0].size());
+        TS_ASSERT_EQUALS("a",boost::fusion::get<0>(res[0][0]));
+        TS_ASSERT_EQUALS(1,boost::fusion::get<1>(res[0][0]));
+        TS_ASSERT_EQUALS("b",boost::fusion::get<0>(res[0][1]));
+        TS_ASSERT_EQUALS(0,boost::fusion::get<1>(res[0][1]));
+        TS_ASSERT_EQUALS(0.12,boost::fusion::get<1>(res[0][3]));
+    }
+
+    void test_block_initialization_of_refinable_variables() {
+        Model a_model;
+        a_parser.add_model(&a_model);
+
+        vector<vector<boost::fusion::tuple<std::string,double>>> res;
+        run_parser("RefinableVariables[ [a= 1 b=0] [c=0 d=0.12(19)] ]",a_parser.refinable_parameters,a_skipper,res);
+        TS_ASSERT_EQUALS(2, res.size());
+        TS_ASSERT_EQUALS(2, res[0].size());
+        TS_ASSERT_EQUALS(2, res[1].size());
+        TS_ASSERT_EQUALS("a",boost::fusion::get<0>(res[0][0]));
+        TS_ASSERT_EQUALS("c",boost::fusion::get<0>(res[1][0]));
     }
 
     void test_size_effect_corrlation_parser()  {

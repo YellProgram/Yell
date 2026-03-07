@@ -225,22 +225,40 @@ public:
     refinement_parameters[0]=inp;
   }
   
-  void set_refinable_parameters(FormulaParser& formula, ExprFormulaParser& expr_formula,
-                                vector<boost::fusion::tuple<string,double> > inp) {
+  void set_refinable_parameter_blocks(FormulaParser& formula, ExprFormulaParser& expr_formula,
+                                     vector<vector<boost::fusion::tuple<string,double>>> blocks) {
+    // Flatten for internal expression use, keep blocks for Ceres.
+    refinement_parameters.clear();
+    refined_variable_names.clear();
+    parameter_blocks.clear();
 
+    // Scale is always parameter 0, in its own block if not provided? 
+    // Actually, let's just keep the scale at index 0 of the first block or as its own block.
+    // For simplicity with existing code, let's keep Scale at global index 0.
+    refinement_parameters.push_back(1.0); // Default scale
+    refined_variable_names.push_back("Scale");
 
-    refinement_parameters.resize(inp.size()+1);
-    refined_variable_names.resize(inp.size()+1);
-
-    for(int i=0; i<(int)inp.size(); ++i)
-    {
-      refined_variable_names[i+1]=boost::fusion::get<0>(inp[i]);
-      refinement_parameters[i+1]=boost::fusion::get<1>(inp[i]);
+    for (auto& block : blocks) {
+      vector<double> b_vals;
+      for (auto& p : block) {
+        string name = boost::fusion::get<0>(p);
+        double val  = boost::fusion::get<1>(p);
+        refined_variable_names.push_back(name);
+        refinement_parameters.push_back(val);
+        b_vals.push_back(val);
+      }
+      if (!b_vals.empty()) parameter_blocks.push_back(b_vals);
     }
 
-    formula.initialize_refinable_variables(refined_variable_names,refinement_parameters);
-    expr_formula.initialize_refinable_variables(refined_variable_names,refinement_parameters);
+    // Special case: if no blocks were provided but refinable parameters exist (should not happen with new parser)
+    // Or if Scale needs to be refined, it should be in parameter_blocks.
+    // Currently, CeresMinimizer assumes param[0] is Scale.
+    
+    formula.initialize_refinable_variables(refined_variable_names, refinement_parameters);
+    expr_formula.initialize_refinable_variables(refined_variable_names, refinement_parameters);
   }
+
+  vector<vector<double>> parameter_blocks;
   
   void initialize_unit_cell(vector<double> params)  {
     cell_is_initialized = true;

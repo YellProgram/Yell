@@ -72,7 +72,9 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator,CellShifter*(),skipper_type> cell_shifter;
   qi::rule<Iterator,AtomicPairPool*(),skipper_type> atomic_pair_pool;
   qi::rule<Iterator,vector<AtomicPairPool*>(),skipper_type> correlations;
-  qi::rule<Iterator,vector<boost::fusion::tuple<string,double> >(),skipper_type> refinable_parameters;
+  qi::rule<Iterator,boost::fusion::tuple<string,double>(),skipper_type> single_parameter;
+  qi::rule<Iterator,vector<boost::fusion::tuple<string,double>>(),skipper_type> parameter_block;
+  qi::rule<Iterator,vector<vector<boost::fusion::tuple<string,double>>>(),skipper_type> refinable_parameters;
   skipper_type skipper;
   skipper_type skipper_no_assignement; //< this is a skipper which does not parse arithmetic assignements. Used in 
   qi::rule<Iterator,void()> comment;
