@@ -127,9 +127,10 @@ public:
         Grid grid(cctbx::uctbx::unit_cell(scitbx::af::tiny<double,6>(1,1,1,90,90,90)), vec3<double>(1,1,1),vec3<double>(-1,-1,-1),false);
         // we will assume grid is symmetric boundaries
         AtomicPair a_pair(atom1,atom2);
-        TS_ASSERT_EQUALS(true, a_pair.pair_is_withing(grid));
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_EQUALS(true, a_pair.pair_is_withing(grid, zero_p));
         a_pair.average_r()=vec3<double>(2,0,0);
-        TS_ASSERT_EQUALS(false, a_pair.pair_is_withing(grid));
+        TS_ASSERT_EQUALS(false, a_pair.pair_is_withing(grid, zero_p));
     }
 
 
@@ -244,7 +245,8 @@ public:
         IntensityMap I(2,2,2);
         I.set_grid(trivial_unit_cell,vec3<double>(1,1,1),vec3<double>(-.5,-.5,-.5));
 
-        TS_ASSERT_THROWS_NOTHING(IntnsityCalculator::calculate_scattering_from_pairs(pairs,I,AVERAGE));
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_THROWS_NOTHING(IntnsityCalculator::calculate_scattering_from_pairs(pairs,zero_p,I,AVERAGE));
     }
     void testIntensityCalculatorAtom()
     {
@@ -381,12 +383,17 @@ public:
         Atom at1(string("C"),0.12,0.5,0,0,0,1,1,1,0,0,0);
         Atom at2(string("C2"),0.7,0.5,1,1,1,1,1,1,0,0,0);
         AtomicPair pair(at1,at2);
-        TS_ASSERT_EQUALS(pair.r(),vec3<double>(1,1,1));
-        TS_ASSERT_EQUALS(pair.U(),sym_mat3<double>(2,2,2,0,0,0));
-        TS_ASSERT_EQUALS(pair.p(),0.25);
-        TS_ASSERT_EQUALS(pair.average_r(),vec3<double>(1,1,1));
-        TS_ASSERT_EQUALS(pair.average_U(),sym_mat3<double>(2,2,2,0,0,0));
-        TS_ASSERT_EQUALS(pair.average_p(),0.25);
+        
+        TS_ASSERT(pair.r() == vec3<double>(1,1,1));
+        TS_ASSERT(pair.U() == sym_mat3<double>(2,2,2,0,0,0));
+        
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.25, 1e-7);
+        
+        TS_ASSERT(pair.average_r() == vec3<double>(1,1,1));
+        TS_ASSERT(pair.average_U() == sym_mat3<double>(2,2,2,0,0,0));
+        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.25, 1e-7);
+        
         TS_ASSERT_DELTA(pair.atomic_type1->form_factor_at(0),5.9972,0.0001);
         TS_ASSERT_DELTA(pair.multiplier,0.7*0.12,0.00001);
     }
@@ -499,12 +506,13 @@ public:
     void testPoolFindsPairs()
     {
         AtomicPairPool aPool;
-        aPool.get_pair(&atom1,&atom1).p()=0;
+        aPool.get_pair(&atom1,&atom1).p()=yell::lit(0);
         aPool.get_pair(&atom1,&atom2);
 
         TS_ASSERT_EQUALS(2,aPool.pairs.size());
 
-        TS_ASSERT_EQUALS(0,aPool.get_pair(&atom1,&atom1).p());
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_EQUALS(0,aPool.get_pair(&atom1,&atom1).p()->eval(zero_p));
         TS_ASSERT_EQUALS(2,aPool.pairs.size());
     }
     void testPoolInvokesCorrelators()
@@ -515,9 +523,10 @@ public:
 
         aPool.invoke_correlators(Eigen::VectorXd());
 
-        TS_ASSERT_EQUALS(0,aPool.get_pair(p_atom1,p_atom1).p());
-        TS_ASSERT_EQUALS(vec3<double>(1,0,0),aPool.get_pair(p_atom1,p_atom1).r());
-        TS_ASSERT_EQUALS(vec3<double>(1,0,0),aPool.get_pair(p_atom1,p_atom1).average_r());
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_EQUALS(0, aPool.get_pair(p_atom1,p_atom1).p()->eval(zero_p));
+        TS_ASSERT(aPool.get_pair(p_atom1,p_atom1).r() == vec3<double>(1,0,0));
+        TS_ASSERT(aPool.get_pair(p_atom1,p_atom1).average_r() == vec3<double>(1,0,0));
     }
 
 
@@ -531,8 +540,8 @@ public:
 
         shifter.modify_pairs(&aPool);
 
-        TS_ASSERT_EQUALS(vec3<double>(0,1,2),aPool.get_pair(&atom1,&atom1).average_r());
-        TS_ASSERT_EQUALS(vec3<double>(0,1,2),aPool.get_pair(&atom1,&atom1).r());
+        TS_ASSERT(aPool.get_pair(&atom1,&atom1).average_r() == vec3<double>(0,1,2));
+        TS_ASSERT(aPool.get_pair(&atom1,&atom1).r() == vec3<double>(0,1,2));
     }
 
     void testSubstitutionalCorrelation()
@@ -552,8 +561,9 @@ public:
 
         corr.modify_pairs(&aPool);
 
-        TS_ASSERT_EQUALS(0.5,aPool.get_pair(p_atom1,atom3).p());
-        TS_ASSERT_EQUALS(0.25,aPool.get_pair(p_atom1,atom3).average_p());
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_DELTA(0.5, aPool.get_pair(p_atom1,atom3).p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(0.25, aPool.get_pair(p_atom1,atom3).average_p()->eval(zero_p), 1e-7);
     }
 
     void testADPMode()
@@ -584,15 +594,16 @@ public:
 
         DoubleADPMode(&mode1,&mode1,1).modify_pairs(&aPool);
 
-        TS_ASSERT_EQUALS(0,aPool.get_pair(p_atom1,p_atom1).U()[0]);
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_EQUALS(0, aPool.get_pair(p_atom1,p_atom1).U()[0]->eval(zero_p));
 
         //test equals operator
         DoubleADPMode dmode1(&mode1,&mode1,1);
         DoubleADPMode dmode2(&mode1,&mode2,1);
         DoubleADPMode dmode3(&mode1,&mode1,2);
-        TS_ASSERT_EQUALS(dmode1,dmode1);
-        TS_ASSERT(!(dmode1==dmode2));
-        TS_ASSERT(!(dmode1==dmode3));
+        TS_ASSERT(dmode1 == dmode1);
+        TS_ASSERT(dmode1 != dmode2);
+        TS_ASSERT(dmode1 != dmode3);
     }
 
     void testZeroVectorCorrelation()
@@ -608,9 +619,16 @@ public:
         sym_mat3<double> zero_ADP(0,0,0,0,0,0);
         sym_mat3<double> nozero_ADP(2,2,2,0,0,0);
 
-        TS_ASSERT_EQUALS(zero_ADP,aPool.get_pair(p_atom1,p_atom1).U());
-        TS_ASSERT_EQUALS(nozero_ADP,aPool.get_pair(p_atom1,p_atom1).average_U());
-        TS_ASSERT_EQUALS(nozero_ADP,aPool.get_pair(p_atom1,p_atom2).U());
+        Eigen::VectorXd zero_p;
+        auto get_U = [&](AtomicPair& p, bool avg) {
+            auto& Ue = p.U(avg);
+            return sym_mat3<double>(Ue.u11->eval(zero_p), Ue.u22->eval(zero_p), Ue.u33->eval(zero_p),
+                                    Ue.u12->eval(zero_p), Ue.u13->eval(zero_p), Ue.u23->eval(zero_p));
+        };
+
+        TS_ASSERT_EQUALS(zero_ADP,   get_U(aPool.get_pair(p_atom1,p_atom1), false));
+        TS_ASSERT_EQUALS(nozero_ADP, get_U(aPool.get_pair(p_atom1,p_atom1), true));
+        TS_ASSERT_EQUALS(nozero_ADP, get_U(aPool.get_pair(p_atom1,p_atom2), false));
 
         aPool = AtomicPairPool();
 
@@ -620,13 +638,14 @@ public:
         CellShifter(1,0,0).modify_pairs(&aPool);
         zcor1.modify_pairs(&aPool);
 
-        TS_ASSERT_EQUALS(nozero_ADP,aPool.get_pair(p_atom1,p_atom1).U());
+        TS_ASSERT_EQUALS(nozero_ADP, get_U(aPool.get_pair(p_atom1,p_atom1), false));
     }
     void testMultiplicityCorrelation()
     {
         AtomicPairPool aPool;
+        Eigen::VectorXd zero_p;
 
-        double p=aPool.get_pair(p_atom1,p_atom1).p();
+        double p = aPool.get_pair(p_atom1,p_atom1).p()->eval(zero_p);
 
         double m=15.6;
 
@@ -634,10 +653,9 @@ public:
 
         mcor.modify_pairs(&aPool);
 
-        TS_ASSERT_DELTA(p,aPool.get_pair(p_atom1,p_atom1).p(),0.00001);
-        TS_ASSERT_DELTA(p,aPool.get_pair(p_atom1,p_atom1).average_p(),0.00001);
-        TS_ASSERT_DELTA(m,aPool.get_pair(p_atom1,p_atom1).multiplier,0.00001);
-
+        TS_ASSERT_DELTA(p * m, aPool.get_pair(p_atom1,p_atom1).p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(p * m, aPool.get_pair(p_atom1,p_atom1).average_p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(m, aPool.get_pair(p_atom1,p_atom1).multiplier, 0.00001);
     }
 
 
@@ -717,15 +735,16 @@ public:
         SubstitutionalCorrelation corr32(p_atom3, p_atom22, yell::lit(0.3));
         SubstitutionalCorrelation corr33(p_atom3, p_atom23, yell::lit(0.0));
 
-        TS_ASSERT_EQUALS(0.0,correlations[2]->joint_probability);
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_EQUALS(0.0,correlations[2]->joint_probability_expr->eval(zero_p));
         TS_ASSERT_EQUALS(p_atom3,correlations[2]->chemical_units[0]);
         TS_ASSERT_EQUALS(p_atom21,correlations[2]->chemical_units[1]);
 
-        TS_ASSERT_DELTA(0.1,correlations[5]->joint_probability,0.000001);
+        TS_ASSERT_DELTA(0.1,correlations[5]->joint_probability_expr->eval(zero_p),0.000001);
         TS_ASSERT_EQUALS(p_atom3,correlations[5]->chemical_units[0]);
         TS_ASSERT_EQUALS(p_atom22,correlations[5]->chemical_units[1]);
 
-        TS_ASSERT_DELTA(0.1,correlations[8]->joint_probability,0.000001);
+        TS_ASSERT_DELTA(0.1,correlations[8]->joint_probability_expr->eval(zero_p),0.000001);
         TS_ASSERT_EQUALS(p_atom3,correlations[8]->chemical_units[0]);
         TS_ASSERT_EQUALS(p_atom23,correlations[8]->chemical_units[1]);
 
@@ -756,8 +775,9 @@ public:
 
         shift.modify_pairs(&pool);
 
-        TS_ASSERT_DELTA(0,pool.get_pair(&atom1,&atom2).r()[0],0.0001);
-        TS_ASSERT_DELTA(0,pool.get_pair(&atom1,&atom2).r()[1],0.0001);
+        Eigen::VectorXd zero_p;
+        TS_ASSERT_DELTA(0, pool.get_pair(&atom1,&atom2).r()[0]->eval(zero_p), 0.0001);
+        TS_ASSERT_DELTA(0, pool.get_pair(&atom1,&atom2).r()[1]->eval(zero_p), 0.0001);
     }
     void testSizeEffect()
     {
@@ -771,9 +791,14 @@ public:
         size_effect_cu_adp.modify_pairs(&pool);
         size_effect_adp_cu.modify_pairs(&pool);
 
+        Eigen::VectorXd zero_p;
+        auto get_r = [&](Atom* a1, Atom* a2) {
+            auto& re = pool.get_pair(a1, a2).r();
+            return vec3<double>(re.x->eval(zero_p), re.y->eval(zero_p), re.z->eval(zero_p));
+        };
 
-        TS_ASSERT(almost_equal( vec3<double>(1,0.5,0.5) , pool.get_pair(&atom1,&atom2).r() ));
-        TS_ASSERT(almost_equal( vec3<double>(-1,-0.5,-0.5) , pool.get_pair(&atom2,&atom1).r() ));
+        TS_ASSERT(almost_equal( vec3<double>(1,0.5,0.5) , get_r(&atom1, &atom2) ));
+        TS_ASSERT(almost_equal( vec3<double>(-1,-0.5,-0.5) , get_r(&atom2, &atom1) ));
     }
 
 
@@ -1329,13 +1354,19 @@ public:
     void test_substitutional_correlation_parser()  {
         ChemicalUnitNode* var;
         vector<SubstitutionalCorrelation*> corrs,expected_corrs;
-        a_parser.add_model(new Model());
+        Model a_model;
+        a_parser.add_model(&a_model);
         run_parser("a_variant = Variant[(p=0.5) C1  0.5 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0 (p=0.5)[] ]",a_parser.variant_assignement,a_skipper,var);
         run_parser("SubstitutionalCorrelation(a_variant,a_variant,0.5)",a_parser.substitutional_correlation,a_skipper,corrs);
         expected_corrs = correlators_from_cuns(var,var,vector<yell::ExprPtr>(1,yell::lit(0.5)));
+        
+        Eigen::VectorXd zero_p;
         for(int i=0; i<expected_corrs.size(); i++)
         {
-            TS_ASSERT_EQUALS(*expected_corrs[i],*corrs[i]);
+            TS_ASSERT_EQUALS(expected_corrs[i]->chemical_units[0], corrs[i]->chemical_units[0]);
+            TS_ASSERT_EQUALS(expected_corrs[i]->chemical_units[1], corrs[i]->chemical_units[1]);
+            TS_ASSERT_DELTA(expected_corrs[i]->joint_probability_expr->eval(zero_p),
+                            corrs[i]->joint_probability_expr->eval(zero_p), 1e-7);
             delete expected_corrs[i];
             delete corrs[i];
         }
@@ -1590,7 +1621,8 @@ public:
         AtomicPair aPair(atom1,atom3);
         pairs.push_back(aPair);
 
-        pairs = laue.apply_patterson_symmetry(pairs);
+        Eigen::VectorXd zero_p;
+        pairs = laue.apply_patterson_symmetry(pairs, zero_p);
 
         TS_ASSERT_EQUALS(8,pairs.size());
 
@@ -1599,7 +1631,7 @@ public:
 
         incompatible_grid = Grid(trivial_unit_cell, vec3<double> (0.1,0.1,0.1), vec3<double> (-9,-9,0), vec3<int>(180,180,1));
         laue = LaueSymmetry("m-3m",incompatible_grid);
-        pairs = laue.apply_patterson_symmetry(pairs);
+        pairs = laue.apply_patterson_symmetry(pairs, zero_p);
 
         TS_ASSERT_EQUALS(3,pairs.size());
 
@@ -1615,11 +1647,18 @@ public:
         pairs.push_back(aPair); // coordinates are 0.5 0.25 0
         // symmetry equivalent are -0.25,0.25,0   and -0.25,-0.5,0
 
-        pairs = laue.apply_patterson_symmetry(pairs);
+        pairs = laue.apply_patterson_symmetry(pairs, zero_p);
 
         TS_ASSERT_EQUALS(3,pairs.size());
-        TS_ASSERT(almost_equal(vec3<double>(-0.25,0.25,0),pairs[1].r()));
-        TS_ASSERT(almost_equal(vec3<double>(-0.25,-0.5,0),pairs[2].r()));
+
+        auto get_r = [&](int k) {
+            auto& re = pairs[k].r();
+            return vec3<double>(re.x->eval(zero_p), re.y->eval(zero_p), re.z->eval(zero_p));
+        };
+
+        TS_ASSERT(almost_equal(vec3<double>(-0.25,0.25,0), get_r(1)));
+        TS_ASSERT(almost_equal(vec3<double>(-0.25,-0.5,0), get_r(2)));
+
     }
 
     void test_laue_symmetry_apply_matrix_generator()
@@ -2352,10 +2391,11 @@ public:
 
         LaueSymmetry a_symmetry("6/m");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_DIFFERS(ethalon,pairs[1]);
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[1].average_p()); // x y 0 should decrease occupancy
+        // ethalon.average_p() is ExprPtr
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[1].average_p()->eval(zero_p), 1e-7); // x y 0 should decrease occupancy
         TS_ASSERT_EQUALS(2,pairs.size());
     }
     void test_filter_asymmetric_unit_mmm()  {
@@ -2369,7 +2409,7 @@ public:
         pairs[3].average_r()=vec3<double>(0,10,20); //occupancy should be 1/2
 
         pairs[4].average_r()=vec3<double>(1,2,3); //This one stays
-        AtomicPair ethalon=pairs[4];
+        yell::ExprPtr ethalon_p = pairs[4].average_p();
         pairs[5].average_r()=vec3<double>(1,2,-3); //pair should be deleted
         pairs[6].average_r()=vec3<double>(1,-2,3); //pair should be deleted
         pairs[7].average_r()=vec3<double>(1,-2,-3); //pair should be deleted
@@ -2381,12 +2421,13 @@ public:
 
         LaueSymmetry a_symmetry("mmm");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/8,pairs[0].average_p());
+        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/8, pairs[0].average_p()->eval(zero_p), 1e-7);
 
         for(int i=1; i<4; ++i)
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[i].average_p());
+            TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/2, pairs[i].average_p()->eval(zero_p), 1e-7);
 
         TS_ASSERT_EQUALS(5,pairs.size()); //  all the rest are deleted
     }
@@ -2400,17 +2441,18 @@ public:
 
 
         pairs[2].average_r()=vec3<double>(3,2,1); //This one stays
-        AtomicPair ethalon=pairs[2];
+        yell::ExprPtr ethalon_p = pairs[2].average_p();
         pairs[3].average_r()=vec3<double>(2,3,1); //pair should be deleted
 
         LaueSymmetry a_symmetry("4/mmm");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/16,pairs[0].average_p());
+        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/16, pairs[0].average_p()->eval(zero_p), 1e-7);
 
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[1].average_p());
+        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/2, pairs[1].average_p()->eval(zero_p), 1e-7);
 
 //    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
         TS_ASSERT_EQUALS(3,pairs.size());
@@ -2424,16 +2466,17 @@ public:
         pairs[1].average_r()=vec3<double>(10,0,0); //occupancy should be 1/8
 
         pairs[2].average_r()=vec3<double>(3,2,1); //This one does not change
-        AtomicPair ethalon=pairs[2];
+        yell::ExprPtr ethalon_p = pairs[2].average_p();
         pairs[3].average_r()=vec3<double>(2,3,1); //pair should be deleted
         pairs[4].average_r()=vec3<double>(2,1,3); //pair should also be deleted
 
         LaueSymmetry a_symmetry("m-3m");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/48,pairs[0].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/8,pairs[1].average_p());
+        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/48, pairs[0].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/8, pairs[1].average_p()->eval(zero_p), 1e-7);
 
 //    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
         TS_ASSERT_EQUALS(3,pairs.size());
@@ -2452,10 +2495,11 @@ public:
 
         LaueSymmetry a_symmetry("6/mmm");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/24,pairs[0].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/4,pairs[1].average_p());
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/24, pairs[0].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/4, pairs[1].average_p()->eval(zero_p), 1e-7);
 
 //    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
         TS_ASSERT_EQUALS(3,pairs.size());
@@ -2477,12 +2521,13 @@ public:
 
         LaueSymmetry a_symmetry("-3mH");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/6,pairs[0].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/6,pairs[1].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[2].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[3].average_p());
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[0].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[1].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[2].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[3].average_p()->eval(zero_p), 1e-7);
 
 
 //    TS_ASSERT_EQUALS(ethalon,pairs[4]); // does not change
@@ -2505,12 +2550,13 @@ public:
 
         LaueSymmetry a_symmetry("-3mR");
 
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs);
+        Eigen::VectorXd zero_p;
+        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
 
-        TS_ASSERT_EQUALS(ethalon.average_p()/6,pairs[0].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/6,pairs[1].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[2].average_p());
-        TS_ASSERT_EQUALS(ethalon.average_p()/2,pairs[3].average_p());
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[0].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[1].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[2].average_p()->eval(zero_p), 1e-7);
+        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[3].average_p()->eval(zero_p), 1e-7);
 
 //    TS_ASSERT_EQUALS(ethalon,pairs[4]); // does not change
         TS_ASSERT_EQUALS(5,pairs.size());

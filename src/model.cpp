@@ -152,18 +152,18 @@ void Model::calculate(vector<double> params, bool average_flag)
   // output pairs
   if(dump_pairs)
     for(int i=0; i<pairs.size(); i++)
-      REPORT(FIRST_RUN) << pairs[i].to_string() <<'\n';
+      REPORT(FIRST_RUN) << pairs[i].to_string(p) <<'\n';
 
   
   if(report_pairs_outside_pdf_grid)
   {
     Grid pdf_grid = grid.in_pdf_space();
     for(int i=0; i<pairs.size(); i++)
-      if(!pairs[i].pair_is_withing(pdf_grid))
-        REPORT(FIRST_RUN) << "Warning, pair is outside PDF grid " << pairs[i].to_string() << '\n';
+      if(!pairs[i].pair_is_withing(pdf_grid, p))
+        REPORT(FIRST_RUN) << "Warning, pair is outside PDF grid " << pairs[i].to_string(p) << '\n';
    }
   
-  pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs);
+  pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, p);
   atomic_pairs = pairs; //save them to check that everything is fine
   
   IntensityMap* calc_intensity_map;
@@ -181,7 +181,7 @@ void Model::calculate(vector<double> params, bool average_flag)
     IntensityMap padded = calc_intensity_map->padded(sym_boundary);
 
     vector<PattersonPeak> full_peaks, avg_peaks;
-    peaks_from_pairs(pairs, scatterer_list_, full_peaks, avg_peaks);
+    peaks_from_pairs(pairs, p, scatterer_list_, full_peaks, avg_peaks);
     const vector<PattersonPeak>& active_peaks = average_flag ? avg_peaks : full_peaks;
     IntnsityCalculator::calculate_scattering_from_patterson_peaks(active_peaks, scatterer_list_, padded);
 
@@ -197,7 +197,7 @@ void Model::calculate(vector<double> params, bool average_flag)
     recipr_padded.invert_grid();
     IntensityMap padded = recipr_padded.padded(sym_boundary); //for symmetry
     vector<PattersonPeak> full_peaks_fft, avg_peaks_fft;
-    peaks_from_pairs(pairs, scatterer_list_, full_peaks_fft, avg_peaks_fft);
+    peaks_from_pairs(pairs, p, scatterer_list_, full_peaks_fft, avg_peaks_fft);
     IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks_fft,avg_peaks_fft,scatterer_list_,padded,average_flag,fft_grid_size,periodic_boundaries);
     cell.laue_symmetry.apply_patterson_symmetry(padded);
     recipr_padded.copy_from_padded(sym_boundary,padded);
@@ -217,84 +217,28 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     IntensityMap& exp_map,
     OptionalIntensityMap& wts)
 {
-  // Residuals: r_i = (exp_i - data_i) * w_i,  data_i = Scale*(I_full_i - I_avg_i)
-  //
-  // ∂r_i/∂Scale = -(I_full_i - I_avg_i) * w_i
-  // ∂r_i/∂p_j  = -Scale * (∂I_full_i/∂p_j - ∂I_avg_i/∂p_j) * w_i   (j>0)
-  //
-  // Direct-method intensity formula:
-  //   ∂I(s)/∂p_j = Re[ Σ_pairs conj(f1)*f2*N*exp(M2PISQ*s·U·s + i*M_2PI*s·r)
-  //                    * (dp_real_j + p_real*(M2PISQ*s·dU_j·s + i*M_2PI*s·dr_j)) ]
-  // For isotropic ADP: s·dU_frac·s = dUiso * d_star_sq  (reciprocal metric).
-
   const int n_params = (int)params.size();
   const int n_obs    = number_of_observations();
   const double scale = params[0];
 
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
 
-  // Precompute ExprPtr gradient vectors for each parameterized atom.
-  struct AtomDuals {
-    Eigen::VectorXd dx, dy, dz, dUiso;
-    bool isotropic;
-  };
-  std::unordered_map<Atom*, AtomDuals> atom_duals;
-  for (auto& pad : parameterized_atoms_) {
-    AtomDuals d;
-    d.isotropic = pad.isotropic;
-    d.dx = pad.param_exprs[1]->eval_d(q).derivatives();
-    d.dy = pad.param_exprs[2]->eval_d(q).derivatives();
-    d.dz = pad.param_exprs[3]->eval_d(q).derivatives();
-    if (pad.isotropic)
-      d.dUiso = pad.param_exprs[4]->eval_d(q).derivatives();
-    atom_duals[pad.atom_ptr] = std::move(d);
-  }
+  // Snapshot the model parameters: create peak lists once.
+  // Then for each pixel, we evaluate the full expression and get derivatives.
+  // Clear cached pairs so invoke_correlators rebuilds them if needed.
+  for (auto* pool : pools)
+    pool->pairs.clear();
 
-  // Precompute per-pair gradient vectors (n_pairs × n_params).
-  const int n_pairs = (int)atomic_pairs.size();
-  Eigen::MatrixXd dp_real_mat(n_pairs, n_params); dp_real_mat.setZero();
-  vector<Eigen::VectorXd> dr_x(n_pairs, Eigen::VectorXd::Zero(n_params));
-  vector<Eigen::VectorXd> dr_y(n_pairs, Eigen::VectorXd::Zero(n_params));
-  vector<Eigen::VectorXd> dr_z(n_pairs, Eigen::VectorXd::Zero(n_params));
-  vector<Eigen::VectorXd> dUiso_pair(n_pairs, Eigen::VectorXd::Zero(n_params));
-
-  for (int k = 0; k < n_pairs; ++k) {
-    AtomicPair& pair = atomic_pairs[k];
-    if (pair.p_real_expr)
-      dp_real_mat.row(k) = pair.p_real_expr->eval_d(q).derivatives().transpose();
-    auto it1 = atom_duals.find(pair.atom1);
-    auto it2 = atom_duals.find(pair.atom2);
-    if (it1 != atom_duals.end()) {
-      dr_x[k] -= it1->second.dx;
-      dr_y[k] -= it1->second.dy;
-      dr_z[k] -= it1->second.dz;
-      if (it1->second.isotropic) dUiso_pair[k] += it1->second.dUiso;
-    }
-    if (it2 != atom_duals.end()) {
-      dr_x[k] += it2->second.dx;
-      dr_y[k] += it2->second.dy;
-      dr_z[k] += it2->second.dz;
-      if (it2->second.isotropic) dUiso_pair[k] += it2->second.dUiso;
-    }
+  vector<AtomicPair> pairs;
+  for(auto* pool : pools)
+  {
+    pool->invoke_correlators(q);
+    pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
   }
-
-  // Sparsity masks: active_kj(k, j-1) = true if pair k has any nonzero
-  // derivative w.r.t. param j.  pair_active[k] = any j is active for pair k.
-  // Derivatives from ExprPtr autodiff are exactly 0.0 when a variable does not
-  // appear in the expression, so an exact zero test is correct here.
-  Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> active_kj(n_pairs, n_params - 1);
-  vector<bool> pair_active(n_pairs, false);
-  for (int k = 0; k < n_pairs; ++k) {
-    for (int j = 1; j < n_params; ++j) {
-      bool any = dp_real_mat(k, j) != 0.0
-              || dr_x[k][j]       != 0.0
-              || dr_y[k][j]       != 0.0
-              || dr_z[k][j]       != 0.0
-              || dUiso_pair[k][j] != 0.0;
-      active_kj(k, j-1) = any;
-      if (any) pair_active[k] = true;
-    }
-  }
+  pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
+  
+  vector<PattersonPeak> full_peaks, avg_peaks;
+  peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 
   // Output Jacobian (n_obs × n_params).
   Eigen::MatrixXd J(n_obs, n_params);
@@ -302,69 +246,78 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
   const vector<int>& asu = asu_indices();
 
   // Column 0: ∂r_i/∂Scale = -(I_full_i - I_avg_i) * w_i
+  IntensityMap cur_I_full = intensity_map;
+  IntensityMap cur_I_avg  = average_intensity_map;
+  IntnsityCalculator::calculate_scattering_from_patterson_peaks(full_peaks, scatterer_list_, cur_I_full);
+  IntnsityCalculator::calculate_scattering_from_patterson_peaks(avg_peaks,  scatterer_list_, cur_I_avg);
+
   for (int ii = 0; ii < n_obs; ++ii) {
     int i = use_asu ? asu[ii] : ii;
     double w = wts.at(i);
-    J(ii, 0) = -(intensity_map.at(i) - average_intensity_map.at(i)) * w;
+    J(ii, 0) = -(cur_I_full.at(i) - cur_I_avg.at(i)) * w;
   }
 
   if (n_params > 1) {
-    // Build PattersonPeak lists for full and average contributions.
-    vector<PattersonPeak> full_peaks, avg_peaks;
-    peaks_from_pairs(atomic_pairs, scatterer_list_, full_peaks, avg_peaks);
-
-    // Accumulate ∂I_full and ∂I_avg into full-size arrays (n_pixels × n_params-1),
-    // then select observations by ASU at the end.
     const int n_pixels = intensity_map.size_1d();
     Eigen::MatrixXd dI_full_all(n_pixels, n_params - 1); dI_full_all.setZero();
     Eigen::MatrixXd dI_avg_all (n_pixels, n_params - 1); dI_avg_all.setZero();
 
-    IntensityMap iter_map = intensity_map; // copy to drive iteration
-    iter_map.init_iterator();
+    // ∂I(s)/∂p_j = Σ_pairs conj(f1)*f2*N * ∂(exp(...))/∂p_j
+    // ∂(p * exp(arg))/∂p_j = dp/dp_j * exp(arg) + p * exp(arg) * darg/dp_j
+    //
+    // Since we only want derivatives UNTIL THE LIST OF PAIRS here,
+    // and the Intensity stage handles maps, I'll calculate the per-parameter
+    // intensity derivative by iterating over pairs and evaluating their Duals.
+
+    cur_I_full.init_iterator();
     int pixel_1d = 0;
-    while (iter_map.next()) {
-      vec3<double> s = iter_map.current_s();
-      double d_star_sq = iter_map.current_d_star_square();
+    while (cur_I_full.next()) {
+      vec3<double> s = cur_I_full.current_s();
+      double d_star_sq = cur_I_full.current_d_star_square();
       scatterer_list_.update(s, d_star_sq);
 
-      for (int k = 0; k < n_pairs; ++k) {
-        // Skip pairs with no sensitivity to any refined parameter.
-        if (!pair_active[k]) continue;
+      for (int k = 0; k < (int)pairs.size(); ++k) {
+        AtomicPair& pair = pairs[k];
+        std::complex<double> f1f2 = std::conj(scatterer_list_.f(full_peaks[k].type1_idx)) * scatterer_list_.f(full_peaks[k].type2_idx);
 
-        const PattersonPeak& fpk = full_peaks[k];
-        const PattersonPeak& apk = avg_peaks[k];
-        std::complex<double> f1 = scatterer_list_.f(fpk.type1_idx);
-        std::complex<double> f2 = scatterer_list_.f(fpk.type2_idx);
+        auto calc_dI_pair = [&](bool avg) -> Eigen::VectorXd {
+            yell::Dual p_dual   = pair.p(avg)->eval_d(q);
+            yell::Dual rx_dual  = pair.r(avg).x->eval_d(q);
+            yell::Dual ry_dual  = pair.r(avg).y->eval_d(q);
+            yell::Dual rz_dual  = pair.r(avg).z->eval_d(q);
+            yell::Dual u11_dual = pair.U(avg).u11->eval_d(q);
+            yell::Dual u22_dual = pair.U(avg).u22->eval_d(q);
+            yell::Dual u33_dual = pair.U(avg).u33->eval_d(q);
+            yell::Dual u12_dual = pair.U(avg).u12->eval_d(q);
+            yell::Dual u13_dual = pair.U(avg).u13->eval_d(q);
+            yell::Dual u23_dual = pair.U(avg).u23->eval_d(q);
 
-        double p_real = fpk.coefficient / fpk.multiplier;
-        std::complex<double> base_real = std::conj(f1) * f2 * fpk.multiplier *
-            std::exp(std::complex<double>(M2PISQ * (s * fpk.U * s),
-                                          M_2PI  * (s * fpk.r)));
+            yell::Dual phase = rx_dual * (M_2PI * s[0]) + ry_dual * (M_2PI * s[1]) + rz_dual * (M_2PI * s[2]);
+            yell::Dual adp   = u11_dual * (M2PISQ * s[0]*s[0]) + u22_dual * (M2PISQ * s[1]*s[1]) + u33_dual * (M2PISQ * s[2]*s[2]) +
+                               u12_dual * (2.0 * M2PISQ * s[0]*s[1]) + u13_dual * (2.0 * M2PISQ * s[0]*s[2]) + u23_dual * (2.0 * M2PISQ * s[1]*s[2]);
+            
+            double p_v = p_dual.value();
+            double adp_v = adp.value();
+            double phase_v = phase.value();
+            std::complex<double> e_val = std::exp(std::complex<double>(adp_v, phase_v));
+            
+            Eigen::VectorXd res_g = Eigen::VectorXd::Zero(n_params);
+            std::complex<double> term1 = f1f2 * e_val * pair.multiplier;
+            std::complex<double> term2 = term1 * p_v;
 
-        double p_avg = apk.coefficient / apk.multiplier;
-        std::complex<double> base_avg = std::conj(f1) * f2 * apk.multiplier *
-            std::exp(std::complex<double>(M2PISQ * (s * apk.U * s),
-                                          M_2PI  * (s * apk.r)));
+            res_g += term1.real() * p_dual.derivatives();
+            res_g += term2.real() * adp.derivatives();
+            res_g -= term2.imag() * phase.derivatives();
 
-        for (int j = 1; j < n_params; ++j) {
-          if (!active_kj(k, j-1)) continue;
+            return res_g;
+        };
 
-          double dp_r   = dp_real_mat(k, j);
-          double s_dr   = s[0]*dr_x[k][j] + s[1]*dr_y[k][j] + s[2]*dr_z[k][j];
-          double s_dU_s = dUiso_pair[k][j] * d_star_sq;
-
-          dI_full_all(pixel_1d, j-1) += std::real(
-              base_real * std::complex<double>(dp_r + p_real * M2PISQ * s_dU_s,
-                                               p_real * M_2PI * s_dr));
-          dI_avg_all(pixel_1d, j-1) += std::real(
-              base_avg  * std::complex<double>(p_avg * M2PISQ * s_dU_s,
-                                               p_avg * M_2PI * s_dr));
-        }
+        dI_full_all.row(pixel_1d) += calc_dI_pair(false).tail(n_params - 1);
+        dI_avg_all.row(pixel_1d)  += calc_dI_pair(true).tail(n_params - 1);
       }
       ++pixel_1d;
     }
 
-    // Fill J columns 1..n_params-1, selecting by ASU.
     for (int ii = 0; ii < n_obs; ++ii) {
       int i = use_asu ? asu[ii] : ii;
       double w = wts.at(i);

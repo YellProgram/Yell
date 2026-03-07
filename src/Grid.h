@@ -63,12 +63,13 @@ public:
     }
 
     /// Function for unit tests.
-    bool operator==(const Grid& inp)  {
+    bool operator==(const Grid& inp) const {
         return almost_equal(grid_steps,inp.grid_steps)\
                 && almost_equal(lower_limits, inp.lower_limits) \
                 && almost_equal(cell.parameters(),inp.cell.parameters()) \
                 && grid_size==inp.grid_size;
     }
+    bool operator!=(const Grid& inp) const { return !(*this == inp); }
 
     vec3<double> upper_limits() {
         return lower_limits+grid_steps.each_mul(grid_size-1);

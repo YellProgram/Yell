@@ -228,7 +228,7 @@ public:
   void set_refinable_parameters(FormulaParser& formula, ExprFormulaParser& expr_formula,
                                 vector<boost::fusion::tuple<string,double> > inp) {
 
-    std::cout << "refineable parameters are set, " << inp.size() << " of them " << std::endl;
+
     refinement_parameters.resize(inp.size()+1);
     refined_variable_names.resize(inp.size()+1);
 

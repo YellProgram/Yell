@@ -123,8 +123,8 @@ public:
                 pair_patterson_map.current_array_value_c() =
                     scale * calculate_scattering_from_a_pair_in_a_point_c(
                         f1, f2,
-                        pk.coefficient / pk.multiplier,
-                        pk.multiplier,
+                        pk.coefficient,
+                        1.0, // multiplier already in coefficient
                         pair_patterson_map.current_s(),
                         r_res,
                         pk.U);
@@ -137,7 +137,7 @@ public:
         }
     }
 
-    static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, IntensityMap& I, bool average_flag)
+    static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)
     {
         double d_star_square;
         complex<double> f1, f2;
@@ -156,13 +156,19 @@ public:
                 pair = &pairs[i];
                 f1   = pair->atomic_type1->current_form_factor;
                 f2   = pair->atomic_type2->current_form_factor;
+                
+                double p_val = pair->p(average_flag)->eval(params);
+                vec3<double> r_val(pair->r(average_flag).x->eval(params), pair->r(average_flag).y->eval(params), pair->r(average_flag).z->eval(params));
+                sym_mat3<double> U_val(pair->U(average_flag).u11->eval(params), pair->U(average_flag).u22->eval(params), pair->U(average_flag).u33->eval(params),
+                                       pair->U(average_flag).u12->eval(params), pair->U(average_flag).u13->eval(params), pair->U(average_flag).u23->eval(params));
+
                 Intensity += real(calculate_scattering_from_a_pair_in_a_point_c(
                     f1, f2,
-                    pair->p(average_flag),
+                    p_val,
                     pair->multiplier,
                     s,
-                    pair->r(average_flag),
-                    pair->U(average_flag)));
+                    r_val,
+                    U_val));
             }
             I.current_array_value() = Intensity;
         }

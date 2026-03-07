@@ -66,6 +66,143 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Expression-based parameter structures
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct vec3_expr {
+    yell::ExprPtr x, y, z;
+    vec3_expr(yell::ExprPtr _x = yell::lit(0), yell::ExprPtr _y = yell::lit(0), yell::ExprPtr _z = yell::lit(0))
+        : x(_x), y(_y), z(_z) {}
+    vec3_expr(vec3<double> v) : x(yell::lit(v[0])), y(yell::lit(v[1])), z(yell::lit(v[2])) {}
+
+    yell::ExprPtr& operator[](int i) {
+        if (i == 0) return x;
+        if (i == 1) return y;
+        return z;
+    }
+    const yell::ExprPtr& operator[](int i) const {
+        if (i == 0) return x;
+        if (i == 1) return y;
+        return z;
+    }
+
+    void operator+=(const vec3_expr& other) {
+        x = x + other.x; y = y + other.y; z = z + other.z;
+    }
+    void operator+=(const vec3<double>& other) {
+        x = x + other[0]; y = y + other[1]; z = z + other[2];
+    }
+    void operator-=(const vec3_expr& other) {
+        x = x - other.x; y = y - other.y; z = z - other.z;
+    }
+    void operator-=(const vec3<double>& other) {
+        x = x - other[0]; y = y - other[1]; z = z - other[2];
+    }
+    vec3_expr operator-() const {
+        return vec3_expr(-x, -y, -z);
+    }
+};
+
+inline yell::ExprPtr& operator/=(yell::ExprPtr& lhs, double rhs) {
+    lhs = lhs / rhs;
+    return lhs;
+}
+
+struct sym_mat3_expr {
+    yell::ExprPtr u11, u22, u33, u12, u13, u23;
+    sym_mat3_expr(yell::ExprPtr _11 = yell::lit(0), yell::ExprPtr _22 = yell::lit(0), yell::ExprPtr _33 = yell::lit(0),
+                  yell::ExprPtr _12 = yell::lit(0), yell::ExprPtr _13 = yell::lit(0), yell::ExprPtr _23 = yell::lit(0))
+        : u11(_11), u22(_22), u33(_33), u12(_12), u13(_13), u23(_23) {}
+    sym_mat3_expr(sym_mat3<double> v)
+        : u11(yell::lit(v[0])), u22(yell::lit(v[1])), u33(yell::lit(v[2])),
+          u12(yell::lit(v[3])), u13(yell::lit(v[4])), u23(yell::lit(v[5])) {}
+
+    yell::ExprPtr& operator[](int i) {
+        if (i == 0) return u11; if (i == 1) return u22; if (i == 2) return u33;
+        if (i == 3) return u12; if (i == 4) return u13; return u23;
+    }
+    const yell::ExprPtr& operator[](int i) const {
+        if (i == 0) return u11; if (i == 1) return u22; if (i == 2) return u33;
+        if (i == 3) return u12; if (i == 4) return u13; return u23;
+    }
+
+    void operator+=(const sym_mat3_expr& other) {
+        u11 = u11 + other.u11; u22 = u22 + other.u22; u33 = u33 + other.u33;
+        u12 = u12 + other.u12; u13 = u13 + other.u13; u23 = u23 + other.u23;
+    }
+    void operator+=(const sym_mat3<double>& other) {
+        u11 = u11 + other[0]; u22 = u22 + other[1]; u33 = u33 + other[2];
+        u12 = u12 + other[3]; u13 = u13 + other[4]; u23 = u23 + other[5];
+    }
+};
+
+inline vec3_expr operator*(const mat3<double>& m, const vec3_expr& v) {
+    return vec3_expr(
+        m[0]*v.x + m[1]*v.y + m[2]*v.z,
+        m[3]*v.x + m[4]*v.y + m[5]*v.z,
+        m[6]*v.x + m[7]*v.y + m[8]*v.z
+    );
+}
+
+inline sym_mat3_expr operator*(const mat3<double>& m, const sym_mat3_expr& U) {
+    // This is M * U * M^T. U is symmetric.
+    // U_full = [ u11 u12 u13 ]
+    //          [ u12 u22 u23 ]
+    //          [ u13 u23 u33 ]
+    auto get_U = [&](int i, int j) {
+        if (i == j) return U[i];
+        if (i == 0 && j == 1) return U[3]; if (i == 1 && j == 0) return U[3];
+        if (i == 0 && j == 2) return U[4]; if (i == 2 && j == 0) return U[4];
+        if (i == 1 && j == 2) return U[5]; if (i == 2 && j == 1) return U[5];
+        return U[0]; // should not happen
+    };
+
+    auto calc_res = [&](int r, int c) {
+        yell::ExprPtr res = yell::lit(0);
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                res = res + m[r*3 + i] * get_U(i, j) * m[c*3 + j];
+        return res;
+    };
+
+    return sym_mat3_expr(
+        calc_res(0,0), calc_res(1,1), calc_res(2,2),
+        calc_res(0,1), calc_res(0,2), calc_res(1,2)
+    );
+}
+
+inline sym_mat3_expr trusted_mat_to_sym_mat(const sym_mat3_expr& inp) {
+    return inp; // already symmetric
+}
+
+inline bool operator==(const vec3_expr& lhs, const vec3<double>& rhs) {
+    Eigen::VectorXd zero_p;
+    return almost_equal(vec3<double>(lhs.x->eval(zero_p), lhs.y->eval(zero_p), lhs.z->eval(zero_p)), rhs);
+}
+inline bool operator==(const vec3<double>& lhs, const vec3_expr& rhs) { return rhs == lhs; }
+inline bool operator!=(const vec3_expr& lhs, const vec3<double>& rhs) { return !(lhs == rhs); }
+inline bool operator!=(const vec3<double>& lhs, const vec3_expr& rhs) { return !(lhs == rhs); }
+
+inline bool operator==(const sym_mat3_expr& lhs, const sym_mat3<double>& rhs) {
+    Eigen::VectorXd zero_p;
+    return almost_equal(sym_mat3<double>(lhs.u11->eval(zero_p), lhs.u22->eval(zero_p), lhs.u33->eval(zero_p),
+                                         lhs.u12->eval(zero_p), lhs.u13->eval(zero_p), lhs.u23->eval(zero_p)), rhs);
+}
+inline bool operator==(const sym_mat3<double>& lhs, const sym_mat3_expr& rhs) { return rhs == lhs; }
+inline bool operator!=(const sym_mat3_expr& lhs, const sym_mat3<double>& rhs) { return !(lhs == rhs); }
+inline bool operator!=(const sym_mat3<double>& lhs, const sym_mat3_expr& rhs) { return !(lhs == rhs); }
+
+struct ParameterizedParams {
+    yell::ExprPtr occupancy;
+    vec3_expr r;
+    sym_mat3_expr U;
+
+    ParameterizedParams() : occupancy(yell::lit(0)) {}
+    ParameterizedParams(double occ, vec3<double> _r, sym_mat3<double> _U)
+        : occupancy(yell::lit(occ)), r(_r), U(_U) {}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AtomicPair
 // ─────────────────────────────────────────────────────────────────────────────
 class AtomicPair {
@@ -82,57 +219,57 @@ public:
           atom2(&_atom2)
     {}
 
-    // Accessors — average_flag selects between real and average parameters
-    double&          p(bool average_flag = false) { return params(average_flag).occupancy; }
-    vec3<double>&    r(bool average_flag = false) { return params(average_flag).r; }
-    sym_mat3<double>& U(bool average_flag = false) { return params(average_flag).U; }
+    yell::ExprPtr&   p(bool average_flag = false) { return params(average_flag).occupancy; }
+    vec3_expr&       r(bool average_flag = false) { return params(average_flag).r; }
+    sym_mat3_expr&   U(bool average_flag = false) { return params(average_flag).U; }
 
-
-    // TODO: CRITICAL these should be all parameterized. Or all unparameterized, surely this should not coexist with yell::ExprPtr p_real_expr;
-    double&          average_p() { return p(true); }
-    double&          real_p()    { return p(false); }
-    vec3<double>&    average_r() { return r(true); }
-    vec3<double>&    real_r()    { return r(false); }
-    sym_mat3<double>& average_U() { return U(true); }
-    sym_mat3<double>& real_U()   { return U(false); }
+    yell::ExprPtr&   average_p() { return p(true); }
+    yell::ExprPtr&   real_p()    { return p(false); }
+    vec3_expr&       average_r() { return r(true); }
+    vec3_expr&       real_r()    { return r(false); }
+    sym_mat3_expr&   average_U() { return U(true); }
+    sym_mat3_expr&   real_U()    { return U(false); }
 
     Scatterer* atomic_type1;
     Scatterer* atomic_type2;
     double multiplier; ///< 1/symmetry_multiplicity
     Atom* atom1;
     Atom* atom2;
-    yell::ExprPtr p_real_expr; ///< ExprPtr for real occupancy; null if not set
 
-    bool operator==(const AtomicPair& inp) {
-        return average == inp.average && real == inp.real
-            && atom1 == inp.atom1 && atom2 == inp.atom2
-            && almost_equal(multiplier, inp.multiplier);
-    }
-
-    bool pair_is_withing(Grid grid) {
+    bool pair_is_withing(Grid grid, const Eigen::VectorXd& p_vals) {
+        vec3<double> r_val(average_r().x->eval(p_vals), average_r().y->eval(p_vals), average_r().z->eval(p_vals));
         for (int i = 0; i < 3; ++i)
-            if (abs(average_r()[i]) > abs(grid.lower_limits[i]))
+            if (abs(r_val[i]) > abs(grid.lower_limits[i]))
                 return false;
         return true;
     }
 
-    string to_string() {
+    string to_string(const Eigen::VectorXd& p_vals) {
         std::ostringstream oss;
         oss << atom1->label << ' ' << atom2->label << ' ' << multiplier
-            << ' ' << p() << ' ' << r()[0] << ' ' << r()[1] << ' ' << r()[2];
-        for (int j = 0; j < 6; ++j) oss << ' ' << U()[j];
-        oss << ' ' << average_p()
-            << ' ' << average_r()[0] << ' ' << average_r()[1] << ' ' << average_r()[2];
-        for (int j = 0; j < 6; ++j) oss << ' ' << average_U()[j];
+            << ' ' << real_p()->eval(p_vals)
+            << ' ' << real_r().x->eval(p_vals) << ' ' << real_r().y->eval(p_vals) << ' ' << real_r().z->eval(p_vals)
+            << ' ' << real_U().u11->eval(p_vals) << ' ' << real_U().u22->eval(p_vals) << ' ' << real_U().u33->eval(p_vals)
+            << ' ' << real_U().u12->eval(p_vals) << ' ' << real_U().u13->eval(p_vals) << ' ' << real_U().u23->eval(p_vals)
+            << ' ' << average_p()->eval(p_vals)
+            << ' ' << average_r().x->eval(p_vals) << ' ' << average_r().y->eval(p_vals) << ' ' << average_r().z->eval(p_vals)
+            << ' ' << average_U().u11->eval(p_vals) << ' ' << average_U().u22->eval(p_vals) << ' ' << average_U().u33->eval(p_vals)
+            << ' ' << average_U().u12->eval(p_vals) << ' ' << average_U().u13->eval(p_vals) << ' ' << average_U().u23->eval(p_vals);
         return oss.str();
     }
 
+    bool operator==(const AtomicPair& inp) const {
+        return atom1 == inp.atom1 && atom2 == inp.atom2
+            && almost_equal(multiplier, inp.multiplier);
+    }
+    bool operator!=(const AtomicPair& inp) const { return !(*this == inp); }
+
 private:
-    AtomicParams& params(bool average_flag) {
+    ParameterizedParams& params(bool average_flag) {
         return average_flag ? average : real;
     }
-    AtomicParams real;
-    AtomicParams average;
+    ParameterizedParams real;
+    ParameterizedParams average;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -187,10 +324,11 @@ public:
     Atom* atom;
     vec3<double> displacement_vector;
 
-    bool operator==(const AtomicDisplacement& inp) {
+    bool operator==(const AtomicDisplacement& inp) const {
         return atom == inp.atom
             && almost_equal(displacement_vector, inp.displacement_vector);
     }
+    bool operator!=(const AtomicDisplacement& inp) const { return !(*this == inp); }
 };
 
 class ADPMode {
@@ -206,7 +344,7 @@ public:
 
     vector<AtomicDisplacement> atomic_displacements;
 
-    bool operator==(const ADPMode& inp) {
+    bool operator==(const ADPMode& inp) const {
         if (inp.atomic_displacements.size() != atomic_displacements.size())
             return false;
         for (int i = 0; i < atomic_displacements.size(); i++)
@@ -215,7 +353,7 @@ public:
         return true;
     }
 
-    bool operator!=(const ADPMode& inp) { return !operator==(inp); }
+    bool operator!=(const ADPMode& inp) const { return !(*this == inp); }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -235,7 +373,8 @@ public:
         }
     }
 
-    bool operator==(const CellShifter& inp) { return almost_equal(shift, inp.shift); }
+    bool operator==(const CellShifter& inp) const { return almost_equal(shift, inp.shift); }
+    bool operator!=(const CellShifter& inp) const { return !(*this == inp); }
 
     vec3<double> shift;
 };
@@ -261,19 +400,17 @@ public:
         for (vector<Atom*>::iterator atom1 = atoms1.begin(); atom1 != atoms1.end(); atom1++)
             for (vector<Atom*>::iterator atom2 = atoms2.begin(); atom2 != atoms2.end(); atom2++) {
                 AtomicPair& pair = pool->get_pair(*atom1, *atom2);
-                pair.p() = joint_probability;
-                pair.p_real_expr = joint_probability_expr;
+                pair.p() = joint_probability_expr;
             }
     }
 
-    bool operator==(const SubstitutionalCorrelation& inp) {
-        return almost_equal(joint_probability, inp.joint_probability)
-            && chemical_units[0] == inp.chemical_units[0]
+    bool operator==(const SubstitutionalCorrelation& inp) const {
+        return chemical_units[0] == inp.chemical_units[0]
             && chemical_units[1] == inp.chemical_units[1];
     }
+    bool operator!=(const SubstitutionalCorrelation& inp) const { return !(*this == inp); }
 
     ChemicalUnit* chemical_units[2];
-    // double joint_probability;
     yell::ExprPtr joint_probability_expr;
 };
 
@@ -298,10 +435,11 @@ public:
                                 + outer_product(disp2->displacement_vector, disp1->displacement_vector));
     }
 
-    bool operator==(const DoubleADPMode& inp) {
+    bool operator==(const DoubleADPMode& inp) const {
         return inp.modes[0] == modes[0] && inp.modes[1] == modes[1]
             && almost_equal(amplitude, inp.amplitude);
     }
+    bool operator!=(const DoubleADPMode& inp) const { return !(*this == inp); }
 
 private:
     ADPMode* modes[2];
@@ -378,11 +516,12 @@ public:
                     pool->get_pair(ad->atom, *atom).r() -= ad->displacement_vector * amplitude;
     }
 
-    bool operator==(const SizeEffect& inp) {
+    bool operator==(const SizeEffect& inp) const {
         return cu == inp.cu && mode == inp.mode
             && almost_equal(amplitude, inp.amplitude)
             && cu_to_adp_mode == inp.cu_to_adp_mode;
     }
+    bool operator!=(const SizeEffect& inp) const { return !(*this == inp); }
 
     bool cu_to_adp_mode; ///< true if CU is at start and ADP mode at end of vector
     ChemicalUnit* cu;
@@ -396,13 +535,15 @@ public:
     bool generates_pairs() { return false; }
 
     void modify_pairs(AtomicPairPool* const pool) {
+        Eigen::VectorXd zero_p; // only for evaluating literals during init
         for (vector<AtomicPair>::iterator pair = pool->pairs.begin(); pair != pool->pairs.end(); pair++) {
-            if (pair->r().length() < 0.0001 && pair->atom1 == pair->atom2) {
+            vec3<double> r_val(pair->r().x->eval(zero_p), pair->r().y->eval(zero_p), pair->r().z->eval(zero_p));
+            if (r_val.length() < 0.0001 && pair->atom1 == pair->atom2) {
                 pair->U() = sym_mat3<double>(0,0,0,0,0,0);
-                pair->p() = pair->atom1->occupancy;
+                pair->p() = yell::lit(pair->atom1->occupancy);
             }
-            if (pair->r().length() < 0.0001 && pair->atom1 != pair->atom2)
-                pair->p() = 0;
+            if (r_val.length() < 0.0001 && pair->atom1 != pair->atom2)
+                pair->p() = yell::lit(0);
         }
     }
 };
@@ -414,13 +555,17 @@ public:
     bool generates_pairs() { return false; }
 
     void modify_pairs(AtomicPairPool* const pool) {
-        for (vector<AtomicPair>::iterator pair = pool->pairs.begin(); pair != pool->pairs.end(); pair++)
+        for (vector<AtomicPair>::iterator pair = pool->pairs.begin(); pair != pool->pairs.end(); pair++) {
+            pair->p(false) = pair->p(false) * multiplier;
+            pair->p(true)  = pair->p(true)  * multiplier;
             pair->multiplier *= multiplier;
+        }
     }
 
-    bool operator==(const MultiplicityCorrelation& inp) {
+    bool operator==(const MultiplicityCorrelation& inp) const {
         return almost_equal(multiplier, inp.multiplier);
     }
+    bool operator!=(const MultiplicityCorrelation& inp) const { return !(*this == inp); }
 
     double multiplier;
 };
@@ -436,28 +581,25 @@ public:
 // Fields:
 //   type1_idx / type2_idx  — indices into ScattererList::f()
 //   coefficient            — p * N  (occupancy × symmetry multiplicity)
-//   multiplier             — N alone (for scaling p_expr derivatives)
 //   r                      — displacement vector (fractional coords)
 //   U                      — combined ADP tensor (fractional)
-//   p_expr                 — ExprPtr for p; null if not a refined parameter
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct PattersonPeak {
     int              type1_idx;
     int              type2_idx;
     double           coefficient;
-    double           multiplier;
     vec3<double>     r;
     sym_mat3<double> U;
-    yell::ExprPtr    p_expr; ///< null for average peaks or non-parameterized real peaks
 };
 
 /// Convert a list of AtomicPairs into two PattersonPeak lists using the
 /// given ScattererList for scatterer→index mapping.
-/// full_peaks: uses real (non-average) pair parameters, carries p_expr.
-/// avg_peaks:  uses average pair parameters, p_expr is always null.
+/// full_peaks: uses real (non-average) pair parameters.
+/// avg_peaks:  uses average pair parameters.
 inline void peaks_from_pairs(
     vector<AtomicPair>&        pairs,
+    const Eigen::VectorXd&     params,
     const ScattererList&       scatterers,
     vector<PattersonPeak>&     full_peaks,
     vector<PattersonPeak>&     avg_peaks)
@@ -474,18 +616,19 @@ inline void peaks_from_pairs(
         PattersonPeak pk;
         pk.type1_idx  = idx1;
         pk.type2_idx  = idx2;
-        pk.multiplier = pair.multiplier;
 
-        pk.coefficient = pair.p(false) * pair.multiplier;
-        pk.r           = pair.r(false);
-        pk.U           = pair.U(false);
-        pk.p_expr      = pair.p_real_expr; // nullable
+        // Full peaks
+        pk.coefficient = pair.p(false)->eval(params) * pair.multiplier;
+        pk.r = vec3<double>(pair.r(false).x->eval(params), pair.r(false).y->eval(params), pair.r(false).z->eval(params));
+        pk.U = sym_mat3<double>(pair.U(false).u11->eval(params), pair.U(false).u22->eval(params), pair.U(false).u33->eval(params),
+                                pair.U(false).u12->eval(params), pair.U(false).u13->eval(params), pair.U(false).u23->eval(params));
         full_peaks.push_back(pk);
 
-        pk.coefficient = pair.p(true) * pair.multiplier;
-        pk.r           = pair.r(true);
-        pk.U           = pair.U(true);
-        pk.p_expr      = nullptr; // average occupancy is fixed
+        // Average peaks
+        pk.coefficient = pair.p(true)->eval(params) * pair.multiplier;
+        pk.r = vec3<double>(pair.r(true).x->eval(params), pair.r(true).y->eval(params), pair.r(true).z->eval(params));
+        pk.U = sym_mat3<double>(pair.U(true).u11->eval(params), pair.U(true).u22->eval(params), pair.U(true).u33->eval(params),
+                                pair.U(true).u12->eval(params), pair.U(true).u13->eval(params), pair.U(true).u23->eval(params));
         avg_peaks.push_back(pk);
     }
 }

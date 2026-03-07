@@ -7,6 +7,7 @@
 
 #include <string>
 #include <vector>
+#include <Eigen/Core>
 #include <cctbx/sgtbx/rt_mx.h>
 #include "Grid.h"
 #include "IntensityMap.h"
@@ -214,7 +215,7 @@ public:
         return generators;
     }
 
-    vector<AtomicPair> filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs);
+    vector<AtomicPair> filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs, const Eigen::VectorXd& params);
 
     void apply_patterson_symmetry(IntensityMap& map)
     {
@@ -222,7 +223,7 @@ public:
             apply_generator(map,generators_on_map[i]);
     }
 
-    vector<AtomicPair> apply_patterson_symmetry(vector<AtomicPair> pairs);
+    vector<AtomicPair> apply_patterson_symmetry(vector<AtomicPair> pairs, const Eigen::VectorXd& params);
 
     /// Applies a generator to IntensityMap
     void apply_generator(IntensityMap& map, string generator_symbol);
@@ -233,7 +234,7 @@ public:
     vector<AtomicPair> multiply_pairs_by_matrix(vector<AtomicPair> pairs,mat3<double> transformation_matrix);
 
     /// Applies
-    vector<AtomicPair> filter_pairs_from_asymmetric_unit_and_scale(vector<AtomicPair>& pairs);
+    vector<AtomicPair> filter_pairs_from_asymmetric_unit_and_scale(vector<AtomicPair>& pairs, const Eigen::VectorXd& params);
 
     /// Applies generator which is expressed in matrix form to pairs.
     /**

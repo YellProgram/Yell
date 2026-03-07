@@ -148,8 +148,8 @@ vector<AtomicPair> LaueSymmetry::multiply_pairs_by_matrix(vector<AtomicPair> pai
   {
     for(int average=0; average<2; average++)
     {
-      pair->r(average)=transformation_matrix*pair->r(average);
-      pair->U(average)=trusted_mat_to_sym_mat(transformation_matrix*pair->U(average)*transformation_matrix.transpose());
+      pair->r(average) = transformation_matrix * pair->r(average);
+      pair->U(average) = transformation_matrix * pair->U(average);
     }
   }
   

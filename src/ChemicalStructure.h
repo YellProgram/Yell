@@ -125,9 +125,10 @@ public:
 
     void add_node(ChemicalUnitNode* node) { chemical_unit_nodes.push_back(node); }
 
-    bool operator==(const UnitCell& inp) {
+    bool operator==(const UnitCell& inp) const {
         return almost_equal(cell.parameters(), inp.cell.parameters());
     }
+    bool operator!=(const UnitCell& inp) const { return !(*this == inp); }
 
     string to_string() {
         std::ostringstream res;
@@ -224,12 +225,13 @@ public:
 
     ChemicalUnit* operator[](int) { throw "atom is a leaf node"; }
 
-    bool operator==(const Atom& inp) {
+    bool operator==(const Atom& inp) const {
         return almost_equal(occupancy, inp.occupancy)
             && almost_equal(r, inp.r)
             && almost_equal(U, inp.U)
             && atomic_type == inp.atomic_type;
     }
+    bool operator!=(const Atom& inp) const { return !(*this == inp); }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

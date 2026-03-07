@@ -5,14 +5,14 @@
 #include "LaueSymmetry.h"
 #include "basic_classes.h"
 
-#define Z it->average_r()[2]
-#define Y it->average_r()[1]
-#define X it->average_r()[0]
+#define Z it->average_r()[2]->eval(params)
+#define Y it->average_r()[1]->eval(params)
+#define X it->average_r()[0]->eval(params)
 #define decrease_multiplicity(m) {result.back().p()/=m; result.back().average_p()/=m;}
 
 ///\TODO: move it to appropriate place. Probably to files LaueSymmetry.h and LaueSymmetry.cpp
 ///\TODO: check that it is in use, maybe delete?
-vector<AtomicPair> LaueSymmetry::filter_pairs_from_asymmetric_unit_and_scale(vector<AtomicPair>& pairs)
+vector<AtomicPair> LaueSymmetry::filter_pairs_from_asymmetric_unit_and_scale(vector<AtomicPair>& pairs, const Eigen::VectorXd& params)
 {
     vector<AtomicPair> result;
     vector<AtomicPair>::iterator it;
@@ -159,9 +159,9 @@ vector<AtomicPair> LaueSymmetry::filter_pairs_from_asymmetric_unit_and_scale(vec
 #undef X
 #undef Y
 
-vector<AtomicPair> LaueSymmetry::filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs)
+vector<AtomicPair> LaueSymmetry::filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs, const Eigen::VectorXd& params)
 {
-    vector<AtomicPair> result = filter_pairs_from_asymmetric_unit_and_scale(pairs);
+    vector<AtomicPair> result = filter_pairs_from_asymmetric_unit_and_scale(pairs, params);
     vector<AtomicPair>::iterator it;
 
     double group_multiplicity=0;
@@ -227,8 +227,9 @@ vector<AtomicPair> LaueSymmetry::apply_matrix_generator(vector<AtomicPair> pairs
     return result;
 }
 
-vector<AtomicPair> LaueSymmetry::apply_patterson_symmetry(vector<AtomicPair> pairs)
+vector<AtomicPair> LaueSymmetry::apply_patterson_symmetry(vector<AtomicPair> pairs, const Eigen::VectorXd& params)
 {
+    pairs = filter_pairs_from_asymmetric_unit(pairs, params);
 
     for(int i=0; i<generators_on_vectors.size(); ++i)
     {
