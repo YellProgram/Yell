@@ -575,8 +575,6 @@ public:
 
     void modify_pairs(AtomicPairPool* const pool) {
         for (vector<AtomicPair>::iterator pair = pool->pairs.begin(); pair != pool->pairs.end(); pair++) {
-            pair->p(false) = pair->p(false) * multiplier;
-            pair->p(true)  = pair->p(true)  * multiplier;
             pair->multiplier *= multiplier;
         }
     }

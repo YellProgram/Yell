@@ -108,6 +108,7 @@ vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1
     throw "fail";
   }
 
+	//TODO: what happens here is that we silently ignore the last column and the last row which user has input. If the user input it such that it is not self consistent, we need to detect it and throw the error rather than silently fixing it.
 	//fill last row (s1-1 th element of each column j)
 	for(int j=0; j<s2-1; j++){
     yell::ExprPtr val = yell::lit(node2->chemical_units[j].get_occupancy());

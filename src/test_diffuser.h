@@ -653,8 +653,8 @@ public:
 
         mcor.modify_pairs(&aPool);
 
-        TS_ASSERT_DELTA(p * m, aPool.get_pair(p_atom1,p_atom1).p()->eval(zero_p), 0.00001);
-        TS_ASSERT_DELTA(p * m, aPool.get_pair(p_atom1,p_atom1).average_p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(p, aPool.get_pair(p_atom1,p_atom1).p()->eval(zero_p), 0.00001);
+        TS_ASSERT_DELTA(p, aPool.get_pair(p_atom1,p_atom1).average_p()->eval(zero_p), 0.00001);
         TS_ASSERT_DELTA(m, aPool.get_pair(p_atom1,p_atom1).multiplier, 0.00001);
     }
 
