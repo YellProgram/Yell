@@ -63,6 +63,9 @@ public:
     virtual double form_factor_at(double d_star_sq) = 0;
     virtual ~Scatterer() {}
 
+    /// Legacy: sets current_form_factor on this shared object.
+    /// Used only by the FFT path (single-threaded).  Do not call from
+    /// multi-model code; use ScattererList::update() instead.
     void update_current_form_factor(vec3<double> s, double d_star_sq) {
         current_form_factor = form_factor_at_c(s, d_star_sq);
     }

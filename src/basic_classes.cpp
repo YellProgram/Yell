@@ -280,22 +280,18 @@ void AtomicTypeCollection::add(string const & label, Scatterer* s) {
 }
 
 complex<double> MolecularScatterer::form_factor_at_c(vec3<double>s,double d_star_sq) {
-  //This method can only be used by AtomicTypeCollection::update_current_form_factor function since it relies on the fact that
-  //the form factor of all its underlying atoms is calculated prior to calling this function
-  
+  // Each constituent atom's form factor is computed directly from its type
+  // (stateless call — no reliance on global current_form_factor state).
+  // This makes MolecularScatterer::form_factor_at_c safe to call from any
+  // ScattererList::update() without coordinating with other model copies.
   complex<double> result;
-  vector<Atom*>::iterator it;
-  Atom* at;
-  for(it=constituent_atoms.begin(); it!=constituent_atoms.end(); ++it) {
-    at=*it;
-    result += form_factor_in_a_point(at->atomic_type->current_form_factor,
+  for (Atom* at : constituent_atoms)
+    result += form_factor_in_a_point(at->atomic_type->form_factor_at_c(s, d_star_sq),
                                      at->occupancy,
                                      at->multiplier,
                                      at->r,
                                      at->U,
                                      s);
-  }
-  
   return result;
 }
 

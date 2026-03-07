@@ -429,6 +429,9 @@ public:
   p_vector<ADPMode> modes;
   vector<ParameterizedAtomData> parameterized_atoms_;
   bool model_parsed_;
+  /// Per-model form-factor cache.  Each Model copy owns its own ScattererList
+  /// so that multi-threaded use (one model per thread, serial per model) is safe.
+  ScattererList scatterer_list_;
   
   RefinementOptions refinement_options;
 

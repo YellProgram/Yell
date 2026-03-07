@@ -115,6 +115,9 @@ void Model::parse_model_()
   }
 
   model_parsed_ = true;
+  // Snapshot the scatterer registry into a per-model form-factor cache.
+  // Must come after parsing (all Scatterer types are registered by then).
+  scatterer_list_ = ScattererList();
 }
 
 void Model::calculate(vector<double> params, bool average_flag)
@@ -177,11 +180,10 @@ void Model::calculate(vector<double> params, bool average_flag)
 
     IntensityMap padded = calc_intensity_map->padded(sym_boundary);
 
-    ScattererList scatterers;
     vector<PattersonPeak> full_peaks, avg_peaks;
-    peaks_from_pairs(pairs, scatterers, full_peaks, avg_peaks);
+    peaks_from_pairs(pairs, scatterer_list_, full_peaks, avg_peaks);
     const vector<PattersonPeak>& active_peaks = average_flag ? avg_peaks : full_peaks;
-    IntnsityCalculator::calculate_scattering_from_patterson_peaks(active_peaks, scatterers, padded);
+    IntnsityCalculator::calculate_scattering_from_patterson_peaks(active_peaks, scatterer_list_, padded);
 
     cell.laue_symmetry.apply_patterson_symmetry(padded);
     calc_intensity_map->copy_from_padded(sym_boundary,padded);
@@ -306,9 +308,8 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
   if (n_params > 1) {
     // Build PattersonPeak lists for full and average contributions.
-    ScattererList scatterers;
     vector<PattersonPeak> full_peaks, avg_peaks;
-    peaks_from_pairs(atomic_pairs, scatterers, full_peaks, avg_peaks);
+    peaks_from_pairs(atomic_pairs, scatterer_list_, full_peaks, avg_peaks);
 
     // Accumulate ∂I_full and ∂I_avg into full-size arrays (n_pixels × n_params-1),
     // then select observations by ASU at the end.
@@ -322,7 +323,7 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     while (iter_map.next()) {
       vec3<double> s = iter_map.current_s();
       double d_star_sq = iter_map.current_d_star_square();
-      scatterers.update(s, d_star_sq);
+      scatterer_list_.update(s, d_star_sq);
 
       for (int k = 0; k < n_pairs; ++k) {
         // Skip pairs with no sensitivity to any refined parameter.
@@ -330,8 +331,8 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
         const PattersonPeak& fpk = full_peaks[k];
         const PattersonPeak& apk = avg_peaks[k];
-        std::complex<double> f1 = scatterers.f(fpk.type1_idx);
-        std::complex<double> f2 = scatterers.f(fpk.type2_idx);
+        std::complex<double> f1 = scatterer_list_.f(fpk.type1_idx);
+        std::complex<double> f2 = scatterer_list_.f(fpk.type2_idx);
 
         double p_real = fpk.coefficient / fpk.multiplier;
         std::complex<double> base_real = std::conj(f1) * f2 * fpk.multiplier *
