@@ -196,7 +196,9 @@ void Model::calculate(vector<double> params, bool average_flag)
     IntensityMap recipr_padded = calc_intensity_map->padded(padding); //for better fft accuracy
     recipr_padded.invert_grid();
     IntensityMap padded = recipr_padded.padded(sym_boundary); //for symmetry
-    IntnsityCalculator::calculate_patterson_map_from_pairs_f(pairs,padded,average_flag,fft_grid_size,periodic_boundaries);
+    vector<PattersonPeak> full_peaks_fft, avg_peaks_fft;
+    peaks_from_pairs(pairs, scatterer_list_, full_peaks_fft, avg_peaks_fft);
+    IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks_fft,avg_peaks_fft,scatterer_list_,padded,average_flag,fft_grid_size,periodic_boundaries);
     cell.laue_symmetry.apply_patterson_symmetry(padded);
     recipr_padded.copy_from_padded(sym_boundary,padded);
     recipr_padded.invert();

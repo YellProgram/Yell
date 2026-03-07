@@ -70,62 +70,64 @@ struct RefinementOptions {
 
 class IntnsityCalculator {
 public:
+    /// FFT-path intensity calculation.
+    /// Takes per-model PattersonPeak lists and ScattererList — no access to
+    /// shared Scatterer state.  Each model copy owns its scatterers object,
+    /// so multiple models can run concurrently (serial per model).
     static void calculate_patterson_map_from_pairs_f(
-        vector<AtomicPair> pairs,
+        const vector<PattersonPeak>& full_peaks,
+        const vector<PattersonPeak>& avg_peaks,
+        ScattererList& scatterers,
         IntensityMap& patterson_map,
         bool average_flag,
         vec3<int> pair_grid_size,
         vector<bool> periodic_directions = vector<bool>(3, false))
     {
-        double d_star_square;
-        complex<double> f1, f2;
-        vec3<double> s, r_res;
-        vec3<int> r_grid;
-
+        const int n_peaks = (int)full_peaks.size();
         double scale = patterson_map.size_1d();
 
         for (int i = 0; i < patterson_map.size_1d(); ++i)
             patterson_map.at_c(i) = 0;
 
-        AtomicPair* pair;
-
         Grid grid_for_pairs_p(patterson_map.unit_cell(),
                               patterson_map.grid_steps(),
                               patterson_map.grid_steps().each_mul(-pair_grid_size / 2),
                               patterson_map.grid.reciprocal_flag);
-
         Grid grid_for_pairs_r = grid_for_pairs_p.reciprocal();
 
-        AtomicTypeCollection::calculate_form_factors_of_all_atoms_on_grid(pair_grid_size, grid_for_pairs_r);
+        // Pre-compute gridded form factors into the per-model ScattererList.
+        scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
 
         omp_set_num_threads(8);
-#pragma omp parallel for private(s,r_res,r_grid,d_star_square,f1,f2,pair)
-        for (int i = 0; i < pairs.size(); ++i) {
-            pair = &pairs[i];
+#pragma omp parallel for
+        for (int i = 0; i < n_peaks; ++i) {
+            const PattersonPeak& fpk = full_peaks[i];
+            const PattersonPeak& apk = avg_peaks[i];
+            const PattersonPeak& pk  = average_flag ? apk : fpk;
+
             IntensityMap pair_patterson_map(pair_grid_size);
             pair_patterson_map.set_grid(grid_for_pairs_r);
 
-            grid_and_residual(pair->average_r(), patterson_map.grid, r_grid, r_res);
-
+            vec3<int>    r_grid;
+            vec3<double> r_res;
+            grid_and_residual(apk.r, patterson_map.grid, r_grid, r_res);
             if (!average_flag)
-                r_res += pair->r() - pair->average_r();
+                r_res += fpk.r - apk.r;
 
             pair_patterson_map.init_iterator();
             while (pair_patterson_map.next()) {
-                s            = pair_patterson_map.current_s();
-                d_star_square = pair_patterson_map.current_d_star_square();
-
-                f1 = pair->atomic_type1->gridded_form_factors.at_c(pair_patterson_map.current_index());
-                f2 = pair->atomic_type2->gridded_form_factors.at_c(pair_patterson_map.current_index());
-
+                complex<double> f1 = scatterers.f_gridded(fpk.type1_idx,
+                                                          pair_patterson_map.current_index());
+                complex<double> f2 = scatterers.f_gridded(fpk.type2_idx,
+                                                          pair_patterson_map.current_index());
                 pair_patterson_map.current_array_value_c() =
                     scale * calculate_scattering_from_a_pair_in_a_point_c(
                         f1, f2,
-                        pair->p(average_flag),
-                        pair->multiplier,
-                        s,
+                        pk.coefficient / pk.multiplier,
+                        pk.multiplier,
+                        pair_patterson_map.current_s(),
                         r_res,
-                        pair->U(average_flag));
+                        pk.U);
             }
 
             pair_patterson_map.invert();

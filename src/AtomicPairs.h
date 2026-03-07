@@ -242,7 +242,7 @@ public:
 class SubstitutionalCorrelation : public PairModifier {
 public:
     SubstitutionalCorrelation(ChemicalUnit* unit1, ChemicalUnit* unit2, yell::ExprPtr expr)
-        : joint_probability_expr(expr), joint_probability(0.0)
+        : joint_probability_expr(expr), joint_probability(expr->eval(Eigen::VectorXd()))
     {
         chemical_units[0] = unit1;
         chemical_units[1] = unit2;

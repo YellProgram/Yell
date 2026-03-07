@@ -511,9 +511,9 @@ public:
     {
         AtomicPairPool aPool;
         aPool.add_modifier(new CellShifter(1,0,0));
-        aPool.add_modifier(new SubstitutionalCorrelation(p_atom1,p_atom1,0));
+        aPool.add_modifier(new SubstitutionalCorrelation(p_atom1,p_atom1,yell::lit(0.0)));
 
-        aPool.invoke_correlators();
+        aPool.invoke_correlators(Eigen::VectorXd());
 
         TS_ASSERT_EQUALS(0,aPool.get_pair(p_atom1,p_atom1).p());
         TS_ASSERT_EQUALS(vec3<double>(1,0,0),aPool.get_pair(p_atom1,p_atom1).r());
@@ -548,7 +548,7 @@ public:
 
         AtomicPairPool aPool;
 
-        SubstitutionalCorrelation corr(&unit,atom3,0.5);
+        SubstitutionalCorrelation corr(&unit,atom3,yell::lit(0.5));
 
         corr.modify_pairs(&aPool);
 
@@ -696,11 +696,11 @@ public:
         node2.add_chemical_unit(p_atom23);
 
 
-        vector<double> corr;
-        corr.push_back(0.1);
-        corr.push_back(0.1);
-        corr.push_back(0.2);
-        corr.push_back(0.0);
+        vector<yell::ExprPtr> corr;
+        corr.push_back(yell::lit(0.1));
+        corr.push_back(yell::lit(0.1));
+        corr.push_back(yell::lit(0.2));
+        corr.push_back(yell::lit(0.0));
 
         // Probabilities will be:
         //     0.5 0.3 0.2
@@ -714,8 +714,8 @@ public:
         vector<SubstitutionalCorrelation*> correlations = correlators_from_cuns(&node1,&node2,corr);
 
         TS_ASSERT_EQUALS(9,correlations.size());
-        SubstitutionalCorrelation corr32(p_atom3, p_atom22, 0.3);
-        SubstitutionalCorrelation corr33(p_atom3, p_atom23, 0.0);
+        SubstitutionalCorrelation corr32(p_atom3, p_atom22, yell::lit(0.3));
+        SubstitutionalCorrelation corr33(p_atom3, p_atom23, yell::lit(0.0));
 
         TS_ASSERT_EQUALS(0.0,correlations[2]->joint_probability);
         TS_ASSERT_EQUALS(p_atom3,correlations[2]->chemical_units[0]);
@@ -1331,7 +1331,7 @@ public:
         vector<SubstitutionalCorrelation*> corrs,expected_corrs;
         run_parser("a_variant = Variant[(p=0.5) C1  0.5 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0 (p=0.5)[] ]",a_parser.variant_assignement,a_skipper,var);
         run_parser("SubstitutionalCorrelation(a_variant,a_variant,0.5)",a_parser.substitutional_correlation,a_skipper,corrs);
-        expected_corrs = correlators_from_cuns(var,var,vector<double>(1,0.5));
+        expected_corrs = correlators_from_cuns(var,var,vector<yell::ExprPtr>(1,yell::lit(0.5)));
         for(int i=0; i<expected_corrs.size(); i++)
         {
             TS_ASSERT_EQUALS(*expected_corrs[i],*corrs[i]);

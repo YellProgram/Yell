@@ -70,21 +70,24 @@ public:
         current_form_factor = form_factor_at_c(s, d_star_sq);
     }
 
+    /// Legacy: pre-computes gridded form factors onto this shared object.
+    /// Used only when the old AtomicPair-based FFT path is active.
+    /// Prefer ScattererList::compute_form_factors_on_grid() for new code.
     void calculate_form_factors_on_grid(vec3<int> map_size, Grid grid) {
         gridded_form_factors = IntensityMap(map_size);
         gridded_form_factors.set_grid(grid);
-
         gridded_form_factors.init_iterator();
         while (gridded_form_factors.next()) {
-            AtomicTypeCollection::update_current_form_factors(
+            gridded_form_factors.current_array_value_c() = form_factor_at_c(
                 gridded_form_factors.current_s(),
                 gridded_form_factors.current_d_star_square());
-            gridded_form_factors.current_array_value_c() = current_form_factor;
         }
     }
 
+    /// Legacy: mutable cache fields on the shared Scatterer object.
+    /// New code must use ScattererList instead.
     IntensityMap gridded_form_factors;
-    complex<double> current_form_factor; ///< cached form factor for direct calculation
+    complex<double> current_form_factor;
 };
 
 /// X-ray atomic form factor
@@ -180,18 +183,43 @@ public:
         return -1;
     }
 
-    /// Recompute all form factors for the given reciprocal-space point.
+    /// Recompute per-pixel form factors for the given reciprocal-space point.
+    /// Stores results in form_factors_[i] — no writes to any shared Scatterer state.
     void update(vec3<double> s_vec, double d_star_sq) {
         for (int i = 0; i < (int)scatterers_.size(); ++i)
             form_factors_[i] = scatterers_[i]->form_factor_at_c(s_vec, d_star_sq);
     }
 
-    /// Form factor at index i (valid after update()).
+    /// Per-pixel form factor at index i (valid after update()).
     complex<double> f(int i) const { return form_factors_[i]; }
+
+    /// Pre-compute gridded form factors for the FFT path.
+    /// Replaces AtomicTypeCollection::calculate_form_factors_of_all_atoms_on_grid():
+    /// results are stored per-model in gridded_form_factors_[i] instead of on the
+    /// shared Scatterer objects, making the FFT path safe for multi-model use.
+    void compute_form_factors_on_grid(vec3<int> map_size, Grid grid) {
+        gridded_form_factors_.resize(scatterers_.size());
+        for (int i = 0; i < (int)scatterers_.size(); ++i) {
+            IntensityMap ff_map(map_size);
+            ff_map.set_grid(grid);
+            ff_map.init_iterator();
+            while (ff_map.next())
+                ff_map.current_array_value_c() = scatterers_[i]->form_factor_at_c(
+                    ff_map.current_s(), ff_map.current_d_star_square());
+            gridded_form_factors_[i] = std::move(ff_map);
+        }
+    }
+
+    /// Gridded form factor for scatterer idx at grid index (valid after
+    /// compute_form_factors_on_grid()).
+    complex<double> f_gridded(int idx, af::c_grid<3,int>::index_type index) {
+        return gridded_form_factors_[idx].at_c(index);
+    }
 
 private:
     vector<Scatterer*>        scatterers_;
     vector<complex<double>>   form_factors_;
+    vector<IntensityMap>      gridded_form_factors_;
 };
 
 #endif // YELL_SCATTERERS_H
