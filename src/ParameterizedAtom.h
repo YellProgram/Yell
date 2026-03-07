@@ -31,27 +31,27 @@ struct ParameterizedAtomData
     // Re-evaluate all expression trees and write results into *atom_ptr.
     // p must be the current refinement parameter vector (same indexing as
     // when initialize_refinable_variables was called).
-    void update(const Eigen::VectorXd& p) const
+    void update(const Eigen::VectorXd& p, yell::EvaluationCache* cache = nullptr) const
     {
-        atom_ptr->multiplier = param_exprs[0]->eval(p);
-        atom_ptr->r[0]       = param_exprs[1]->eval(p);
-        atom_ptr->r[1]       = param_exprs[2]->eval(p);
-        atom_ptr->r[2]       = param_exprs[3]->eval(p);
+        atom_ptr->multiplier = param_exprs[0]->eval(p, cache);
+        atom_ptr->r[0]       = param_exprs[1]->eval(p, cache);
+        atom_ptr->r[1]       = param_exprs[2]->eval(p, cache);
+        atom_ptr->r[2]       = param_exprs[3]->eval(p, cache);
 
         if (isotropic) {
-            double Uiso = param_exprs[4]->eval(p);
+            double Uiso = param_exprs[4]->eval(p, cache);
             atom_ptr->U = Uiso * unit_cell.reciprocal_metrical_matrix();
         } else {
             // ADP conversion: U_frac[i][j] = U_ang[i][j] / (a_i * a_j)
             const double a = unit_cell.parameters()[0];
             const double b = unit_cell.parameters()[1];
             const double c = unit_cell.parameters()[2];
-            atom_ptr->U[0] = param_exprs[4]->eval(p) / (a * a);  // U11
-            atom_ptr->U[1] = param_exprs[5]->eval(p) / (b * b);  // U22
-            atom_ptr->U[2] = param_exprs[6]->eval(p) / (c * c);  // U33
-            atom_ptr->U[3] = param_exprs[7]->eval(p) / (a * b);  // U12
-            atom_ptr->U[4] = param_exprs[8]->eval(p) / (a * c);  // U13
-            atom_ptr->U[5] = param_exprs[9]->eval(p) / (b * c);  // U23
+            atom_ptr->U[0] = param_exprs[4]->eval(p, cache) / (a * a);  // U11
+            atom_ptr->U[1] = param_exprs[5]->eval(p, cache) / (b * b);  // U22
+            atom_ptr->U[2] = param_exprs[6]->eval(p, cache) / (c * c);  // U33
+            atom_ptr->U[3] = param_exprs[7]->eval(p, cache) / (a * b);  // U12
+            atom_ptr->U[4] = param_exprs[8]->eval(p, cache) / (a * c);  // U13
+            atom_ptr->U[5] = param_exprs[9]->eval(p, cache) / (b * c);  // U23
         }
     }
 };

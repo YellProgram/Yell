@@ -615,6 +615,8 @@ inline void peaks_from_pairs(
     full_peaks.reserve(pairs.size());
     avg_peaks.reserve(pairs.size());
 
+    yell::EvaluationCache cache;
+
     for (AtomicPair& pair : pairs) {
         int idx1 = scatterers.index_of(pair.atomic_type1);
         int idx2 = scatterers.index_of(pair.atomic_type2);
@@ -624,17 +626,17 @@ inline void peaks_from_pairs(
         pk.type2_idx  = idx2;
 
         // Full peaks
-        pk.coefficient = pair.p(false)->eval(params) * pair.multiplier;
-        pk.r = vec3<double>(pair.r(false).x->eval(params), pair.r(false).y->eval(params), pair.r(false).z->eval(params));
-        pk.U = sym_mat3<double>(pair.U(false).u11->eval(params), pair.U(false).u22->eval(params), pair.U(false).u33->eval(params),
-                                pair.U(false).u12->eval(params), pair.U(false).u13->eval(params), pair.U(false).u23->eval(params));
+        pk.coefficient = pair.p(false)->eval(params, &cache) * pair.multiplier;
+        pk.r = vec3<double>(pair.r(false).x->eval(params, &cache), pair.r(false).y->eval(params, &cache), pair.r(false).z->eval(params, &cache));
+        pk.U = sym_mat3<double>(pair.U(false).u11->eval(params, &cache), pair.U(false).u22->eval(params, &cache), pair.U(false).u33->eval(params, &cache),
+                                pair.U(false).u12->eval(params, &cache), pair.U(false).u13->eval(params, &cache), pair.U(false).u23->eval(params, &cache));
         full_peaks.push_back(pk);
 
         // Average peaks
-        pk.coefficient = pair.p(true)->eval(params) * pair.multiplier;
-        pk.r = vec3<double>(pair.r(true).x->eval(params), pair.r(true).y->eval(params), pair.r(true).z->eval(params));
-        pk.U = sym_mat3<double>(pair.U(true).u11->eval(params), pair.U(true).u22->eval(params), pair.U(true).u33->eval(params),
-                                pair.U(true).u12->eval(params), pair.U(true).u13->eval(params), pair.U(true).u23->eval(params));
+        pk.coefficient = pair.p(true)->eval(params, &cache) * pair.multiplier;
+        pk.r = vec3<double>(pair.r(true).x->eval(params, &cache), pair.r(true).y->eval(params, &cache), pair.r(true).z->eval(params, &cache));
+        pk.U = sym_mat3<double>(pair.U(true).u11->eval(params, &cache), pair.U(true).u22->eval(params, &cache), pair.U(true).u33->eval(params, &cache),
+                                pair.U(true).u12->eval(params, &cache), pair.U(true).u13->eval(params, &cache), pair.U(true).u23->eval(params, &cache));
         avg_peaks.push_back(pk);
     }
 }
@@ -652,19 +654,21 @@ inline void susceptibilities_from_pairs(
     full_susc.reserve(pairs.size());
     avg_susc.reserve(pairs.size());
 
+    yell::EvaluationCache cache;
+
     for (AtomicPair& pair : pairs) {
         auto bake_susc = [&](bool avg) {
             PeakSusceptibility s;
-            yell::Dual p_d   = pair.p(avg)->eval_d(params);
-            yell::Dual rx_d  = pair.r(avg).x->eval_d(params);
-            yell::Dual ry_d  = pair.r(avg).y->eval_d(params);
-            yell::Dual rz_d  = pair.r(avg).z->eval_d(params);
-            yell::Dual u11_d = pair.U(avg).u11->eval_d(params);
-            yell::Dual u22_d = pair.U(avg).u22->eval_d(params);
-            yell::Dual u33_d = pair.U(avg).u33->eval_d(params);
-            yell::Dual u12_d = pair.U(avg).u12->eval_d(params);
-            yell::Dual u13_d = pair.U(avg).u13->eval_d(params);
-            yell::Dual u23_d = pair.U(avg).u23->eval_d(params);
+            yell::Dual p_d   = pair.p(avg)->eval_d(params, &cache);
+            yell::Dual rx_d  = pair.r(avg).x->eval_d(params, &cache);
+            yell::Dual ry_d  = pair.r(avg).y->eval_d(params, &cache);
+            yell::Dual rz_d  = pair.r(avg).z->eval_d(params, &cache);
+            yell::Dual u11_d = pair.U(avg).u11->eval_d(params, &cache);
+            yell::Dual u22_d = pair.U(avg).u22->eval_d(params, &cache);
+            yell::Dual u33_d = pair.U(avg).u33->eval_d(params, &cache);
+            yell::Dual u12_d = pair.U(avg).u12->eval_d(params, &cache);
+            yell::Dual u13_d = pair.U(avg).u13->eval_d(params, &cache);
+            yell::Dual u23_d = pair.U(avg).u23->eval_d(params, &cache);
 
             s.d_coefficient = p_d.derivatives()[param_idx] * pair.multiplier;
             s.d_r = vec3<double>(rx_d.derivatives()[param_idx], ry_d.derivatives()[param_idx], rz_d.derivatives()[param_idx]);

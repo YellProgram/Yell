@@ -128,8 +128,9 @@ void Model::calculate(vector<double> params, bool average_flag)
   if (params.size() == refinement_parameters.size()) {
     refinement_parameters = params;
     p = Eigen::VectorXd::Map(params.data(), params.size());
+    yell::EvaluationCache cache;
     for (auto& pad : parameterized_atoms_)
-      pad.update(p);
+      pad.update(p, &cache);
   } else {
     p = Eigen::VectorXd::Map(refinement_parameters.data(), refinement_parameters.size());
   }
@@ -259,7 +260,6 @@ return res;
 }
 
 Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
-
     const vector<double>& params,
     IntensityMap& exp_map,
     OptionalIntensityMap& wts)
@@ -270,9 +270,6 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
 
-  // Snapshot the model parameters: create peak lists once.
-  // Then for each pixel, we evaluate the full expression and get derivatives.
-  // Clear cached pairs so invoke_correlators rebuilds them if needed.
   for (auto* pool : pools)
     pool->pairs.clear();
 
@@ -283,16 +280,15 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
   }
   pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
-  
+
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 
-  // Output Jacobian (n_obs × n_params).
   Eigen::MatrixXd J(n_obs, n_params);
   const bool use_asu = refine_in_asu();
   const vector<int>& asu = asu_indices();
 
-  // Column 0: ∂r_i/∂Scale = -(I_full_i - I_avg_i) * w_i
+  // 1. Base Intensities and Column 0 (Scale)
   IntensityMap cur_I_full = intensity_map;
   IntensityMap cur_I_avg  = average_intensity_map;
   IntnsityCalculator::calculate_scattering_from_patterson_peaks(full_peaks, scatterer_list_, cur_I_full);
@@ -304,72 +300,23 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     J(ii, 0) = -(cur_I_full.at(i) - cur_I_avg.at(i)) * w;
   }
 
+  // 2. Parameter Derivatives (Columns 1..N)
   if (n_params > 1) {
-    const int n_pixels = intensity_map.size_1d();
-    Eigen::MatrixXd dI_full_all(n_pixels, n_params - 1); dI_full_all.setZero();
-    Eigen::MatrixXd dI_avg_all (n_pixels, n_params - 1); dI_avg_all.setZero();
+    for (int j = 1; j < n_params; ++j) {
+      vector<PeakSusceptibility> full_susc, avg_susc;
+      susceptibilities_from_pairs(pairs, q, j, full_susc, avg_susc);
 
-    // ∂I(s)/∂p_j = Σ_pairs conj(f1)*f2*N * ∂(exp(...))/∂p_j
-    // ∂(p * exp(arg))/∂p_j = dp/dp_j * exp(arg) + p * exp(arg) * darg/dp_j
-    //
-    // Since we only want derivatives UNTIL THE LIST OF PAIRS here,
-    // and the Intensity stage handles maps, I'll calculate the per-parameter
-    // intensity derivative by iterating over pairs and evaluating their Duals.
+      IntensityMap dI_full(grid);
+      IntensityMap dI_avg(grid);
 
-    cur_I_full.init_iterator();
-    int pixel_1d = 0;
-    while (cur_I_full.next()) {
-      vec3<double> s = cur_I_full.current_s();
-      double d_star_sq = cur_I_full.current_d_star_square();
-      scatterer_list_.update(s, d_star_sq);
+      IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(full_peaks, full_susc, scatterer_list_, dI_full);
+      IntnsityCalculator::calculate_scattering_derivative_from_patterson_peaks(avg_peaks,  avg_susc,  scatterer_list_, dI_avg);
 
-      for (int k = 0; k < (int)pairs.size(); ++k) {
-        AtomicPair& pair = pairs[k];
-        std::complex<double> f1f2 = std::conj(scatterer_list_.f(full_peaks[k].type1_idx)) * scatterer_list_.f(full_peaks[k].type2_idx);
-
-        auto calc_dI_pair = [&](bool avg) -> Eigen::VectorXd {
-            yell::Dual p_dual   = pair.p(avg)->eval_d(q);
-            yell::Dual rx_dual  = pair.r(avg).x->eval_d(q);
-            yell::Dual ry_dual  = pair.r(avg).y->eval_d(q);
-            yell::Dual rz_dual  = pair.r(avg).z->eval_d(q);
-            yell::Dual u11_dual = pair.U(avg).u11->eval_d(q);
-            yell::Dual u22_dual = pair.U(avg).u22->eval_d(q);
-            yell::Dual u33_dual = pair.U(avg).u33->eval_d(q);
-            yell::Dual u12_dual = pair.U(avg).u12->eval_d(q);
-            yell::Dual u13_dual = pair.U(avg).u13->eval_d(q);
-            yell::Dual u23_dual = pair.U(avg).u23->eval_d(q);
-
-            yell::Dual phase = rx_dual * (M_2PI * s[0]) + ry_dual * (M_2PI * s[1]) + rz_dual * (M_2PI * s[2]);
-            yell::Dual adp   = u11_dual * (M2PISQ * s[0]*s[0]) + u22_dual * (M2PISQ * s[1]*s[1]) + u33_dual * (M2PISQ * s[2]*s[2]) +
-                               u12_dual * (2.0 * M2PISQ * s[0]*s[1]) + u13_dual * (2.0 * M2PISQ * s[0]*s[2]) + u23_dual * (2.0 * M2PISQ * s[1]*s[2]);
-            
-            double p_v = p_dual.value();
-            double adp_v = adp.value();
-            double phase_v = phase.value();
-            std::complex<double> e_val = std::exp(std::complex<double>(adp_v, phase_v));
-            
-            Eigen::VectorXd res_g = Eigen::VectorXd::Zero(n_params);
-            std::complex<double> term1 = f1f2 * e_val * pair.multiplier;
-            std::complex<double> term2 = term1 * p_v;
-
-            res_g += term1.real() * p_dual.derivatives();
-            res_g += term2.real() * adp.derivatives();
-            res_g -= term2.imag() * phase.derivatives();
-
-            return res_g;
-        };
-
-        dI_full_all.row(pixel_1d) += calc_dI_pair(false).tail(n_params - 1);
-        dI_avg_all.row(pixel_1d)  += calc_dI_pair(true).tail(n_params - 1);
+      for (int ii = 0; ii < n_obs; ++ii) {
+        int i = use_asu ? asu[ii] : ii;
+        double w = wts.at(i);
+        J(ii, j) = -scale * (dI_full.at(i) - dI_avg.at(i)) * w;
       }
-      ++pixel_1d;
-    }
-
-    for (int ii = 0; ii < n_obs; ++ii) {
-      int i = use_asu ? asu[ii] : ii;
-      double w = wts.at(i);
-      for (int j = 1; j < n_params; ++j)
-        J(ii, j) = -scale * (dI_full_all(i, j-1) - dI_avg_all(i, j-1)) * w;
     }
   }
 
