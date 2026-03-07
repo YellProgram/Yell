@@ -424,4 +424,69 @@ public:
     double multiplier;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PattersonPeak — a single, flat Patterson-space contribution.
+//
+// Unlike AtomicPair (which carries both real and average parameters),
+// a PattersonPeak represents one term of either the full or the average
+// intensity sum.  Scatterer types are stored as integer indices into a
+// ScattererList, making the inner per-pixel loop cache-friendly.
+//
+// Fields:
+//   type1_idx / type2_idx  — indices into ScattererList::f()
+//   coefficient            — p * N  (occupancy × symmetry multiplicity)
+//   multiplier             — N alone (for scaling p_expr derivatives)
+//   r                      — displacement vector (fractional coords)
+//   U                      — combined ADP tensor (fractional)
+//   p_expr                 — ExprPtr for p; null if not a refined parameter
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct PattersonPeak {
+    int              type1_idx;
+    int              type2_idx;
+    double           coefficient;
+    double           multiplier;
+    vec3<double>     r;
+    sym_mat3<double> U;
+    yell::ExprPtr    p_expr; ///< null for average peaks or non-parameterized real peaks
+};
+
+/// Convert a list of AtomicPairs into two PattersonPeak lists using the
+/// given ScattererList for scatterer→index mapping.
+/// full_peaks: uses real (non-average) pair parameters, carries p_expr.
+/// avg_peaks:  uses average pair parameters, p_expr is always null.
+inline void peaks_from_pairs(
+    vector<AtomicPair>&        pairs,
+    const ScattererList&       scatterers,
+    vector<PattersonPeak>&     full_peaks,
+    vector<PattersonPeak>&     avg_peaks)
+{
+    full_peaks.clear();
+    avg_peaks.clear();
+    full_peaks.reserve(pairs.size());
+    avg_peaks.reserve(pairs.size());
+
+    for (AtomicPair& pair : pairs) {
+        int idx1 = scatterers.index_of(pair.atomic_type1);
+        int idx2 = scatterers.index_of(pair.atomic_type2);
+
+        PattersonPeak pk;
+        pk.type1_idx  = idx1;
+        pk.type2_idx  = idx2;
+        pk.multiplier = pair.multiplier;
+
+        pk.coefficient = pair.p(false) * pair.multiplier;
+        pk.r           = pair.r(false);
+        pk.U           = pair.U(false);
+        pk.p_expr      = pair.p_real_expr; // nullable
+        full_peaks.push_back(pk);
+
+        pk.coefficient = pair.p(true) * pair.multiplier;
+        pk.r           = pair.r(true);
+        pk.U           = pair.U(true);
+        pk.p_expr      = nullptr; // average occupancy is fixed
+        avg_peaks.push_back(pk);
+    }
+}
+
 #endif // YELL_ATOMIC_PAIRS_H

@@ -150,4 +150,45 @@ private:
     cctbx::eltbx::xray_scattering::gaussian gauss;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ScattererList — flat, index-addressable list of scatterers.
+//
+// Built once from the global AtomicTypeCollection after all atoms have been
+// registered.  Stores pre-computed per-pixel form factors in a contiguous
+// vector so the inner pair loop can use integer indices instead of pointer
+// dereferences.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ScattererList {
+public:
+    /// Snapshot the current AtomicTypeCollection into a flat vector.
+    ScattererList() {
+        for (auto& kv : AtomicTypeCollection::get().types)
+            scatterers_.push_back(kv.second);
+        form_factors_.resize(scatterers_.size());
+    }
+
+    int size() const { return (int)scatterers_.size(); }
+
+    /// Return the index of scatterer s, or -1 if not found.
+    int index_of(Scatterer* s) const {
+        for (int i = 0; i < (int)scatterers_.size(); ++i)
+            if (scatterers_[i] == s) return i;
+        return -1;
+    }
+
+    /// Recompute all form factors for the given reciprocal-space point.
+    void update(vec3<double> s_vec, double d_star_sq) {
+        for (int i = 0; i < (int)scatterers_.size(); ++i)
+            form_factors_[i] = scatterers_[i]->form_factor_at_c(s_vec, d_star_sq);
+    }
+
+    /// Form factor at index i (valid after update()).
+    complex<double> f(int i) const { return form_factors_[i]; }
+
+private:
+    vector<Scatterer*>        scatterers_;
+    vector<complex<double>>   form_factors_;
+};
+
 #endif // YELL_SCATTERERS_H

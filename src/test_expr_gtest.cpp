@@ -890,3 +890,74 @@ TEST(ModelParseOnce, SecondCallWithDifferentParamsChangesResult)
             { differs = true; break; }
     EXPECT_TRUE(differs);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PattersonPeak tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(PattersonPeakTests, ScattererListNonEmpty)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.calculate({1.0, 0.25, 0.01});
+
+    ScattererList sl;
+    EXPECT_GT(sl.size(), 0);
+}
+
+TEST(PattersonPeakTests, PeaksFromPairsCountMatchesPairs)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.calculate({1.0, 0.25, 0.01});
+
+    ScattererList sl;
+    std::vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(m.atomic_pairs, sl, full_peaks, avg_peaks);
+
+    EXPECT_EQ((int)full_peaks.size(), (int)m.atomic_pairs.size());
+    EXPECT_EQ((int)avg_peaks.size(),  (int)m.atomic_pairs.size());
+}
+
+TEST(PattersonPeakTests, FullPeakCoefficientMatchesPairP)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.calculate({1.0, 0.25, 0.01});
+
+    ScattererList sl;
+    std::vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(m.atomic_pairs, sl, full_peaks, avg_peaks);
+
+    for (int k = 0; k < (int)m.atomic_pairs.size(); ++k) {
+        double expected = m.atomic_pairs[k].p(false) * m.atomic_pairs[k].multiplier;
+        EXPECT_NEAR(full_peaks[k].coefficient, expected, 1e-12);
+    }
+}
+
+TEST(PattersonPeakTests, AvgPeakHasNullPExpr)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.calculate({1.0, 0.25, 0.01});
+
+    ScattererList sl;
+    std::vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(m.atomic_pairs, sl, full_peaks, avg_peaks);
+
+    for (auto& pk : avg_peaks)
+        EXPECT_EQ(pk.p_expr, nullptr);
+}
+
+TEST(PattersonPeakTests, ValidScattererIndices)
+{
+    Model m(simple_model_str(0.25, 0.01));
+    m.calculate({1.0, 0.25, 0.01});
+
+    ScattererList sl;
+    std::vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(m.atomic_pairs, sl, full_peaks, avg_peaks);
+
+    for (auto& pk : full_peaks) {
+        EXPECT_GE(pk.type1_idx, 0);
+        EXPECT_GE(pk.type2_idx, 0);
+        EXPECT_LT(pk.type1_idx, sl.size());
+        EXPECT_LT(pk.type2_idx, sl.size());
+    }
+}
