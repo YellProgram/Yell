@@ -49,18 +49,32 @@ sym_mat3<double> outer_product(vec3<double> v1, vec3<double> v2);
 template<class Obj>
 class p_vector {
 public:
-    p_vector(p_vector const &) { assert(false); } // copy not implemented
     p_vector() {}
+    p_vector(const p_vector& other) {
+        for (int i = 0; i < other.size(); i++)
+            pointer_vector.push_back(other[i].clone());
+    }
+    p_vector& operator=(const p_vector& other) {
+        if (this == &other) return *this;
+        clear();
+        for (int i = 0; i < other.size(); i++)
+            pointer_vector.push_back(other[i].clone());
+        return *this;
+    }
 
-    ~p_vector() {
-        for (int i = 0; i < pointer_vector.size(); i++)
+    ~p_vector() { clear(); }
+
+    void clear() {
+        for (size_t i = 0; i < pointer_vector.size(); i++)
             delete pointer_vector[i];
+        pointer_vector.clear();
     }
 
     void push_back(Obj* a)             { pointer_vector.push_back(a); }
     void concat(vector<Obj*> a)        { pointer_vector.insert(pointer_vector.end(), a.begin(), a.end()); }
-    int  size()                        { return pointer_vector.size(); }
+    int  size() const                  { return pointer_vector.size(); }
     Obj& operator[](int i)             { return (*pointer_vector[i]); }
+    const Obj& operator[](int i) const { return (*pointer_vector[i]); }
 
 private:
     vector<Obj*> pointer_vector;

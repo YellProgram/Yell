@@ -63,6 +63,7 @@ public:
     virtual bool generates_pairs() = 0;
     virtual void modify_pairs(AtomicPairPool* const) = 0;
     virtual void update(const Eigen::VectorXd&) {}
+    virtual PairModifier* clone() const = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -145,16 +146,12 @@ inline vec3_expr operator*(const mat3<double>& m, const vec3_expr& v) {
 }
 
 inline sym_mat3_expr operator*(const mat3<double>& m, const sym_mat3_expr& U) {
-    // This is M * U * M^T. U is symmetric.
-    // U_full = [ u11 u12 u13 ]
-    //          [ u12 u22 u23 ]
-    //          [ u13 u23 u33 ]
     auto get_U = [&](int i, int j) {
         if (i == j) return U[i];
         if (i == 0 && j == 1) return U[3]; if (i == 1 && j == 0) return U[3];
         if (i == 0 && j == 2) return U[4]; if (i == 2 && j == 0) return U[4];
         if (i == 1 && j == 2) return U[5]; if (i == 2 && j == 1) return U[5];
-        return U[0]; // should not happen
+        return U[0];
     };
 
     auto calc_res = [&](int r, int c) {
@@ -172,7 +169,7 @@ inline sym_mat3_expr operator*(const mat3<double>& m, const sym_mat3_expr& U) {
 }
 
 inline sym_mat3_expr trusted_mat_to_sym_mat(const sym_mat3_expr& inp) {
-    return inp; // already symmetric
+    return inp;
 }
 
 inline bool operator==(const vec3_expr& lhs, const vec3<double>& rhs) {
@@ -279,6 +276,19 @@ private:
 class AtomicPairPool {
 public:
     AtomicPairPool() {}
+    AtomicPairPool(const AtomicPairPool& other) {
+        pairs = other.pairs;
+        for (int i = 0; i < other.modifiers.size(); i++)
+            modifiers.push_back(other.modifiers[i].clone());
+    }
+    AtomicPairPool& operator=(const AtomicPairPool& other) {
+        if (this == &other) return *this;
+        pairs = other.pairs;
+        modifiers.clear();
+        for (int i = 0; i < other.modifiers.size(); i++)
+            modifiers.push_back(other.modifiers[i].clone());
+        return *this;
+    }
 
     AtomicPair& get_pair(Atom* atom1, Atom* atom2) {
         for (vector<AtomicPair>::iterator pair = pairs.begin(); pair != pairs.end(); pair++)
@@ -296,7 +306,6 @@ public:
     void add_modifier(PairModifier* modifier) { modifiers.push_back(modifier); }
 
     void invoke_correlators(const Eigen::VectorXd& p) {
-        // Update all modifiers with current parameters before generating pairs.
         for (int i = 0; i < modifiers.size(); i++)
             modifiers[i].update(p);
 
@@ -307,8 +316,8 @@ public:
             else
                 non_generating.push_back(&modifiers[i]);
         }
-        for (vector<PairModifier*>::iterator it = non_generating.begin(); it != non_generating.end(); it++)
-            (*it)->modify_pairs(this);
+        for (size_t i = 0; i < non_generating.size(); i++)
+            non_generating[i]->modify_pairs(this);
     }
 
     vector<AtomicPair> pairs;
@@ -354,6 +363,8 @@ public:
     }
 
     bool operator!=(const ADPMode& inp) const { return !(*this == inp); }
+
+    ADPMode* clone() const { return new ADPMode(*this); }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -376,6 +387,8 @@ public:
     bool operator==(const CellShifter& inp) const { return almost_equal(shift, inp.shift); }
     bool operator!=(const CellShifter& inp) const { return !(*this == inp); }
 
+    PairModifier* clone() const override { return new CellShifter(*this); }
+
     vec3<double> shift;
 };
 
@@ -386,10 +399,6 @@ public:
     {
         chemical_units[0] = unit1;
         chemical_units[1] = unit2;
-    }
-
-    void update(const Eigen::VectorXd& p) override {
-        // joint_probability = joint_probability_expr->eval(p);
     }
 
     bool generates_pairs() { return true; }
@@ -409,6 +418,8 @@ public:
             && chemical_units[1] == inp.chemical_units[1];
     }
     bool operator!=(const SubstitutionalCorrelation& inp) const { return !(*this == inp); }
+
+    PairModifier* clone() const override { return new SubstitutionalCorrelation(*this); }
 
     ChemicalUnit* chemical_units[2];
     yell::ExprPtr joint_probability_expr;
@@ -441,6 +452,8 @@ public:
     }
     bool operator!=(const DoubleADPMode& inp) const { return !(*this == inp); }
 
+    PairModifier* clone() const override { return new DoubleADPMode(*this); }
+
 private:
     ADPMode* modes[2];
     double amplitude;
@@ -459,7 +472,7 @@ public:
 
     void add_displacement(const int& StartOrEnd, ADPMode* mode, double amplitude) {
         if (StartOrEnd != 0 && StartOrEnd != 1)
-            throw string("StartOrEnd flag should be 0 for start or 1 for end");
+            throw std::string("StartOrEnd flag should be 0 for start or 1 for end");
         ModeAndAmplitude ma = {mode, amplitude};
         modes_and_amplitudes[StartOrEnd].push_back(ma);
     }
@@ -493,6 +506,8 @@ public:
                 pool->get_pair(*atom1, *atom2).r() -= *d1;
     }
 
+    PairModifier* clone() const override { return new StaticShift(*this); }
+
     vector<ModeAndAmplitude> modes_and_amplitudes[2]; ///< [0]=start [1]=end of PDF vector
 };
 
@@ -523,6 +538,8 @@ public:
     }
     bool operator!=(const SizeEffect& inp) const { return !(*this == inp); }
 
+    PairModifier* clone() const override { return new SizeEffect(*this); }
+
     bool cu_to_adp_mode; ///< true if CU is at start and ADP mode at end of vector
     ChemicalUnit* cu;
     ADPMode* mode;
@@ -546,6 +563,8 @@ public:
                 pair->p() = yell::lit(0);
         }
     }
+
+    PairModifier* clone() const override { return new ZeroVectorCorrelation(*this); }
 };
 
 class MultiplicityCorrelation : public PairModifier {
@@ -567,22 +586,13 @@ public:
     }
     bool operator!=(const MultiplicityCorrelation& inp) const { return !(*this == inp); }
 
+    PairModifier* clone() const override { return new MultiplicityCorrelation(*this); }
+
     double multiplier;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PattersonPeak — a single, flat Patterson-space contribution.
-//
-// Unlike AtomicPair (which carries both real and average parameters),
-// a PattersonPeak represents one term of either the full or the average
-// intensity sum.  Scatterer types are stored as integer indices into a
-// ScattererList, making the inner per-pixel loop cache-friendly.
-//
-// Fields:
-//   type1_idx / type2_idx  — indices into ScattererList::f()
-//   coefficient            — p * N  (occupancy × symmetry multiplicity)
-//   r                      — displacement vector (fractional coords)
-//   U                      — combined ADP tensor (fractional)
+// PattersonPeak PODs and Baking functions
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct PattersonPeak {
@@ -599,10 +609,6 @@ struct PeakSusceptibility {
     sym_mat3<double> d_U;
 };
 
-/// Convert a list of AtomicPairs into two PattersonPeak lists using the
-/// given ScattererList for scatterer→index mapping.
-/// full_peaks: uses real (non-average) pair parameters.
-/// avg_peaks:  uses average pair parameters.
 inline void peaks_from_pairs(
     vector<AtomicPair>&        pairs,
     const Eigen::VectorXd&     params,
@@ -625,14 +631,12 @@ inline void peaks_from_pairs(
         pk.type1_idx  = idx1;
         pk.type2_idx  = idx2;
 
-        // Full peaks
         pk.coefficient = pair.p(false)->eval(params, &cache) * pair.multiplier;
         pk.r = vec3<double>(pair.r(false).x->eval(params, &cache), pair.r(false).y->eval(params, &cache), pair.r(false).z->eval(params, &cache));
         pk.U = sym_mat3<double>(pair.U(false).u11->eval(params, &cache), pair.U(false).u22->eval(params, &cache), pair.U(false).u33->eval(params, &cache),
                                 pair.U(false).u12->eval(params, &cache), pair.U(false).u13->eval(params, &cache), pair.U(false).u23->eval(params, &cache));
         full_peaks.push_back(pk);
 
-        // Average peaks
         pk.coefficient = pair.p(true)->eval(params, &cache) * pair.multiplier;
         pk.r = vec3<double>(pair.r(true).x->eval(params, &cache), pair.r(true).y->eval(params, &cache), pair.r(true).z->eval(params, &cache));
         pk.U = sym_mat3<double>(pair.U(true).u11->eval(params, &cache), pair.U(true).u22->eval(params, &cache), pair.U(true).u33->eval(params, &cache),
@@ -641,7 +645,6 @@ inline void peaks_from_pairs(
     }
 }
 
-/// Convert a list of AtomicPairs into two PeakSusceptibility lists for a specific parameter index.
 inline void susceptibilities_from_pairs(
     vector<AtomicPair>&        pairs,
     const Eigen::VectorXd&     params,

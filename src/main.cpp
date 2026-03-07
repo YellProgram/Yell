@@ -55,18 +55,22 @@ void print_correlation_tuple(vector<correlation_tuple>& inp,vector<string> refin
     REPORT(MAIN) << refined_variable_names[corr->x] << " - " << refined_variable_names[corr->y] << " " << corr->correlation << "\n";
 }
 
-void print_covariance(double* covar, vector<double> refined_params) {
-  int sz=refined_params.size();
+void print_covariance(const vector<double>& covar, vector<double> refined_params) {
+  int sz = refined_params.size();
   REPORT(MAIN) << "Covariance matrix:\n";
-  for (int i=0,k=0;i<refined_params.size();++i)
+  if (covar.size() < sz * sz) {
+      REPORT(ERROR) << "Covariance matrix size mismatch: " << covar.size() << " vs expected " << sz*sz << "\n";
+      return;
+  }
+  for (int i = 0; i < sz; ++i)
   {
-    for (int j=0;j<refined_params.size();++j,++k)
-      REPORT(MAIN) << covar[k] << ' ';
+    for (int j = 0; j < sz; ++j)
+      REPORT(MAIN) << covar[i * sz + j] << ' ';
     REPORT(MAIN) << "\n";
   }
 }
 
-void print_correlations(double* covar, vector<double> refined_params,vector<string> refined_variable_names)
+void print_correlations(const vector<double>& covar, vector<double> refined_params,vector<string> refined_variable_names)
 {
   int sz=refined_params.size();
 
@@ -282,9 +286,9 @@ int main (int argc, char * const argv[]) {
       a_model.refinement_parameters = refined_params;
 
       if (a_model.print_covariance_matrix)
-        print_covariance(a_minimizer.covar.data(), refined_params);
+        print_covariance(a_minimizer.covar, refined_params);
 
-      print_correlations(a_minimizer.covar.data(), refined_params, a_model.refined_variable_names);
+      print_correlations(a_minimizer.covar, refined_params, a_model.refined_variable_names);
     }
     else {
       report.last_run();

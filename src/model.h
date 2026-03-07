@@ -288,6 +288,10 @@ public:
     covariance_batch_size = inp;
   }
 
+  void set_max_processors(int inp) {
+    max_processors = inp;
+  }
+
   void set_scattering_type(ScatteringType t) {
       scattering_type = t;
   }
@@ -328,6 +332,7 @@ public:
     direct_diffuse_scattering_calculation = true;
     use_mixed_derivatives = false;
     covariance_batch_size = 0;
+    max_processors = 1;
     print_covariance_matrix=false;
 
     cell_is_initialized=false;
@@ -455,6 +460,15 @@ public:
       const vector<PeakSusceptibility>& avg_susc,
       double scale);
 
+  /// Fast path: calculate derivative map when base peaks are already baked.
+  IntensityMap calculate_derivative_from_susceptibilities(
+      const vector<PattersonPeak>& full_peaks,
+      const vector<PattersonPeak>& avg_peaks,
+      const vector<AtomicPair>& pairs,
+      const Eigen::VectorXd& q,
+      int param_idx,
+      double scale);
+
   /// Calculate derivative map dI/dp_j for a single parameter index j.
   /// Corresponds to the index in refinement_parameters / yell::ParameterBlock.
   IntensityMap calculate_derivative(const vector<double>& params, int param_idx);
@@ -468,9 +482,21 @@ public:
   p_vector<ADPMode> modes;
   vector<ParameterizedAtomData> parameterized_atoms_;
   bool model_parsed_;
-  /// Per-model form-factor cache.  Each Model copy owns its own ScattererList
-  /// so that multi-threaded use (one model per thread, serial per model) is safe.
   ScattererList scatterer_list_;
+
+  Model* clone() const {
+      Model* m = new Model(*this);
+      // Deep copy intensity maps to avoid buffer races
+      m->intensity_map = intensity_map;
+      m->average_intensity_map = average_intensity_map;
+      
+      // Deep copy pools
+      m->pools.clear();
+      for (size_t i = 0; i < pools.size(); ++i) {
+          m->pools.push_back(new AtomicPairPool(*pools[i]));
+      }
+      return m;
+  }
   
   RefinementOptions refinement_options;
 
@@ -537,6 +563,7 @@ public:
   bool print_covariance_matrix;
   bool calculate_jacobians;
   int  covariance_batch_size;
+  int  max_processors;
   ScatteringType scattering_type;
   IntensityMap& data() { return data_; }
   IntensityMap& get_intensity_map() { return intensity_map; }

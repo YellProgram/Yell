@@ -47,6 +47,7 @@ public:
     virtual vector<Atom*> get_atoms() = 0;
     virtual ChemicalUnit* create_symmetric(mat3<double>, vec3<double>) = 0;
     virtual ChemicalUnit* operator[](int) = 0;
+    virtual ChemicalUnit* clone() const = 0;
 };
 
 class AtomicAssembly : public ChemicalUnit {
@@ -63,13 +64,13 @@ public:
     double get_occupancy()           { return occupancy;   }
     void   set_occupancy(double _occ) {
         occupancy = _occ;
-        for (int i = 0; i < chemical_units.size(); ++i)
+        for (int i = 0; i < (int)chemical_units.size(); ++i)
             chemical_units[i].set_occupancy(_occ);
     }
 
     vector<Atom*> get_atoms() {
         vector<Atom*> atoms, t;
-        for (int i = 0; i < chemical_units.size(); i++) {
+        for (int i = 0; i < (int)chemical_units.size(); i++) {
             t = chemical_units[i].get_atoms();
             atoms.insert(atoms.end(), t.begin(), t.end());
         }
@@ -78,12 +79,19 @@ public:
 
     AtomicAssembly* create_symmetric(mat3<double> sym_matrix, vec3<double> translation) {
         AtomicAssembly* result = new AtomicAssembly();
-        for (int i = 0; i < chemical_units.size(); i++)
+        for (int i = 0; i < (int)chemical_units.size(); i++)
             result->add_chemical_unit(chemical_units[i].create_symmetric(sym_matrix, translation));
         return result;
     }
 
     ChemicalUnit* operator[](int n) { return &chemical_units[n]; }
+
+    ChemicalUnit* clone() const override {
+        vector<ChemicalUnit*> units;
+        for (int i = 0; i < chemical_units.size(); i++)
+            units.push_back(chemical_units[i].clone());
+        return new AtomicAssembly(units);
+    }
 
     double occupancy;
     p_vector<ChemicalUnit> chemical_units;
@@ -107,6 +115,13 @@ public:
         REPORT(ERROR) << "The sum of occupancies should be 1. Here it is " << sum << "\n";
         return false;
     }
+
+    virtual ChemicalUnitNode* clone() const {
+        ChemicalUnitNode* res = new ChemicalUnitNode();
+        res->chemical_units = chemical_units; // triggers p_vector deep copy
+        return res;
+    }
+    virtual ~ChemicalUnitNode() {}
 };
 
 class UnitCell {
@@ -224,6 +239,8 @@ public:
     }
 
     ChemicalUnit* operator[](int) { throw "atom is a leaf node"; }
+
+    ChemicalUnit* clone() const override { return new Atom(*this); }
 
     bool operator==(const Atom& inp) const {
         return almost_equal(occupancy, inp.occupancy)

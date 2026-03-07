@@ -8,11 +8,13 @@
 #include "glog/logging.h"
 #include "IntensityMap.h"
 #include <fstream>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Analytical cost function: computes residuals and Jacobian via ExprPtr trees.
 // Implements Variable Projection for the global Scale parameter.
-// Ceres only sees structural parameter blocks.
 // ─────────────────────────────────────────────────────────────────────────────
 class AnalyticalYellCostFunction : public ceres::CostFunction {
 public:
@@ -20,8 +22,6 @@ public:
         : model_(model), exp_(exp), weights_(weights)
     {
         set_num_residuals(model->number_of_observations());
-        
-        // Structural blocks only (Scale is internal)
         for (auto& block : model->parameter_blocks) {
             mutable_parameter_block_sizes()->push_back((int)block.size());
         }
@@ -31,7 +31,6 @@ public:
                   double* residuals,
                   double** jacobians) const override
     {
-        // 1. Flatten structural blocks. Global param 0 (Scale) starts at 1.0.
         vector<double> p;
         p.push_back(1.0); 
         for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
@@ -39,17 +38,13 @@ public:
             p.insert(p.end(), parameters[b], parameters[b] + sz);
         }
 
-        // 2. Base model calculation (Unscaled)
         model_->calculate(p);
 
         int n_obs = model_->number_of_observations();
         const bool use_asu = model_->refine_in_asu();
         const vector<int>& asu = model_->asu_indices();
 
-        // 3. Analytical Scale Optimization (Separable Least Squares)
-        // S = Sum(w^2 * I_exp * I_calc) / Sum(w^2 * I_calc^2)
-        double num = 0.0;
-        double den = 0.0;
+        double num = 0.0, den = 0.0;
         for (int ii = 0; ii < n_obs; ++ii) {
             int i = use_asu ? asu[ii] : ii;
             double w = weights_->at(i);
@@ -59,32 +54,50 @@ public:
             den += w * w * Ic * Ic;
         }
         double S = (den > 1e-15) ? (num / den) : 1.0;
-        if (S < 0) S = 0; // Physical constraint
+        if (S < 0) S = 0;
         model_->set_scale(S);
         p[0] = S;
 
-        // 4. Calculate residuals using optimal S
         for (int ii = 0; ii < n_obs; ++ii) {
             int i = use_asu ? asu[ii] : ii;
             residuals[ii] = (exp_->at(i) - S * (model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i))) * weights_->at(i);
         }
 
-        // 5. Jacobian evaluation (streaming)
         if (jacobians) {
+            int n_threads = model_->max_processors;
+            if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
+            if (n_threads <= 0) n_threads = 1;
+
+            vector<Model*> thread_models(n_threads);
+            for (int t = 0; t < n_threads; ++t) thread_models[t] = model_->clone();
+
             int global_offset = 1;
             for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
                 int block_sz = parameter_block_sizes()[b];
                 if (jacobians[b]) {
-                    for (int j = 0; j < block_sz; ++j) {
-                        IntensityMap dI_map = model_->calculate_derivative(p, global_offset + j);
-                        for (int ii = 0; ii < n_obs; ++ii) {
-                            int i = use_asu ? asu[ii] : ii;
-                            jacobians[b][ii * block_sz + j] = -dI_map.at(i) * weights_->at(i);
-                        }
+                    std::atomic<int> next_j(0);
+                    vector<std::thread> workers;
+                    for (int t = 0; t < n_threads; ++t) {
+                        workers.emplace_back([&, t, p]() {
+                            Model* m = thread_models[t];
+                            while (true) {
+                                int j = next_j.fetch_add(1);
+                                if (j >= block_sz) break;
+
+                                IntensityMap dI_map = m->calculate_derivative(p, global_offset + j);
+                                for (int ii = 0; ii < n_obs; ++ii) {
+                                    int i = use_asu ? asu[ii] : ii;
+                                    jacobians[b][ii * block_sz + j] = -dI_map.at(i) * weights_->at(i);
+                                }
+                            }
+                        });
                     }
+                    for (auto& w : workers) w.join();
                 }
                 global_offset += block_sz;
             }
+
+            for (auto* m : thread_models) delete m;
         }
 
         return true;
@@ -115,7 +128,6 @@ public:
         data.step_norm     = summary.step_norm;
         data.step_accepted = summary.step_is_successful;
         
-        // Report current Scale (from Model state)
         data.parameters.push_back(model_->refinement_parameters[0]);
 
         for (size_t b = 0; b < p_pointers_.size(); ++b) {
@@ -183,7 +195,6 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     vector<double*> p_pointers;
     vector<int> block_sizes;
 
-    // Structural blocks only
     if (!model || model->parameter_blocks.empty()) {
         if (initial_params.size() > 1) {
             int rem = (int)initial_params.size() - 1;
@@ -230,18 +241,24 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
 
+    REPORT(FIRST_RUN) << "Solver finished. Reconstructing result...\n";
     vector<double> result;
-    result.push_back(model->refinement_parameters[0]); // Best analytical scale
+    // Scale was optimized analytically inside Evaluate(), so it's in model->refinement_parameters[0]
+    result.push_back(model->refinement_parameters[0]); 
     for (size_t b = 0; b < p_pointers.size(); ++b) {
         for (int i = 0; i < block_sizes[b]; ++i) {
             result.push_back(p_pointers[b][i]);
         }
     }
     
+    REPORT(FIRST_RUN) << "Result size: " << result.size() << ". Computing covariance...\n";
     if (model && model->print_covariance_matrix) {
+        REPORT(FIRST_RUN) << "Number of parameter blocks in model: " << model->parameter_blocks.size() << "\n";
         Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
+        REPORT(FIRST_RUN) << "Full covariance computed. Matrix size: " << cov.rows() << "x" << cov.cols() << "\n";
         covar = vector<double>(cov.data(), cov.data() + cov.size());
     }
+    REPORT(FIRST_RUN) << "Cleanup pointers...\n";
 
     for (double* pb : p_pointers) delete[] pb;
     
@@ -252,7 +269,7 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
     vector<double> yell_parameters;
     Model* model = dynamic_cast<Model*>(calc);
     
-    yell_parameters.push_back(1.0); // Temporary scale
+    yell_parameters.push_back(1.0); 
 
     if (!model || model->parameter_blocks.empty()) {
         if (parameters_number > 1) {

@@ -108,6 +108,7 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("Scale") > double_ > -(omit[lit('(')>int_>lit(')')]))[phoenix::bind(&Model::set_scale,*ref(model),_1)]
     | (lit("PrintCovarianceMatrix")> bool_)                     [phoenix::bind(&Model::set_print_covariance_matrix,*ref(model),_1)]
     | (lit("CovarianceBatchSize") > int_)                       [phoenix::bind(&Model::set_covariance_batch_size,*ref(model),_1)]
+    | (lit("MaxProcessors") > int_)                             [phoenix::bind(&Model::set_max_processors,*ref(model),_1)]
     | refinable_parameters                                      [phoenix::bind(&Model::set_refinable_parameter_blocks,*ref(model),ref(formula),ref(expr_formula),_1)]
     | program_option2
   ;
