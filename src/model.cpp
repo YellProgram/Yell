@@ -26,6 +26,9 @@
 #include <unordered_map>
 #include <complex>
 #include "exceptions.h"
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 extern OutputHandler report;
 typedef iterator_ Iterator;
@@ -183,7 +186,8 @@ void Model::calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
       IntensityMap recipr_padded = out.padded(padding);
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
-      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries);
+      // Main path: use all available hardware threads
+      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, max_processors);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();
@@ -206,7 +210,8 @@ IntensityMap Model::calculate_derivative_from_peaks(
     const vector<PattersonPeak>& avg_peaks,
     const vector<PeakSusceptibility>& full_susc,
     const vector<PeakSusceptibility>& avg_susc,
-    double scale)
+    double scale,
+    int num_threads)
 {
   IntensityMap res(grid);
   auto run_deriv = [&](const vector<PattersonPeak>& peaks, const vector<PeakSusceptibility>& susc, IntensityMap& out, bool avg) {
@@ -223,7 +228,7 @@ IntensityMap Model::calculate_derivative_from_peaks(
       IntensityMap recipr_padded = out.padded(padding);
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
-      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries);
+      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, num_threads);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();
@@ -251,14 +256,15 @@ IntensityMap Model::calculate_derivative_from_susceptibilities(
     const vector<AtomicPair>& pairs,
     const Eigen::VectorXd& q,
     int param_idx,
-    double scale)
+    double scale,
+    int num_threads)
 {
     vector<PeakSusceptibility> full_susc, avg_susc;
     susceptibilities_from_pairs(const_cast<vector<AtomicPair>&>(pairs), q, param_idx, full_susc, avg_susc);
-    return calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale);
+    return calculate_derivative_from_peaks(full_peaks, avg_peaks, full_susc, avg_susc, scale, num_threads);
 }
 
-IntensityMap Model::calculate_derivative(const vector<double>& params, int param_idx)
+IntensityMap Model::calculate_derivative(const vector<double>& params, int param_idx, int num_threads)
 {
   if (param_idx == 0) {
     calculate(params);
@@ -285,7 +291,7 @@ IntensityMap Model::calculate_derivative(const vector<double>& params, int param
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 
-  return calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, param_idx, scale);
+  return calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, param_idx, scale, num_threads);
 }
 
 Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
@@ -327,7 +333,7 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
 
   if (n_params > 1) {
     for (int j = 1; j < n_params; ++j) {
-      IntensityMap dI = calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, j, scale);
+      IntensityMap dI = calculate_derivative_from_susceptibilities(full_peaks, avg_peaks, pairs, q, j, scale, 0); // Use full threads here if called directly
       for (int ii = 0; ii < n_obs; ++ii) {
         int i = use_asu ? asu[ii] : ii;
         double w = wts.at(i);
@@ -436,13 +442,11 @@ Eigen::MatrixXd Model::compute_full_covariance(
       H(0, 0) += w * w * col0[ii] * col0[ii];
   }
 
-
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
   const double scale = params[0];
   
   vector<PattersonPeak> fpeaks, apeaks;
   peaks_from_pairs(atomic_pairs, q, scatterer_list_, fpeaks, apeaks);
-
 
   int actual_batch_size = covariance_batch_size;
   if (actual_batch_size <= 0) {
@@ -456,7 +460,7 @@ Eigen::MatrixXd Model::compute_full_covariance(
       int e1 = std::min(b1 + actual_batch_size, n_params);
       vector<IntensityMap> maps1;
       for (int j = b1; j < e1; ++j) {
-          maps1.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, j, scale));
+          maps1.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, j, scale, max_processors));
       }
 
       for (int j = b1; j < e1; ++j) {
@@ -479,7 +483,7 @@ Eigen::MatrixXd Model::compute_full_covariance(
           int e2 = std::min(b2 + actual_batch_size, b1);
           vector<IntensityMap> maps2;
           for (int k = b2; k < e2; ++k) {
-              maps2.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, k, scale));
+              maps2.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, k, scale, max_processors));
           }
 
           for (int j = b1; j < e1; ++j) {

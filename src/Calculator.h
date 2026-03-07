@@ -83,7 +83,8 @@ public:
         IntensityMap&                patterson_map,
         bool                         average_flag,
         vec3<int>                    pair_grid_size,
-        vector<bool>                 periodic_directions = vector<bool>(3, false))
+        vector<bool>                 periodic_directions = vector<bool>(3, false),
+        int                          num_threads = 0)
     {
         const int n_peaks = (int)full_peaks.size();
         double scale = patterson_map.size_1d();
@@ -101,55 +102,61 @@ public:
 
         std::mutex map_mutex;
         std::atomic<int> next_peak(0);
-        unsigned int n_threads = std::thread::hardware_concurrency();
-        if (n_threads == 0) n_threads = 4;
-        vector<std::thread> workers;
+        
+        int n_threads = num_threads;
+        if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
+        if (n_threads <= 0) n_threads = 1;
 
-        for (unsigned int t = 0; t < n_threads; ++t) {
-            workers.emplace_back([&]() {
-                while (true) {
-                    int k = next_peak.fetch_add(1);
-                    if (k >= n_peaks) break;
+        auto worker = [&]() {
+            while (true) {
+                int k = next_peak.fetch_add(1);
+                if (k >= n_peaks) break;
 
-                    const PattersonPeak& fpk = full_peaks[k];
-                    const PattersonPeak& apk = avg_peaks[k];
-                    const PattersonPeak& pk  = average_flag ? apk : fpk;
+                const PattersonPeak& fpk = full_peaks[k];
+                const PattersonPeak& apk = avg_peaks[k];
+                const PattersonPeak& pk  = average_flag ? apk : fpk;
 
-                    IntensityMap pair_patterson_map(pair_grid_size);
-                    pair_patterson_map.set_grid(grid_for_pairs_r);
+                IntensityMap pair_patterson_map(pair_grid_size);
+                pair_patterson_map.set_grid(grid_for_pairs_r);
 
-                    vec3<int>    r_grid;
-                    vec3<double> r_res;
-                    grid_and_residual(apk.r, patterson_map.grid, r_grid, r_res);
-                    if (!average_flag)
-                        r_res += fpk.r - apk.r;
+                vec3<int>    r_grid;
+                vec3<double> r_res;
+                grid_and_residual(apk.r, patterson_map.grid, r_grid, r_res);
+                if (!average_flag)
+                    r_res += fpk.r - apk.r;
 
-                    pair_patterson_map.init_iterator();
-                    while (pair_patterson_map.next()) {
-                        complex<double> f1 = scatterers.f_gridded(fpk.type1_idx,
-                                                                  pair_patterson_map.current_index());
-                        complex<double> f2 = scatterers.f_gridded(fpk.type2_idx,
-                                                                  pair_patterson_map.current_index());
-                        pair_patterson_map.current_array_value_c() =
-                            scale * calculate_scattering_from_a_pair_in_a_point_c(
-                                f1, f2,
-                                pk.coefficient,
-                                1.0, 
-                                pair_patterson_map.current_s(),
-                                r_res,
-                                pk.U);
-                    }
-
-                    pair_patterson_map.invert();
-
-                    {
-                        std::lock_guard<std::mutex> lock(map_mutex);
-                        add_pair_to_appropriate_place(pair_patterson_map, patterson_map, r_grid, periodic_directions);
-                    }
+                pair_patterson_map.init_iterator();
+                while (pair_patterson_map.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx,
+                                                              pair_patterson_map.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx,
+                                                              pair_patterson_map.current_index());
+                    pair_patterson_map.current_array_value_c() =
+                        scale * calculate_scattering_from_a_pair_in_a_point_c(
+                            f1, f2,
+                            pk.coefficient,
+                            1.0, 
+                            pair_patterson_map.current_s(),
+                            r_res,
+                            pk.U);
                 }
-            });
+
+                pair_patterson_map.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(map_mutex);
+                    add_pair_to_appropriate_place(pair_patterson_map, patterson_map, r_grid, periodic_directions);
+                }
+            }
+        };
+
+        if (n_threads <= 1) {
+            worker();
+        } else {
+            vector<std::thread> workers;
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (auto& w : workers) w.join();
         }
-        for (auto& w : workers) w.join();
     }
 
     /// FFT-path analytical derivative map calculation for a single parameter.
@@ -162,7 +169,8 @@ public:
         IntensityMap&  deriv_patterson_map,
         bool           average_flag,
         vec3<int>      pair_grid_size,
-        vector<bool>   periodic_directions = vector<bool>(3, false))
+        vector<bool>   periodic_directions = vector<bool>(3, false),
+        int            num_threads = 0)
     {
         const int n_peaks = (int)base_full_peaks.size();
         double scale = deriv_patterson_map.size_1d();
@@ -190,58 +198,64 @@ public:
 
         std::mutex map_mutex;
         std::atomic<int> next_active(0);
-        unsigned int n_threads = std::thread::hardware_concurrency();
-        if (n_threads == 0) n_threads = 4;
-        vector<std::thread> workers;
+        
+        int n_threads = num_threads;
+        if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
+        if (n_threads <= 0) n_threads = 1;
 
-        for (unsigned int t = 0; t < n_threads; ++t) {
-            workers.emplace_back([&]() {
-                while (true) {
-                    int idx = next_active.fetch_add(1);
-                    if (idx >= (int)active_indices.size()) break;
-                    int k = active_indices[idx];
+        auto worker = [&]() {
+            while (true) {
+                int idx = next_active.fetch_add(1);
+                if (idx >= (int)active_indices.size()) break;
+                int k = active_indices[idx];
 
-                    const PattersonPeak& fpk = base_full_peaks[k];
-                    const PattersonPeak& apk = base_avg_peaks[k];
-                    const PattersonPeak& pk  = average_flag ? apk : fpk;
-                    const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
+                const PattersonPeak& fpk = base_full_peaks[k];
+                const PattersonPeak& apk = base_avg_peaks[k];
+                const PattersonPeak& pk  = average_flag ? apk : fpk;
+                const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
 
-                    IntensityMap pair_patterson_map(pair_grid_size);
-                    pair_patterson_map.set_grid(grid_for_pairs_r);
+                IntensityMap pair_patterson_map(pair_grid_size);
+                pair_patterson_map.set_grid(grid_for_pairs_r);
 
-                    vec3<int>    r_grid;
-                    vec3<double> r_res;
-                    grid_and_residual(apk.r, deriv_patterson_map.grid, r_grid, r_res);
-                    if (!average_flag)
-                        r_res += fpk.r - apk.r;
+                vec3<int>    r_grid;
+                vec3<double> r_res;
+                grid_and_residual(apk.r, deriv_patterson_map.grid, r_grid, r_res);
+                if (!average_flag)
+                    r_res += fpk.r - apk.r;
 
-                    pair_patterson_map.init_iterator();
-                    while (pair_patterson_map.next()) {
-                        complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
-                        complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
-                        
-                        vec3<double> s = pair_patterson_map.current_s();
-                        double phase_val = M_2PI * (s * r_res);
-                        double adp_val   = M2PISQ * (s * pk.U * s);
-                        complex<double> E = exp(complex<double>(adp_val, phase_val));
+                pair_patterson_map.init_iterator();
+                while (pair_patterson_map.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
+                    
+                    vec3<double> s = pair_patterson_map.current_s();
+                    double phase_val = M_2PI * (s * r_res);
+                    double adp_val   = M2PISQ * (s * pk.U * s);
+                    complex<double> E = exp(complex<double>(adp_val, phase_val));
 
-                        double d_phase = M_2PI * (s * sk.d_r);
-                        double d_adp   = M2PISQ * (s * sk.d_U * s);
+                    double d_phase = M_2PI * (s * sk.d_r);
+                    double d_adp   = M2PISQ * (s * sk.d_U * s);
 
-                        complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
-                        pair_patterson_map.current_array_value_c() = scale * conj(f1) * f2 * d_term;
-                    }
-
-                    pair_patterson_map.invert();
-
-                    {
-                        std::lock_guard<std::mutex> lock(map_mutex);
-                        add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map, r_grid, periodic_directions);
-                    }
+                    complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
+                    pair_patterson_map.current_array_value_c() = scale * conj(f1) * f2 * d_term;
                 }
-            });
+
+                pair_patterson_map.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(map_mutex);
+                    add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map, r_grid, periodic_directions);
+                }
+            }
+        };
+
+        if (n_threads <= 1) {
+            worker();
+        } else {
+            vector<std::thread> workers;
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (auto& w : workers) w.join();
         }
-        for (auto& w : workers) w.join();
     }
 
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)

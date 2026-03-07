@@ -458,7 +458,8 @@ public:
       const vector<PattersonPeak>& avg_peaks,
       const vector<PeakSusceptibility>& full_susc,
       const vector<PeakSusceptibility>& avg_susc,
-      double scale);
+      double scale,
+      int num_threads = 0);
 
   /// Fast path: calculate derivative map when base peaks are already baked.
   IntensityMap calculate_derivative_from_susceptibilities(
@@ -467,11 +468,12 @@ public:
       const vector<AtomicPair>& pairs,
       const Eigen::VectorXd& q,
       int param_idx,
-      double scale);
+      double scale,
+      int num_threads = 0);
 
   /// Calculate derivative map dI/dp_j for a single parameter index j.
   /// Corresponds to the index in refinement_parameters / yell::ParameterBlock.
-  IntensityMap calculate_derivative(const vector<double>& params, int param_idx);
+  IntensityMap calculate_derivative(const vector<double>& params, int param_idx, int num_threads = 0);
 
   UnitCell cell;
   IntensityMap intensity_map, average_intensity_map;
