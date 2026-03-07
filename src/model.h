@@ -232,9 +232,7 @@ public:
     refined_variable_names.clear();
     parameter_blocks.clear();
 
-    // Scale is always parameter 0, in its own block if not provided? 
-    // Actually, let's just keep the scale at index 0 of the first block or as its own block.
-    // For simplicity with existing code, let's keep Scale at global index 0.
+    // Scale is global parameter 0, but NOT part of structural parameter_blocks.
     refinement_parameters.push_back(1.0); // Default scale
     refined_variable_names.push_back("Scale");
 
@@ -250,10 +248,6 @@ public:
       if (!b_vals.empty()) parameter_blocks.push_back(b_vals);
     }
 
-    // Special case: if no blocks were provided but refinable parameters exist (should not happen with new parser)
-    // Or if Scale needs to be refined, it should be in parameter_blocks.
-    // Currently, CeresMinimizer assumes param[0] is Scale.
-    
     formula.initialize_refinable_variables(refined_variable_names, refinement_parameters);
     expr_formula.initialize_refinable_variables(refined_variable_names, refinement_parameters);
   }
