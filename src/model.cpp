@@ -174,9 +174,15 @@ void Model::calculate(vector<double> params, bool average_flag)
     vec3<int> sym_boundary;
     for(int i=0; i<3; ++i)
       sym_boundary[i]=calc_intensity_map->size()[i]>1;
-    
-    IntensityMap padded = calc_intensity_map->padded(sym_boundary); //this will avoid the problem with symmetry.
-    IntnsityCalculator::calculate_scattering_from_pairs(pairs,padded,average_flag);
+
+    IntensityMap padded = calc_intensity_map->padded(sym_boundary);
+
+    ScattererList scatterers;
+    vector<PattersonPeak> full_peaks, avg_peaks;
+    peaks_from_pairs(pairs, scatterers, full_peaks, avg_peaks);
+    const vector<PattersonPeak>& active_peaks = average_flag ? avg_peaks : full_peaks;
+    IntnsityCalculator::calculate_scattering_from_patterson_peaks(active_peaks, scatterers, padded);
+
     cell.laue_symmetry.apply_patterson_symmetry(padded);
     calc_intensity_map->copy_from_padded(sym_boundary,padded);
   }else

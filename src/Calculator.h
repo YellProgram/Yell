@@ -166,6 +166,31 @@ public:
         }
     }
 
+    /// Intensity over a list of PattersonPeaks using integer-indexed ScattererList.
+    /// Replaces calculate_scattering_from_pairs for the direct method.
+    static void calculate_scattering_from_patterson_peaks(
+        const vector<PattersonPeak>& peaks,
+        ScattererList&               scatterers,
+        IntensityMap&                I)
+    {
+        I.init_iterator();
+        while (I.next()) {
+            vec3<double> s       = I.current_s();
+            double       d_sq    = I.current_d_star_square();
+            scatterers.update(s, d_sq);
+
+            double intensity = 0.0;
+            for (const PattersonPeak& pk : peaks) {
+                complex<double> f1 = scatterers.f(pk.type1_idx);
+                complex<double> f2 = scatterers.f(pk.type2_idx);
+                intensity += real(conj(f1) * f2 * pk.coefficient *
+                    exp(complex<double>(M2PISQ * (s * pk.U * s),
+                                        M_2PI  * (s * pk.r))));
+            }
+            I.current_array_value() = intensity;
+        }
+    }
+
     inline static complex<double> calculate_scattering_from_a_pair_in_a_point_c(
         complex<double> const& f1, complex<double> const& f2,
         double const& p,
