@@ -683,6 +683,34 @@ public:
         TS_ASSERT_DELTA(2.0, pair.multiplier, 0.00001);
     }
 
+    void testVariantProbabilitiesIntegrated()
+    {
+        ChemicalUnitNode* a_variant;
+        string variant_str = "Variant[ (p=0.5) Mn = Mn 1 0 0 0 0 (p=0.5) Void ]";
+        
+        // Parse the variant
+        TS_ASSERT(run_parser(variant_str, a_parser.variant, a_skipper, a_variant));
+        
+        // Get the Mn atom (it's the first unit in the node)
+        vector<Atom*> atoms = a_variant->chemical_units[0]->get_atoms();
+        TS_ASSERT_EQUALS(atoms.size(), 1);
+        Atom* mn = atoms[0];
+        
+        // Check atom occupancy is 0.5 as requested
+        TS_ASSERT_DELTA(mn->occupancy, 0.5, 0.00001);
+        
+        // Create a pair pool and add a self-pair
+        AtomicPairPool pool;
+        AtomicPair& pair = pool.get_pair(mn, mn);
+        
+        Eigen::VectorXd zero_p;
+        // Check resulting pair probabilities are 0.25 (0.5 * 0.5)
+        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.25, 0.00001);
+        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.25, 0.00001);
+        
+        delete a_variant;
+    }
+
 
     void testTranslationalMode()
     {
