@@ -274,6 +274,24 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
     }
   }
 
+  // Sparsity masks: active_kj(k, j-1) = true if pair k has any nonzero
+  // derivative w.r.t. param j.  pair_active[k] = any j is active for pair k.
+  // Derivatives from ExprPtr autodiff are exactly 0.0 when a variable does not
+  // appear in the expression, so an exact zero test is correct here.
+  Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> active_kj(n_pairs, n_params - 1);
+  vector<bool> pair_active(n_pairs, false);
+  for (int k = 0; k < n_pairs; ++k) {
+    for (int j = 1; j < n_params; ++j) {
+      bool any = dp_real_mat(k, j) != 0.0
+              || dr_x[k][j]       != 0.0
+              || dr_y[k][j]       != 0.0
+              || dr_z[k][j]       != 0.0
+              || dUiso_pair[k][j] != 0.0;
+      active_kj(k, j-1) = any;
+      if (any) pair_active[k] = true;
+    }
+  }
+
   // Output Jacobian (n_obs × n_params).
   Eigen::MatrixXd J(n_obs, n_params);
   const bool use_asu = refine_in_asu();
@@ -307,6 +325,9 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
       scatterers.update(s, d_star_sq);
 
       for (int k = 0; k < n_pairs; ++k) {
+        // Skip pairs with no sensitivity to any refined parameter.
+        if (!pair_active[k]) continue;
+
         const PattersonPeak& fpk = full_peaks[k];
         const PattersonPeak& apk = avg_peaks[k];
         std::complex<double> f1 = scatterers.f(fpk.type1_idx);
@@ -323,6 +344,8 @@ Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
                                           M_2PI  * (s * apk.r)));
 
         for (int j = 1; j < n_params; ++j) {
+          if (!active_kj(k, j-1)) continue;
+
           double dp_r   = dp_real_mat(k, j);
           double s_dr   = s[0]*dr_x[k][j] + s[1]*dr_y[k][j] + s[2]*dr_z[k][j];
           double s_dU_s = dUiso_pair[k][j] * d_star_sq;
