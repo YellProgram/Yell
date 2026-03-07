@@ -413,58 +413,85 @@ Eigen::MatrixXd Model::compute_full_covariance(
   const bool use_asu = refine_in_asu();
   const vector<int>& asu = asu_indices();
 
-  // Update model to current optimum
   calculate(params);
-  const double S = refinement_parameters[0];
-
-  // H = J^T * W^2 * J
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
 
-  // Streaming approach: process the Jacobian one column at a time to minimize memory.
-  // Column 0 is the Scale derivative map: J_S = -(I_full - I_avg)
+  // Column 0: Scale derivative map J_S = -(I_full - I_avg)
   vector<double> col0(n_obs);
   for (int ii = 0; ii < n_obs; ++ii) {
       int i = use_asu ? asu[ii] : ii;
       col0[ii] = -(intensity_map.at(i) - average_intensity_map.at(i));
   }
 
-  // Helper to get weight at a residual index
-  auto get_w = [&](int ii) {
-      return wts.at(use_asu ? asu[ii] : ii);
-  };
+  auto get_w = [&](int ii) { return wts.at(use_asu ? asu[ii] : ii); };
 
-  // 1. Compute H(0,0) and H(0, j)
   for (int ii = 0; ii < n_obs; ++ii) {
       double w = get_w(ii);
       H(0, 0) += w * w * col0[ii] * col0[ii];
   }
 
-  // 2. Compute other columns
-  for (int j = 1; j < n_params; ++j) {
-      IntensityMap dI_map = calculate_derivative(params, j);
-      for (int ii = 0; ii < n_obs; ++ii) {
-          int i = use_asu ? asu[ii] : ii;
-          double w = get_w(ii);
-          double J_j = -dI_map.at(i);
-          
-          H(0, j) += w * w * col0[ii] * J_j;
-          H(j, 0) = H(0, j);
-          
-          // Diagonal term
-          H(j, j) += w * w * J_j * J_j;
+  // Memory-aware batching
+  int actual_batch_size = covariance_batch_size;
+  if (actual_batch_size <= 0) {
+      // Default to the largest structural block size
+      for (auto& block : parameter_blocks) {
+          actual_batch_size = std::max(actual_batch_size, (int)block.size());
       }
+      if (actual_batch_size <= 0) actual_batch_size = 32; // fallback
+  }
+  
+  for (int b1 = 1; b1 < n_params; b1 += actual_batch_size) {
+      int e1 = std::min(b1 + actual_batch_size, n_params);
       
-      // For cross-terms H(j, k) with k < j, we would need to re-read or store maps.
-      // For 5000 params, we'll re-calculate to save memory, though it is slow.
-      // Optimization: calculate_derivative is fast (FFT path).
-      for (int k = 1; k < j; ++k) {
-          IntensityMap dI_map_k = calculate_derivative(params, k);
+      // Calculate and store maps for batch 1
+      vector<IntensityMap> maps1;
+      for (int j = b1; j < e1; ++j) {
+          maps1.push_back(calculate_derivative(params, j));
+      }
+
+      // 1. Cross terms with Scale (Col 0) and diagonal/internal cross terms
+      for (int j = b1; j < e1; ++j) {
+          const IntensityMap& mj = maps1[j - b1];
           for (int ii = 0; ii < n_obs; ++ii) {
               int i = use_asu ? asu[ii] : ii;
               double w = get_w(ii);
-              H(k, j) += w * w * (-dI_map_k.at(i)) * (-dI_map.at(i));
+              double Jj = -mj.at(i);
+              
+              H(0, j) += w * w * col0[ii] * Jj;
+              H(j, 0) = H(0, j);
+              
+              for (int k = b1; k <= j; ++k) {
+                  const IntensityMap& mk = maps1[k - b1];
+                  double Jk = -mk.at(i);
+                  H(k, j) += w * w * Jk * Jj;
+                  if (k != j) H(j, k) = H(k, j);
+              }
           }
-          H(j, k) = H(k, j);
+      }
+
+      // 2. Cross terms with PREVIOUS batches
+      // This part still requires re-calculating the previous batch maps
+      // or storing them on disk. Given the 100x speedup goal, we should
+      // at least avoid re-calculating for the CURRENT batch.
+      for (int b2 = 1; b2 < b1; b2 += actual_batch_size) {
+          int e2 = std::min(b2 + actual_batch_size, b1);
+          vector<IntensityMap> maps2;
+          for (int k = b2; k < e2; ++k) {
+              maps2.push_back(calculate_derivative(params, k));
+          }
+
+          for (int j = b1; j < e1; ++j) {
+              const IntensityMap& mj = maps1[j - b1];
+              for (int k = b2; k < e2; ++k) {
+                  const IntensityMap& mk = maps2[k - b2];
+                  for (int ii = 0; ii < n_obs; ++ii) {
+                      int i = use_asu ? asu[ii] : ii;
+                      double w = get_w(ii);
+                      H(k, j) += w * w * (-mk.at(i)) * (-mj.at(i));
+                  }
+                  H(j, k) = H(k, j);
+              }
+          }
       }
   }
 

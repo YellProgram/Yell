@@ -75,7 +75,15 @@ public:
     {
         return real(data[data_accessor(_index)]);
     }
+    double at(af::c_grid<3,int>::index_type _index) const
+    {
+        return real(data[data_accessor(_index)]);
+    }
     double& at(int _index)
+    {
+        return real(data[_index]);
+    }
+    double at(int _index) const
     {
         return real(data[_index]);
     }

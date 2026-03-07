@@ -284,6 +284,10 @@ public:
     use_mixed_derivatives = inp;
   }
 
+  void set_covariance_batch_size(int inp) {
+    covariance_batch_size = inp;
+  }
+
   void set_scattering_type(ScatteringType t) {
       scattering_type = t;
   }
@@ -323,6 +327,7 @@ public:
     calculate_jacobians=false;
     direct_diffuse_scattering_calculation = true;
     use_mixed_derivatives = false;
+    covariance_batch_size = 0;
     print_covariance_matrix=false;
 
     cell_is_initialized=false;
@@ -531,10 +536,12 @@ public:
   bool report_pairs_outside_pdf_grid;
   bool print_covariance_matrix;
   bool calculate_jacobians;
-    ScatteringType scattering_type;
+  int  covariance_batch_size;
+  ScatteringType scattering_type;
   IntensityMap& data() { return data_; }
   IntensityMap& get_intensity_map() { return intensity_map; }
   IntensityMap& get_average_intensity_map() { return average_intensity_map; }
+
   IntensityMap data_;
   //TODO: For multithreading I will need to split the class "model" into two parts. All the large arrays like weights, multipliers etc will have to go to another object,
   //this one has to be thread-safe, meaning that calculation operation should be possible to do in an instantiated object
