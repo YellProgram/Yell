@@ -269,12 +269,14 @@ public:
   void set_refinable_parameter_blocks(FormulaParser& formula, ExprFormulaParser& expr_formula,
                                      vector<vector<boost::fusion::tuple<string,double>>> blocks) {
     // Flatten for internal expression use, keep blocks for Ceres.
+    // Preserve the scale that may have been set by the Scale keyword before this block.
+    double saved_scale = refinement_parameters.empty() ? 1.0 : refinement_parameters[0];
     refinement_parameters.clear();
     refined_variable_names.clear();
     parameter_blocks.clear();
 
     // Scale is global parameter 0, but NOT part of structural parameter_blocks.
-    refinement_parameters.push_back(1.0); // Default scale
+    refinement_parameters.push_back(saved_scale);
     refined_variable_names.push_back("Scale");
 
     for (auto& block : blocks) {
