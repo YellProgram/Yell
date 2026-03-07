@@ -3,6 +3,7 @@
 //
 
 #include "CeresMinimizer.h"
+#include "model.h"
 
 //TODO: make code so that ceres could be called as a minimizer to swap-replace levmar
 //DONE: figure out how to define ceres with dynamical number of variables: Use DynamicNumericDiffCostFunction
@@ -14,6 +15,58 @@
 #include "glog/logging.h"
 #include "IntensityMap.h"
 #include <fstream>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytical cost function: computes residuals and Jacobian via ExprPtr trees.
+// Used when model->derivatives_mode == ANALYTICAL.
+// ─────────────────────────────────────────────────────────────────────────────
+class AnalyticalYellCostFunction : public ceres::CostFunction {
+public:
+    AnalyticalYellCostFunction(Model* model, IntensityMap* exp, OptionalIntensityMap* weights)
+        : model_(model), exp_(exp), weights_(weights)
+    {
+        set_num_residuals(model->number_of_observations());
+        mutable_parameter_block_sizes()->push_back(
+            (int)model->refinement_parameters.size());
+    }
+
+    bool Evaluate(double const* const* parameters,
+                  double* residuals,
+                  double** jacobians) const override
+    {
+        int n_params = parameter_block_sizes()[0];
+        vector<double> p(parameters[0], parameters[0] + n_params);
+
+        model_->calculate(p);
+
+        int n_obs = model_->number_of_observations();
+        if (model_->refine_in_asu()) {
+            for (int ii = 0; ii < n_obs; ++ii) {
+                int i = model_->asu_indices()[ii];
+                residuals[ii] = (exp_->at(i) - model_->data().at(i)) * weights_->at(i);
+            }
+        } else {
+            for (int i = 0; i < n_obs; ++i)
+                residuals[i] = (exp_->at(i) - model_->data().at(i)) * weights_->at(i);
+        }
+
+        if (jacobians && jacobians[0]) {
+            Eigen::MatrixXd J = model_->compute_analytical_jacobian_direct(
+                p, *exp_, *weights_);
+            // Ceres expects row-major: jacobians[0][ii * n_params + j]
+            for (int ii = 0; ii < n_obs; ++ii)
+                for (int j = 0; j < n_params; ++j)
+                    jacobians[0][ii * n_params + j] = J(ii, j);
+        }
+
+        return true;
+    }
+
+private:
+    Model* model_;
+    IntensityMap* exp_;
+    OptionalIntensityMap* weights_;
+};
 
 class JsonIterationLogger : public ceres::IterationCallback {
 public:
@@ -103,12 +156,18 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
 
     ceres::Problem problem;
 
-    auto cost_function =
-            new ceres::DynamicNumericDiffCostFunction<CeresMinimizer, ceres::CENTRAL>(this, ceres::DO_NOT_TAKE_OWNERSHIP);
-
-    cost_function->AddParameterBlock(parameters_number);
-    cost_function->SetNumResiduals(calc->number_of_observations());
-    problem.AddResidualBlock(cost_function, nullptr, p);
+    Model* model = dynamic_cast<Model*>(_calc);
+    if (model && model->derivatives_mode == ANALYTICAL) {
+        auto* cost_function = new AnalyticalYellCostFunction(model, _experimental_data, _weights);
+        problem.AddResidualBlock(cost_function, nullptr, p);
+    } else {
+        auto cost_function =
+            new ceres::DynamicNumericDiffCostFunction<CeresMinimizer, ceres::CENTRAL>(
+                this, ceres::DO_NOT_TAKE_OWNERSHIP);
+        cost_function->AddParameterBlock(parameters_number);
+        cost_function->SetNumResiduals(calc->number_of_observations());
+        problem.AddResidualBlock(cost_function, nullptr, p);
+    }
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR; //

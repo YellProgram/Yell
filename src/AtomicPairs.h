@@ -100,6 +100,7 @@ public:
     double multiplier; ///< 1/symmetry_multiplicity
     Atom* atom1;
     Atom* atom2;
+    yell::ExprPtr p_real_expr; ///< ExprPtr for real occupancy; null if not set
 
     bool operator==(const AtomicPair& inp) {
         return average == inp.average && real == inp.real
@@ -257,8 +258,11 @@ public:
         vector<Atom*> atoms1 = chemical_units[0]->get_atoms();
         vector<Atom*> atoms2 = chemical_units[1]->get_atoms();
         for (vector<Atom*>::iterator atom1 = atoms1.begin(); atom1 != atoms1.end(); atom1++)
-            for (vector<Atom*>::iterator atom2 = atoms2.begin(); atom2 != atoms2.end(); atom2++)
-                pool->get_pair(*atom1, *atom2).p() = joint_probability;
+            for (vector<Atom*>::iterator atom2 = atoms2.begin(); atom2 != atoms2.end(); atom2++) {
+                AtomicPair& pair = pool->get_pair(*atom1, *atom2);
+                pair.p() = joint_probability;
+                pair.p_real_expr = joint_probability_expr;
+            }
     }
 
     bool operator==(const SubstitutionalCorrelation& inp) {

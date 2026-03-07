@@ -19,7 +19,10 @@
 
 #include "model.h"
 #include "InputFileParser.h"
+#include "Calculator.h"
 #include <sstream>
+#include <unordered_map>
+#include <complex>
 #include "exceptions.h"
 extern OutputHandler report;
 typedef iterator_ Iterator;
@@ -197,4 +200,141 @@ void Model::calculate(vector<double> params, bool average_flag)
   apply_reciprocal_space_multipliers_if_possible(*calc_intensity_map);
   calc_intensity_map->to_reciprocal();
   report.calculation_is_finished();
+}
+
+Eigen::MatrixXd Model::compute_analytical_jacobian_direct(
+    const vector<double>& params,
+    IntensityMap& exp_map,
+    OptionalIntensityMap& wts)
+{
+  // Residuals: r_i = (exp_i - data_i) * w_i,  data_i = Scale*(I_full_i - I_avg_i)
+  //
+  // ∂r_i/∂Scale = -(I_full_i - I_avg_i) * w_i
+  // ∂r_i/∂p_j  = -Scale * (∂I_full_i/∂p_j - ∂I_avg_i/∂p_j) * w_i   (j>0)
+  //
+  // Direct-method intensity formula:
+  //   ∂I(s)/∂p_j = Re[ Σ_pairs conj(f1)*f2*N*exp(M2PISQ*s·U·s + i*M_2PI*s·r)
+  //                    * (dp_real_j + p_real*(M2PISQ*s·dU_j·s + i*M_2PI*s·dr_j)) ]
+  // For isotropic ADP: s·dU_frac·s = dUiso * d_star_sq  (reciprocal metric).
+
+  const int n_params = (int)params.size();
+  const int n_obs    = number_of_observations();
+  const double scale = params[0];
+
+  Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
+
+  // Precompute ExprPtr gradient vectors for each parameterized atom.
+  struct AtomDuals {
+    Eigen::VectorXd dx, dy, dz, dUiso;
+    bool isotropic;
+  };
+  std::unordered_map<Atom*, AtomDuals> atom_duals;
+  for (auto& pad : parameterized_atoms_) {
+    AtomDuals d;
+    d.isotropic = pad.isotropic;
+    d.dx = pad.param_exprs[1]->eval_d(q).derivatives();
+    d.dy = pad.param_exprs[2]->eval_d(q).derivatives();
+    d.dz = pad.param_exprs[3]->eval_d(q).derivatives();
+    if (pad.isotropic)
+      d.dUiso = pad.param_exprs[4]->eval_d(q).derivatives();
+    atom_duals[pad.atom_ptr] = std::move(d);
+  }
+
+  // Precompute per-pair gradient vectors (n_pairs × n_params).
+  const int n_pairs = (int)atomic_pairs.size();
+  Eigen::MatrixXd dp_real_mat(n_pairs, n_params); dp_real_mat.setZero();
+  vector<Eigen::VectorXd> dr_x(n_pairs, Eigen::VectorXd::Zero(n_params));
+  vector<Eigen::VectorXd> dr_y(n_pairs, Eigen::VectorXd::Zero(n_params));
+  vector<Eigen::VectorXd> dr_z(n_pairs, Eigen::VectorXd::Zero(n_params));
+  vector<Eigen::VectorXd> dUiso_pair(n_pairs, Eigen::VectorXd::Zero(n_params));
+
+  for (int k = 0; k < n_pairs; ++k) {
+    AtomicPair& pair = atomic_pairs[k];
+    if (pair.p_real_expr)
+      dp_real_mat.row(k) = pair.p_real_expr->eval_d(q).derivatives().transpose();
+    auto it1 = atom_duals.find(pair.atom1);
+    auto it2 = atom_duals.find(pair.atom2);
+    if (it1 != atom_duals.end()) {
+      dr_x[k] -= it1->second.dx;
+      dr_y[k] -= it1->second.dy;
+      dr_z[k] -= it1->second.dz;
+      if (it1->second.isotropic) dUiso_pair[k] += it1->second.dUiso;
+    }
+    if (it2 != atom_duals.end()) {
+      dr_x[k] += it2->second.dx;
+      dr_y[k] += it2->second.dy;
+      dr_z[k] += it2->second.dz;
+      if (it2->second.isotropic) dUiso_pair[k] += it2->second.dUiso;
+    }
+  }
+
+  // Output Jacobian (n_obs × n_params).
+  Eigen::MatrixXd J(n_obs, n_params);
+  const bool use_asu = refine_in_asu();
+  const vector<int>& asu = asu_indices();
+
+  // Column 0: ∂r_i/∂Scale = -(I_full_i - I_avg_i) * w_i
+  for (int ii = 0; ii < n_obs; ++ii) {
+    int i = use_asu ? asu[ii] : ii;
+    double w = wts.at(i);
+    J(ii, 0) = -(intensity_map.at(i) - average_intensity_map.at(i)) * w;
+  }
+
+  if (n_params > 1) {
+    // Accumulate ∂I_full and ∂I_avg into full-size arrays (n_pixels × n_params-1),
+    // then select observations by ASU at the end.
+    const int n_pixels = intensity_map.size_1d();
+    Eigen::MatrixXd dI_full_all(n_pixels, n_params - 1); dI_full_all.setZero();
+    Eigen::MatrixXd dI_avg_all (n_pixels, n_params - 1); dI_avg_all.setZero();
+
+    IntensityMap iter_map = intensity_map; // copy to drive iteration
+    iter_map.init_iterator();
+    int pixel_1d = 0;
+    while (iter_map.next()) {
+      vec3<double> s = iter_map.current_s();
+      double d_star_sq = iter_map.current_d_star_square();
+      AtomicTypeCollection::update_current_form_factors(s, d_star_sq);
+
+      for (int k = 0; k < n_pairs; ++k) {
+        AtomicPair& pair = atomic_pairs[k];
+        std::complex<double> f1 = pair.atomic_type1->current_form_factor;
+        std::complex<double> f2 = pair.atomic_type2->current_form_factor;
+        double N = pair.multiplier;
+
+        double p_real = pair.p(false);
+        std::complex<double> base_real = std::conj(f1) * f2 * N *
+            std::exp(std::complex<double>(M2PISQ * (s * pair.U(false) * s),
+                                          M_2PI  * (s * pair.r(false))));
+
+        double p_avg = pair.p(true);
+        std::complex<double> base_avg = std::conj(f1) * f2 * N *
+            std::exp(std::complex<double>(M2PISQ * (s * pair.U(true) * s),
+                                          M_2PI  * (s * pair.r(true))));
+
+        for (int j = 1; j < n_params; ++j) {
+          double dp_r   = dp_real_mat(k, j);
+          double s_dr   = s[0]*dr_x[k][j] + s[1]*dr_y[k][j] + s[2]*dr_z[k][j];
+          double s_dU_s = dUiso_pair[k][j] * d_star_sq;
+
+          dI_full_all(pixel_1d, j-1) += std::real(
+              base_real * std::complex<double>(dp_r + p_real * M2PISQ * s_dU_s,
+                                               p_real * M_2PI * s_dr));
+          dI_avg_all(pixel_1d, j-1) += std::real(
+              base_avg  * std::complex<double>(p_avg * M2PISQ * s_dU_s,
+                                               p_avg * M_2PI * s_dr));
+        }
+      }
+      ++pixel_1d;
+    }
+
+    // Fill J columns 1..n_params-1, selecting by ASU.
+    for (int ii = 0; ii < n_obs; ++ii) {
+      int i = use_asu ? asu[ii] : ii;
+      double w = wts.at(i);
+      for (int j = 1; j < n_params; ++j)
+        J(ii, j) = -scale * (dI_full_all(i, j-1) - dI_avg_all(i, j-1)) * w;
+    }
+  }
+
+  return J;
 }

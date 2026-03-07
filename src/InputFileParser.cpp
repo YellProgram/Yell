@@ -117,7 +117,14 @@ InputParser::InputParser() : InputParser::base_type(start)
   program_option2 =
       molecular_scatterers
     | (lit("Scattering") > scattering_type)                     [phoenix::bind(&Model::set_scattering_type,*ref(model),_1)]
+    | (lit("Derivatives") > derivatives_mode_sym)               [phoenix::bind(&Model::set_derivatives_mode,*ref(model),_1)]
+    | (lit("JacobianMultiplier") > double_)                     [phoenix::bind(&Model::set_jacobian_multiplier,*ref(model),_1)]
   ;
+
+  derivatives_mode_sym.add
+    ("finite_difference", FINITE_DIFFERENCE)
+    ("analytical",        ANALYTICAL)
+    ;
 
   scattering_type.add
           ("x-ray", XRay)

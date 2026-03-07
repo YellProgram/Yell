@@ -89,7 +89,8 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
 
   
   qi::symbols<char,bool> calculation_methods;
-    qi::symbols<char,ScatteringType> scattering_type;
+  qi::symbols<char,ScatteringType> scattering_type;
+  qi::symbols<char,DerivativesMode> derivatives_mode_sym;
   
   qi::rule<Iterator,void(),skipper_type> print_command_parser;
   qi::rule<Iterator,string()> string_in_quotes;

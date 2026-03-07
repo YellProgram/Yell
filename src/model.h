@@ -35,6 +35,7 @@ typedef boost::variant<ChemicalUnit*,ChemicalUnitNode*,ADPMode*> StructurePartRe
 
 enum R_FACTORS {R1, R2};
 enum WEIGHTED_OPTIONS {WEIGHTED, UNWEIGHTED};
+enum DerivativesMode {FINITE_DIFFERENCE, ANALYTICAL};
 
 
 class Model : public MinimizerCalculator {
@@ -219,7 +220,10 @@ public:
     return atom;
   }
   
-  void set_scale(double inp) {  
+  void set_derivatives_mode(DerivativesMode m) { derivatives_mode = m; }
+  void set_jacobian_multiplier(double v)        { jacobian_multiplier = v; }
+
+  void set_scale(double inp) {
     refinement_parameters[0]=inp;
   }
   
@@ -319,6 +323,8 @@ public:
     padding = vec3<int>(0,0,0);
     refine_in_asu_val = true;
     model_parsed_ = false;
+    derivatives_mode = FINITE_DIFFERENCE;
+    jacobian_multiplier = 1.0;
   }
   void parse_model_();
 
@@ -441,6 +447,17 @@ public:
     }
   vector<int> asu_indices_val;
     
+  DerivativesMode derivatives_mode;
+  double jacobian_multiplier;
+
+  // Analytical Jacobian for the direct calculation method.
+  // Returns matrix of shape (n_observations × n_params).
+  // Residuals: r_i = (exp_i - data_i) * w_i, data_i = Scale*(Ifull_i - Iavg_i).
+  Eigen::MatrixXd compute_analytical_jacobian_direct(
+      const vector<double>& params,
+      IntensityMap& exp_map,
+      OptionalIntensityMap& wts);
+
   vec3<int> fft_grid_size;
   vector<bool> periodic_boundaries;
 //  int number_of_parameters;
