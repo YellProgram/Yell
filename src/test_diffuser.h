@@ -1329,6 +1329,7 @@ public:
     void test_substitutional_correlation_parser()  {
         ChemicalUnitNode* var;
         vector<SubstitutionalCorrelation*> corrs,expected_corrs;
+        a_parser.add_model(new Model());
         run_parser("a_variant = Variant[(p=0.5) C1  0.5 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0 (p=0.5)[] ]",a_parser.variant_assignement,a_skipper,var);
         run_parser("SubstitutionalCorrelation(a_variant,a_variant,0.5)",a_parser.substitutional_correlation,a_skipper,corrs);
         expected_corrs = correlators_from_cuns(var,var,vector<yell::ExprPtr>(1,yell::lit(0.5)));

@@ -172,8 +172,7 @@ public:
    * in parameterized_atoms_ for parse-once re-evaluation.
    */
   Atom* construct_atom_isotropic_adp(string name, vector<yell::ExprPtr> param_exprs)  {
-    Eigen::VectorXd p = Eigen::VectorXd::Map(
-        refinement_parameters.data(), refinement_parameters.size());
+    auto p = refinement_parameters_asEig();
     Atom* atom = new Atom(name, param_exprs[0]->eval(p),
                     1,//we assign probability to 1 because it will be changed by Variant afterwards anyway
                     param_exprs[1]->eval(p), param_exprs[2]->eval(p),
@@ -194,8 +193,7 @@ public:
    * in parameterized_atoms_ for parse-once re-evaluation.
    */
   Atom* construct_atom(string name, vector<yell::ExprPtr> param_exprs)  {
-    Eigen::VectorXd p = Eigen::VectorXd::Map(
-        refinement_parameters.data(), refinement_parameters.size());
+    auto p = refinement_parameters_asEig();
     double a = cell.cell.parameters()[0];
     double b = cell.cell.parameters()[1];
     double c = cell.cell.parameters()[2];
@@ -229,6 +227,8 @@ public:
   
   void set_refinable_parameters(FormulaParser& formula, ExprFormulaParser& expr_formula,
                                 vector<boost::fusion::tuple<string,double> > inp) {
+
+    std::cout << "refineable parameters are set, " << inp.size() << " of them " << std::endl;
     refinement_parameters.resize(inp.size()+1);
     refined_variable_names.resize(inp.size()+1);
 
@@ -336,7 +336,7 @@ public:
   }
   ///used for tests
   Model()   { 
-  init_flags();
+    init_flags();
   }
   
   void add_correlations(const vector<AtomicPairPool*>& _pools)  {
@@ -434,6 +434,16 @@ public:
   ScattererList scatterer_list_;
   
   RefinementOptions refinement_options;
+
+  // TODO: check this is good implementation, remove debug stuff
+  Eigen::VectorXd refinement_parameters_asEig() const {
+    if (refinement_parameters.empty())
+      return {};
+    else {
+      return Eigen::VectorXd::Map(refinement_parameters.data(), refinement_parameters.size());
+    }
+
+  }
 
   bool refine_in_asu() {
       return refine_in_asu_val;

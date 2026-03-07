@@ -68,7 +68,6 @@ public:
 // ─────────────────────────────────────────────────────────────────────────────
 // AtomicPair
 // ─────────────────────────────────────────────────────────────────────────────
-
 class AtomicPair {
 public:
     AtomicPair() {}
@@ -88,6 +87,8 @@ public:
     vec3<double>&    r(bool average_flag = false) { return params(average_flag).r; }
     sym_mat3<double>& U(bool average_flag = false) { return params(average_flag).U; }
 
+
+    // TODO: CRITICAL these should be all parameterized. Or all unparameterized, surely this should not coexist with yell::ExprPtr p_real_expr;
     double&          average_p() { return p(true); }
     double&          real_p()    { return p(false); }
     vec3<double>&    average_r() { return r(true); }
@@ -242,14 +243,14 @@ public:
 class SubstitutionalCorrelation : public PairModifier {
 public:
     SubstitutionalCorrelation(ChemicalUnit* unit1, ChemicalUnit* unit2, yell::ExprPtr expr)
-        : joint_probability_expr(expr), joint_probability(expr->eval(Eigen::VectorXd()))
+        : joint_probability_expr(expr)
     {
         chemical_units[0] = unit1;
         chemical_units[1] = unit2;
     }
 
     void update(const Eigen::VectorXd& p) override {
-        joint_probability = joint_probability_expr->eval(p);
+        // joint_probability = joint_probability_expr->eval(p);
     }
 
     bool generates_pairs() { return true; }
@@ -272,7 +273,7 @@ public:
     }
 
     ChemicalUnit* chemical_units[2];
-    double joint_probability;
+    // double joint_probability;
     yell::ExprPtr joint_probability_expr;
 };
 
