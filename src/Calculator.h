@@ -71,6 +71,7 @@ struct RefinementOptions {
     // QR factorises the augmented [J; sqrt(λ)I] directly, avoiding forming J^T J,
     // so it handles dangling (zero-column) parameters gracefully.
     bool   use_dense_qr;         // true → DENSE_QR (default), false → DENSE_NORMAL_CHOLESKY
+    bool   scale_before_refine;  // true → analytically optimise Scale before first Ceres step
 
     static RefinementOptions default_refinement_options() {
         RefinementOptions result;
@@ -82,6 +83,7 @@ struct RefinementOptions {
         result.function_tolerance  = 1E-6;
         result.gradient_tolerance  = 1E-10;
         result.use_dense_qr        = true;
+        result.scale_before_refine = true;
         return result;
     }
 };

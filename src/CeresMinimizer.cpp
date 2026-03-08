@@ -49,17 +49,7 @@ public:
         const vector<int>& asu = model_->asu_indices();
 
         // 3. Analytical Scale Optimization
-        double num = 0.0, den = 0.0;
-        for (int ii = 0; ii < n_obs; ++ii) {
-            int i = use_asu ? asu[ii] : ii;
-            double w = weights_->at(i);
-            double Ic = model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i);
-            double Ie = exp_->at(i);
-            num += w * w * Ie * Ic;
-            den += w * w * Ic * Ic;
-        }
-        double S = (den > 1e-15) ? (num / den) : 1.0;
-        if (S < 0) S = 0;
+        double S = model_->compute_optimal_scale(*exp_, *weights_);
         model_->set_scale(S);
         p[0] = S;
 
@@ -220,6 +210,18 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
             block_sizes.push_back((int)block.size());
             offset += (int)block.size();
         }
+    }
+
+    // Analytically optimise Scale before handing off to Ceres, so the first
+    // iteration starts from a sensible scale.
+    if (model && refinement_options.scale_before_refine) {
+        vector<double> p0 = initial_params;
+        model->calculate(p0);
+        double S = model->compute_optimal_scale(*_experimental_data, *weights);
+        REPORT(MAIN) << "Scale set to " << S << " before refinement.\n";
+        model->set_scale(S);
+        // Update the initial values fed into p_pointers (Scale is not a Ceres block,
+        // but model->refinement_parameters[0] is used when result is assembled).
     }
 
     if (model && (model->derivatives_mode == ANALYTICAL || model->derivatives_mode == MIXED)) {

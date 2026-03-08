@@ -418,6 +418,24 @@ Eigen::MatrixXd Model::compute_jacobian_mixed(
   return J;
 }
 
+double Model::compute_optimal_scale(IntensityMap& exp_map, OptionalIntensityMap& wts)
+{
+    const int n_obs    = number_of_observations();
+    const bool use_asu = refine_in_asu();
+    const vector<int>& asu = asu_indices();
+    double num = 0.0, den = 0.0;
+    for (int ii = 0; ii < n_obs; ++ii) {
+        int i = use_asu ? asu[ii] : ii;
+        double w  = wts.at(i);
+        double Ic = intensity_map.at(i) - average_intensity_map.at(i);
+        double Ie = exp_map.at(i);
+        num += w * w * Ie * Ic;
+        den += w * w * Ic * Ic;
+    }
+    double S = (den > 1e-15) ? (num / den) : 1.0;
+    return (S > 0) ? S : 0.0;
+}
+
 Eigen::MatrixXd Model::compute_full_covariance(
     const vector<double>& params,
     IntensityMap& exp_map,

@@ -115,6 +115,7 @@ public:
   void set_function_tolerance(double inp) { refinement_options.function_tolerance = inp; }
   void set_gradient_tolerance(double inp) { refinement_options.gradient_tolerance = inp; }
   void set_use_dense_qr(bool use_qr) { refinement_options.use_dense_qr = use_qr; }
+  void set_scale_before_refine(bool inp) { refinement_options.scale_before_refine = inp; }
 
   double R_factor(IntensityMap& exp, R_FACTORS r,WEIGHTED_OPTIONS weighted)
   {
@@ -599,6 +600,11 @@ public:
       const vector<double>& params,
       IntensityMap& exp_map,
       OptionalIntensityMap& wts);
+
+  /// Analytically compute the optimal Scale = (Σ w²·Ie·Ic) / (Σ w²·Ic²).
+  /// Requires intensity_map and average_intensity_map to be current (call calculate() first).
+  /// Clamps to zero if negative; returns 1.0 if denominator is negligible.
+  double compute_optimal_scale(IntensityMap& exp_map, OptionalIntensityMap& wts);
 
   /// Compute the full covariance matrix (N_params x N_params) including the Scale.
   /// Uses a memory-efficient streaming approach for the Hessian accumulation.

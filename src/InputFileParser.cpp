@@ -95,6 +95,7 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("ConvergenceTolerance") > double_)               [phoenix::bind(&Model::set_function_tolerance,*ref(model),_1)]
     | (lit("GradientTolerance") > double_)                  [phoenix::bind(&Model::set_gradient_tolerance,*ref(model),_1)]
     | (lit("LinearSolver") > linear_solver_sym)                     [phoenix::bind(&Model::set_use_dense_qr,*ref(model),_1)]
+    | (lit("ScaleBeforeRefine") > bool_)                            [phoenix::bind(&Model::set_scale_before_refine,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]
     | (lit("DumpPairs") > bool_)                        [phoenix::bind(&Model::set_dump_pairs,*ref(model),_1)]
