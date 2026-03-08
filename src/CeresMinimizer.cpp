@@ -287,13 +287,11 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         }
     }
     
-    if (model && model->print_covariance_matrix) {
+    if (model) {
+        REPORT(MAIN) << "Computing covariance matrix...\n";
         Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
         covar = vector<double>(cov.data(), cov.data() + cov.size());
-    } else if (model) {
-        // Always compute covariance to avoid segfault in main
-        Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
-        covar = vector<double>(cov.data(), cov.data() + cov.size());
+        REPORT(MAIN) << "Done.\n";
     }
 
     for (double* pb : p_pointers) delete[] pb;
