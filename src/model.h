@@ -502,15 +502,18 @@ public:
                             const vector<PattersonPeak>& avg_peaks);
 
   /// Helper: calculate derivative maps from pre-baked peaks and susceptibilities.
+  /// sl must have up-to-date gridded form factors for the current FFT grid.
   IntensityMap calculate_derivative_from_peaks(
       const vector<PattersonPeak>& full_peaks,
       const vector<PattersonPeak>& avg_peaks,
       const vector<PeakSusceptibility>& full_susc,
       const vector<PeakSusceptibility>& avg_susc,
       double scale,
-      int num_threads = 0);
+      int num_threads,
+      ScattererList& sl);
 
   /// Fast path: calculate derivative map when base peaks are already baked.
+  /// sl must have up-to-date gridded form factors for the current FFT grid.
   IntensityMap calculate_derivative_from_susceptibilities(
       const vector<PattersonPeak>& full_peaks,
       const vector<PattersonPeak>& avg_peaks,
@@ -518,7 +521,8 @@ public:
       const Eigen::VectorXd& q,
       int param_idx,
       double scale,
-      int num_threads = 0);
+      int num_threads,
+      ScattererList& sl);
 
   /// Calculate derivative map dI/dp_j for a single parameter index j.
   /// Corresponds to the index in refinement_parameters / yell::ParameterBlock.
@@ -534,6 +538,10 @@ public:
   vector<ParameterizedAtomData> parameterized_atoms_;
   bool model_parsed_;
   ScattererList scatterer_list_;
+  // Per-thread ScattererList copies — each owns its own gridded_form_factors_.
+  // Populated lazily in compute_full_covariance(); reused across iterations.
+  // When form factors become parameterized, invalidate and repopulate here.
+  vector<ScattererList> thread_scatterer_lists_;
 
   Model* clone() const {
       Model* m = new Model(*this);
