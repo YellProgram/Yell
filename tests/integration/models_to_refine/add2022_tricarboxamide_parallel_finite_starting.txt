@@ -99,10 +99,190 @@ UnitCell
 Modes[
 ]
 
+
 Correlations
 [
  [(0,0,0)
    Multiplicity 1
    SubstitutionalCorrelation(Var,Var,1/2)
+  ]
+
+ [(1,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp10)
+  ]
+
+  [(2,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp20)
+  ]
+
+  [(2,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp21)
+  ]
+
+  [(3,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp30)
+  ]
+
+  [(3,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp31)
+  ]
+
+  [(3,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp32)
+  ]
+
+  [(4,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp40)
+  ]
+
+  [(4,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp41)
+  ]
+
+  [(4,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp42)
+  ]
+
+  [(4,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp43)
+  ]
+  [(5,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp50)
+  ]
+
+  [(5,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp51)
+  ]
+
+  [(5,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp52)
+  ]
+
+  [(5,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp53)
+  ]
+
+  [(5,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp54)
+  ]
+
+  [(6,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp60)
+  ]
+
+  [(6,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp61)
+  ]
+
+  [(6,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp62)
+  ]
+
+  [(6,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp63)
+  ]
+
+  [(6,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp64)
+  ]
+
+  [(6,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp65)
+  ]
+
+  [(7,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp70)
+  ]
+
+  [(7,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp71)
+  ]
+
+  [(7,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp72)
+  ]
+
+  [(7,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp73)
+  ]
+
+  [(7,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp74)
+  ]
+
+  [(7,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp75)
+  ]
+
+  [(7,6,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp76)
+  ]
+
+  [(8,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp80)
+  ]
+
+  [(8,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp81)
+  ]
+
+  [(8,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp82)
+  ]
+
+  [(8,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp83)
+  ]
+
+  [(8,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp84)
+  ]
+
+  [(8,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp85)
+  ]
+
+  [(8,6,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp86)
+  ]
+
+  [(8,7,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp87)
   ]
 ]
