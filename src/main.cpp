@@ -282,7 +282,7 @@ int main (int argc, char * const argv[]) {
       }
 
       REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) <<
-                   "\nRefinableVariables\n";
+                   "\nRefinableVariables\n[\n";
       if (block_starts.empty()) REPORT(MAIN) << "[\n";
       for (int i = 1; i < (int)refined_params.size(); ++i) {
         for (int b = 0; b < (int)block_starts.size(); ++b) {
@@ -298,7 +298,7 @@ int main (int argc, char * const argv[]) {
           REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << refined_params[i] << "; #fixed\n";
         }
       }
-      REPORT(MAIN) << "]\n";
+      REPORT(MAIN) << "]\n]\n";
 
       std::ofstream out_refined_params("refined_parameters.txt");
       out_refined_params << "Refined parameters are:\nScale " << refined_params[0] <<
