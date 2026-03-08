@@ -282,11 +282,15 @@ int main (int argc, char * const argv[]) {
       }
 
       REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) <<
-                   "\nRefinableVariables\n[\n";
+                   "\nRefinableVariables\n";
+      if (block_starts.empty()) REPORT(MAIN) << "[\n";
       for (int i = 1; i < (int)refined_params.size(); ++i) {
-        // Print block label when starting a new block
         for (int b = 0; b < (int)block_starts.size(); ++b) {
-          if (block_starts[b] == i) { REPORT(MAIN) << "#Block " << (b + 1) << "\n"; break; }
+          if (block_starts[b] == i) {
+            if (b > 0) REPORT(MAIN) << "]\n";
+            REPORT(MAIN) << "[#Block " << (b + 1) << "\n";
+            break;
+          }
         }
         if (a_model.param_is_active(i)) {
           REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
@@ -298,10 +302,15 @@ int main (int argc, char * const argv[]) {
 
       std::ofstream out_refined_params("refined_parameters.txt");
       out_refined_params << "Refined parameters are:\nScale " << refined_params[0] <<
-                         "\nRefinableVariables\n[\n";
+                         "\nRefinableVariables\n";
+      if (block_starts.empty()) out_refined_params << "[\n";
       for (int i = 1; i < (int)refined_params.size(); ++i) {
         for (int b = 0; b < (int)block_starts.size(); ++b) {
-          if (block_starts[b] == i) { out_refined_params << "#Block " << (b + 1) << "\n"; break; }
+          if (block_starts[b] == i) {
+            if (b > 0) out_refined_params << "]\n";
+            out_refined_params << "[#Block " << (b + 1) << "\n";
+            break;
+          }
         }
         if (a_model.param_is_active(i))
           out_refined_params << a_model.refined_variable_names[i] << '=' << refined_params[i] << ";\n";
