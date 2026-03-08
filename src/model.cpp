@@ -421,7 +421,7 @@ Eigen::MatrixXd Model::compute_full_covariance(
     IntensityMap& exp_map,
     OptionalIntensityMap& wts)
 {
-  const int n_params = (int)params.size(); 
+  const int n_params = (int)params.size();
   const int n_obs    = number_of_observations();
   const bool use_asu = refine_in_asu();
   const vector<int>& asu = asu_indices();
@@ -429,14 +429,13 @@ Eigen::MatrixXd Model::compute_full_covariance(
   calculate(params);
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
 
+  // Scale column (param index 0)
   vector<double> col0(n_obs);
   for (int ii = 0; ii < n_obs; ++ii) {
       int i = use_asu ? asu[ii] : ii;
       col0[ii] = -(intensity_map.at(i) - average_intensity_map.at(i));
   }
-
   auto get_w = [&](int ii) { return wts.at(use_asu ? asu[ii] : ii); };
-
   for (int ii = 0; ii < n_obs; ++ii) {
       double w = get_w(ii);
       H(0, 0) += w * w * col0[ii] * col0[ii];
@@ -444,76 +443,110 @@ Eigen::MatrixXd Model::compute_full_covariance(
 
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
   const double scale = params[0];
-  
+
   vector<PattersonPeak> fpeaks, apeaks;
   peaks_from_pairs(atomic_pairs, q, scatterer_list_, fpeaks, apeaks);
 
-  int actual_batch_size = covariance_batch_size;
-  if (actual_batch_size <= 0) {
-      for (auto& block : parameter_blocks) {
-          actual_batch_size = std::max(actual_batch_size, (int)block.size());
-      }
-      if (actual_batch_size <= 0) actual_batch_size = 32;
-  }
-  
-  for (int b1 = 1; b1 < n_params; b1 += actual_batch_size) {
-      int e1 = std::min(b1 + actual_batch_size, n_params);
-      vector<IntensityMap> maps1;
-      for (int j = b1; j < e1; ++j) {
-          if (!param_is_active(j)) { maps1.emplace_back(grid); continue; }
-          maps1.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, j, scale, max_processors));
-      }
+  // Collect active parameter indices (skip param 0 = Scale, handled above)
+  vector<int> active;
+  for (int j = 1; j < n_params; ++j)
+      if (param_is_active(j)) active.push_back(j);
+  const int n_active = (int)active.size();
 
-      for (int j = b1; j < e1; ++j) {
-          if (!param_is_active(j)) continue;
-          const IntensityMap& mj = maps1[j - b1];
+  if (n_active == 0) {
+      Eigen::JacobiSVD<Eigen::MatrixXd> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+      double thr = 1e-12 * svd.singularValues()(0);
+      Eigen::VectorXd inv_sv = svd.singularValues();
+      for (int i = 0; i < inv_sv.size(); ++i)
+          inv_sv[i] = (inv_sv[i] > thr) ? 1.0 / inv_sv[i] : 0.0;
+      return svd.matrixV() * inv_sv.asDiagonal() * svd.matrixU().transpose();
+  }
+
+  // Memory budget: covariance_batch_size maps at a time.
+  // If all active params fit, do one pass. Otherwise split into two halves
+  // (3 passes total — no quadratic recomputation).
+  int budget = (covariance_batch_size > 0) ? covariance_batch_size : n_active;
+  int half   = (n_active + 1) / 2;
+  int block_size = (n_active <= budget) ? n_active : half;
+
+  int n_threads = max_processors > 0 ? max_processors : (int)std::thread::hardware_concurrency();
+  if (n_threads <= 0) n_threads = 1;
+
+  // Compute derivative maps for active[from .. from+count) in parallel,
+  // one column per thread (each column call is single-threaded internally).
+  auto compute_block = [&](int from, int count) {
+      vector<IntensityMap> maps(count, IntensityMap(grid));
+      std::atomic<int> next(0);
+      vector<std::thread> workers;
+      for (int t = 0; t < n_threads; ++t) {
+          workers.emplace_back([&, from, count]() {
+              while (true) {
+                  int idx = next.fetch_add(1);
+                  if (idx >= count) break;
+                  maps[idx] = calculate_derivative_from_susceptibilities(
+                      fpeaks, apeaks, atomic_pairs, q, active[from + idx], scale, 1);
+              }
+          });
+      }
+      for (auto& w : workers) w.join();
+      return maps;
+  };
+
+  // Accumulate H for two sets of columns (from_j >= from_k convention so k<=j).
+  // Also fills H(0,j) from col0.
+  auto accumulate = [&](int from_j, const vector<IntensityMap>& mj,
+                         int from_k, const vector<IntensityMap>& mk) {
+      int nj = (int)mj.size(), nk = (int)mk.size();
+      for (int jj = 0; jj < nj; ++jj) {
+          int j = active[from_j + jj];
+          double h0j = 0.0;
           for (int ii = 0; ii < n_obs; ++ii) {
               int i = use_asu ? asu[ii] : ii;
               double w = get_w(ii);
-              double Jj = -mj.at(i);
-              H(0, j) += w * w * col0[ii] * Jj;
-              for (int k = b1; k <= j; ++k) {
-                  if (!param_is_active(k)) continue;
-                  double Jk = -maps1[k - b1].at(i);
-                  H(k, j) += w * w * Jk * Jj;
-              }
+              double Jj = -mj[jj].at(i);
+              h0j += w * w * col0[ii] * Jj;
           }
-          H(j, 0) = H(0, j);
-          for (int k = b1; k < j; ++k) H(j, k) = H(k, j);
-      }
+          H(0, j) += h0j;
+          H(j, 0)  = H(0, j);
 
-      for (int b2 = 1; b2 < b1; b2 += actual_batch_size) {
-          int e2 = std::min(b2 + actual_batch_size, b1);
-          vector<IntensityMap> maps2;
-          for (int k = b2; k < e2; ++k) {
-              if (!param_is_active(k)) { maps2.emplace_back(grid); continue; }
-              maps2.push_back(calculate_derivative_from_susceptibilities(fpeaks, apeaks, atomic_pairs, q, k, scale, max_processors));
-          }
-
-          for (int j = b1; j < e1; ++j) {
-              if (!param_is_active(j)) continue;
-              const IntensityMap& mj = maps1[j - b1];
-              for (int k = b2; k < e2; ++k) {
-                  if (!param_is_active(k)) continue;
-                  const IntensityMap& mk = maps2[k - b2];
-                  for (int ii = 0; ii < n_obs; ++ii) {
-                      int i = use_asu ? asu[ii] : ii;
-                      double w = get_w(ii);
-                      H(k, j) += w * w * (-mk.at(i)) * (-mj.at(i));
-                  }
-                  H(j, k) = H(k, j);
+          for (int kk = 0; kk < nk; ++kk) {
+              int k = active[from_k + kk];
+              if (k > j) continue; // lower triangle only
+              double h = 0.0;
+              for (int ii = 0; ii < n_obs; ++ii) {
+                  int i = use_asu ? asu[ii] : ii;
+                  double w = get_w(ii);
+                  h += w * w * (-mk[kk].at(i)) * (-mj[jj].at(i));
               }
+              H(k, j) += h;
+              if (k != j) H(j, k) = h;
           }
       }
+  };
+
+  if (n_active <= budget) {
+      // All fit in one pass — compute and accumulate everything at once.
+      auto maps = compute_block(0, n_active);
+      accumulate(0, maps, 0, maps);
+  } else {
+      // Two halves, three passes. No quadratic recomputation.
+      int n1 = half, n2 = n_active - half;
+
+      auto maps1 = compute_block(0, n1);
+      accumulate(0, maps1, 0, maps1);         // H[A,A]
+
+      auto maps2 = compute_block(half, n2);
+      accumulate(half, maps2, half, maps2);   // H[B,B]
+
+      // Cross term H[B,A]: keep maps2, recompute maps1 (one extra pass).
+      auto maps1b = compute_block(0, n1);
+      accumulate(half, maps2, 0, maps1b);     // H[B,A]
   }
 
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
   double threshold = 1e-12 * svd.singularValues()(0);
   Eigen::VectorXd inv_sv = svd.singularValues();
-  for (int i = 0; i < inv_sv.size(); ++i) {
-      if (inv_sv[i] > threshold) inv_sv[i] = 1.0 / inv_sv[i];
-      else inv_sv[i] = 0.0;
-  }
-  Eigen::MatrixXd cov = svd.matrixV() * inv_sv.asDiagonal() * svd.matrixU().transpose();
-  return cov;
+  for (int i = 0; i < inv_sv.size(); ++i)
+      inv_sv[i] = (inv_sv[i] > threshold) ? 1.0 / inv_sv[i] : 0.0;
+  return svd.matrixV() * inv_sv.asDiagonal() * svd.matrixU().transpose();
 }
