@@ -717,7 +717,6 @@ public:
 
     void testTranslationalMode()
     {
-
         UnitCell cell(10,10,10,90,90,90);
 
         AtomicAssembly* cu1 = new AtomicAssembly();
@@ -729,6 +728,7 @@ public:
         TS_ASSERT(almost_equal(vec3<double>(0.1,0,0),cu1_x->atomic_displacements[0].displacement_vector));
         delete cu1_x;
     }
+
     void test_rotational_mode()
     {
         UnitCell cell(2,2,3,90,90,90);

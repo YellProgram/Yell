@@ -8,9 +8,9 @@ import argparse
 # Configuration
 DEFAULT_YELL_OLD = "yell"  # Should be on path
 # Try to find the new version in common build locations
-DEFAULT_YELL_NEW = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../cmake-build-debug/yell"))
+DEFAULT_YELL_NEW = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../cmake-build-release/yell"))
 if not os.path.exists(DEFAULT_YELL_NEW):
-    DEFAULT_YELL_NEW = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../cmake-build-release/yell"))
+    DEFAULT_YELL_NEW = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../cmake-build-debug/yell"))
 
 DEFAULT_THRESHOLD = 0.001
 
