@@ -960,6 +960,105 @@ TEST(PattersonPeakTests, ValidScattererIndices)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Pair probability regression tests
+//
+// Regression: multiplier corruption bug.
+// MultiplicityCorrelation used to multiply both pair.p(false) and pair.p(true)
+// by its scalar, AND multiply pair.multiplier. This caused pair probabilities
+// to grow with symmetry multiplicity (e.g. 48 × p for m-3m), making scale
+// refine to 0 via VarProj.
+//
+// Invariant: pair.p(false)->eval * pair.multiplier is the physical coefficient.
+//   - pair.p(false)->eval must equal the joint probability set by SubstitutionalCorrelation
+//     (or product of marginals for pair.p(true)), NOT that value times any multiplier.
+//   - pair.multiplier absorbs all counting factors (LaueSymmetry, MultiplicityCorrelation).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: build a model string with m-3m and a SubstitutionalCorrelation at (1,0,0).
+// joint_prob = occupancy^2 + delta, so it differs visibly from the average (occupancy^2).
+static std::string cubic_variant_model(double occupancy, double joint_prob_100)
+{
+    std::ostringstream oss;
+    oss << "Cell 5 5 5  90 90 90\n"
+        << "DiffuseScatteringGrid -1 -1 -1  1 1 1  3 3 3\n"
+        << "CalculationMethod direct\n"
+        << "LaueSymmetry m-3m\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=" << occupancy << ") Au 1 0 0 0 0.01 (p=" << (1.0 - occupancy) << ") Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V," << joint_prob_100 << ") ]\n"
+        << "]\n";
+    return oss.str();
+}
+
+// After calculate(), pair.p(false)->eval and pair.p(true)->eval must NOT be
+// multiplied by the LaueSymmetry group multiplicity (48 for m-3m).
+// Before the fix, pair.p(false)->eval was 48*(4/9) ≈ 21.3 instead of 4/9.
+TEST(PairProbabilityRegression, PairProbabilityNotMultipliedByLaueMultiplicity)
+{
+    const double p_occ = 0.67;                  // marginal occupancy
+    const double c_100 = 0.40;                  // joint probability at (1,0,0)
+    const double avg   = p_occ * p_occ;         // product of marginals ≈ 0.449
+
+    Model m(cubic_variant_model(p_occ, c_100));
+    m.calculate({1.0});
+
+    Eigen::VectorXd q = Eigen::VectorXd::Map(m.refinement_parameters.data(),
+                                             m.refinement_parameters.size());
+
+    // All pair probabilities must be physical (≤ 1.0).
+    // With the bug they would be ≈ 48 × probability (e.g. 21.3), which is >> 1.
+    for (AtomicPair& pair : m.atomic_pairs) {
+        double p_full = pair.p(false)->eval(q);
+        double p_avg  = pair.p(true)->eval(q);
+        EXPECT_LE(std::abs(p_full), 1.0 + 1e-9)
+            << "pair.p(false) = " << p_full << " — looks like it was multiplied by symmetry factor";
+        EXPECT_LE(std::abs(p_avg),  1.0 + 1e-9)
+            << "pair.p(true) = "  << p_avg  << " — looks like it was multiplied by symmetry factor";
+    }
+
+    // We verify the coefficient p * multiplier is reasonable (within a small factor of c_100).
+    for (AtomicPair& pair : m.atomic_pairs) {
+        double coeff_full = pair.p(false)->eval(q) * pair.multiplier;
+        double coeff_avg  = pair.p(true)->eval(q)  * pair.multiplier;
+        // Coefficients may legitimately be larger than 1 (multiplier accounts for copies).
+        // But they must not be 48× the actual probability — catch the old bug.
+        EXPECT_LT(coeff_full, 48.0 * std::max(c_100, avg) + 1e-6)
+            << "coefficient = " << coeff_full << " exceeds 48×probability — multiplicity bug?";
+        EXPECT_LT(coeff_avg,  48.0 * std::max(c_100, avg) + 1e-6)
+            << "avg coefficient = " << coeff_avg;
+    }
+}
+
+// Focused unit test: MultiplicityCorrelation must not touch pair.p(), only pair.multiplier.
+// This is the atomic regression for the bug fixed in ec114f14.
+TEST(PairProbabilityRegression, MultiplicityCorrelationDoesNotChangeProbability)
+{
+    // Set up an atom with occupancy 0.4 and a self-pair.
+    Atom a("Au", 1.0, 0.4, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    AtomicPairPool pool;
+    AtomicPair& pair = pool.get_pair(&a, &a);
+
+    // Set a custom joint probability via SubstitutionalCorrelation.
+    pair.p(false) = yell::lit(0.3);   // full: correlated value
+    pair.p(true)  = yell::lit(0.16);  // avg:  p^2 = 0.4^2
+
+    const double mc_factor = 6.0;
+    MultiplicityCorrelation mcor(mc_factor);
+    mcor.modify_pairs(&pool);
+
+    Eigen::VectorXd zero_p;
+    // Probabilities must be UNCHANGED — only multiplier grows.
+    EXPECT_NEAR(0.3,  pair.p(false)->eval(zero_p), 1e-12)
+        << "p(false) was multiplied by MultiplicityCorrelation factor — bug!";
+    EXPECT_NEAR(0.16, pair.p(true)->eval(zero_p),  1e-12)
+        << "p(true) was multiplied by MultiplicityCorrelation factor — bug!";
+    EXPECT_NEAR(mc_factor, pair.multiplier, 1e-12)
+        << "multiplier should equal the MultiplicityCorrelation factor";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Derivative tests
 // ─────────────────────────────────────────────────────────────────────────────
 

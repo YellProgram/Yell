@@ -243,9 +243,33 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     }
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR; 
+    // QR factorises the augmented [J; sqrt(λ)I] directly — more robust against
+    // near-zero Jacobian columns (dangling parameters).
+    // DENSE_NORMAL_CHOLESKY forms J^T J explicitly — faster but less stable.
+    // Controlled by "LinearSolver QR|CHOLESKY" in model.txt.
+    options.linear_solver_type = refinement_options.use_dense_qr
+                                 ? ceres::DENSE_QR
+                                 : ceres::DENSE_NORMAL_CHOLESKY;
+    REPORT(MAIN) << "Linear solver: "
+                 << (refinement_options.use_dense_qr ? "DENSE_QR (robust, factorises J directly)"
+                                                     : "DENSE_NORMAL_CHOLESKY (fast, factorises J^T J)")
+                 << "\n";
     options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = refinement_options.max_number_of_iterations;
+    options.function_tolerance  = refinement_options.function_tolerance;
+    options.gradient_tolerance  = refinement_options.gradient_tolerance;
+    // num_threads: controls Eigen/BLAS parallelism in the linear solve and, for
+    // DynamicNumericDiff, the parallelism of Jacobian-column evaluations across
+    // parameter blocks.  Use model's max_processors unless overridden in model.txt
+    // via "CeresThreads N".
+    {
+        int nt = refinement_options.num_threads > 0
+                 ? refinement_options.num_threads
+                 : model->max_processors;
+        if (nt <= 0) nt = std::thread::hardware_concurrency();
+        if (nt <= 0) nt = 1;
+        options.num_threads = nt;
+    }
     last_eval_params_.resize(parameters_number);
     options.update_state_every_iteration = true;
     

@@ -110,7 +110,12 @@ public:
     for(int i=0;i<3;++i)
       refinement_options.thresholds[i]=inp[i];
   }
-  
+
+  void set_ceres_num_threads(int inp)     { refinement_options.num_threads = inp; }
+  void set_function_tolerance(double inp) { refinement_options.function_tolerance = inp; }
+  void set_gradient_tolerance(double inp) { refinement_options.gradient_tolerance = inp; }
+  void set_use_dense_qr(bool use_qr) { refinement_options.use_dense_qr = use_qr; }
+
   double R_factor(IntensityMap& exp, R_FACTORS r,WEIGHTED_OPTIONS weighted)
   {
     double scale = refinement_parameters[0];

@@ -91,6 +91,10 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("MinimizerTau") > double_)                   [phoenix::bind(&Model::set_tau,*ref(model),_1)]
     | (lit("MinimizerThresholds") > repeat(3)[double_]) [phoenix::bind(&Model::set_thresholds,*ref(model),_1)]
     | (lit("MinimizerDiff") > double_)                  [phoenix::bind(&Model::set_diff,*ref(model),_1)]
+    | (lit("CeresThreads") > int_)                          [phoenix::bind(&Model::set_ceres_num_threads,*ref(model),_1)]
+    | (lit("ConvergenceTolerance") > double_)               [phoenix::bind(&Model::set_function_tolerance,*ref(model),_1)]
+    | (lit("GradientTolerance") > double_)                  [phoenix::bind(&Model::set_gradient_tolerance,*ref(model),_1)]
+    | (lit("LinearSolver") > linear_solver_sym)                     [phoenix::bind(&Model::set_use_dense_qr,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]
     | (lit("DumpPairs") > bool_)                        [phoenix::bind(&Model::set_dump_pairs,*ref(model),_1)]
@@ -176,11 +180,18 @@ InputParser::InputParser() : InputParser::base_type(start)
     ("exact reciprocal",true)
     ("exact",true)
     ("reciprocal",true)
-  
+
     ("approximate",false)
     ("approximate pdf",false)
     ("pdf",false)
     ("fft",false)
+  ;
+
+  linear_solver_sym.add
+    ("QR",      true)
+    ("qr",      true)
+    ("CHOLESKY",false)
+    ("cholesky",false)
   ;
 
   

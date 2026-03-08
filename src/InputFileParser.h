@@ -91,6 +91,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
 
   
   qi::symbols<char,bool> calculation_methods;
+  qi::symbols<char,bool> linear_solver_sym;  // QR → true, CHOLESKY → false
   qi::symbols<char,ScatteringType> scattering_type;
   qi::symbols<char,DerivativesMode> derivatives_mode_sym;
   

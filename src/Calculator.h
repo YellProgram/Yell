@@ -58,13 +58,30 @@ struct RefinementOptions {
     double thresholds[3];
     double difference;
 
+    // Ceres-specific options
+    // num_threads: enables Eigen OpenMP parallelism inside Ceres's QR/Cholesky
+    // factorisation.  Safe to set = max_processors because we have a single
+    // residual block — Ceres cannot launch parallel block evaluations, so the
+    // only effect of num_threads is on Eigen's internal linear algebra threads.
+    int    num_threads;          // 0 = use max_processors
+    double function_tolerance;   // relative decrease in cost (convergence)
+    double gradient_tolerance;   // gradient norm threshold (convergence)
+    // LinearSolver: "QR" (default, robust against zero-derivative parameters)
+    // or "CHOLESKY" (faster but less stable for ill-conditioned J).
+    // QR factorises the augmented [J; sqrt(λ)I] directly, avoiding forming J^T J,
+    // so it handles dangling (zero-column) parameters gracefully.
+    bool   use_dense_qr;         // true → DENSE_QR (default), false → DENSE_NORMAL_CHOLESKY
+
     static RefinementOptions default_refinement_options() {
-        RefinementOptions result = {
-            1000,                        // max_number_of_iterations
-            1E-03,                       // tau
-            {1E-17, 1E-17, 1E-17},      // thresholds
-            1E-06                        // difference
-        };
+        RefinementOptions result;
+        result.max_number_of_iterations = 1000;
+        result.tau        = 1E-03;
+        result.thresholds[0] = result.thresholds[1] = result.thresholds[2] = 1E-17;
+        result.difference = 1E-06;
+        result.num_threads         = 0;      // 0 → inherit max_processors
+        result.function_tolerance  = 1E-6;
+        result.gradient_tolerance  = 1E-10;
+        result.use_dense_qr        = true;
         return result;
     }
 };
