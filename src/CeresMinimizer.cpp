@@ -251,8 +251,8 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
                                  ? ceres::DENSE_QR
                                  : ceres::DENSE_NORMAL_CHOLESKY;
     REPORT(MAIN) << "Linear solver: "
-                 << (refinement_options.use_dense_qr ? "DENSE_QR (robust, factorises J directly)"
-                                                     : "DENSE_NORMAL_CHOLESKY (fast, factorises J^T J)")
+                 << (refinement_options.use_dense_qr ? "DENSE_QR"
+                                                     : "DENSE_NORMAL_CHOLESKY")
                  << "\n";
     options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = refinement_options.max_number_of_iterations;
