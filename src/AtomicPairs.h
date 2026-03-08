@@ -172,6 +172,21 @@ inline sym_mat3_expr trusted_mat_to_sym_mat(const sym_mat3_expr& inp) {
     return inp;
 }
 
+inline sym_mat3_expr operator+(const sym_mat3_expr& a, const sym_mat3_expr& b) {
+    return sym_mat3_expr(a.u11+b.u11, a.u22+b.u22, a.u33+b.u33,
+                         a.u12+b.u12, a.u13+b.u13, a.u23+b.u23);
+}
+
+/// ExprPtr scalar × plain matrix → ExprPtr-based matrix (preserves parameter dependence).
+inline sym_mat3_expr operator*(const yell::ExprPtr& s, const sym_mat3<double>& m) {
+    return sym_mat3_expr(s*m[0], s*m[1], s*m[2], s*m[3], s*m[4], s*m[5]);
+}
+
+/// ExprPtr scalar × plain vector → ExprPtr-based vector.
+inline vec3_expr operator*(const yell::ExprPtr& s, const vec3<double>& v) {
+    return vec3_expr(s*v[0], s*v[1], s*v[2]);
+}
+
 inline bool operator==(const vec3_expr& lhs, const vec3<double>& rhs) {
     Eigen::VectorXd zero_p;
     return almost_equal(vec3<double>(lhs.x->eval(zero_p), lhs.y->eval(zero_p), lhs.z->eval(zero_p)), rhs);
@@ -197,6 +212,8 @@ struct ParameterizedParams {
     ParameterizedParams() : occupancy(yell::lit(0)) {}
     ParameterizedParams(double occ, vec3<double> _r, sym_mat3<double> _U)
         : occupancy(yell::lit(occ)), r(_r), U(_U) {}
+    ParameterizedParams(double occ, vec3<double> _r, sym_mat3_expr _U)
+        : occupancy(yell::lit(occ)), r(_r), U(std::move(_U)) {}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,8 +224,20 @@ public:
     AtomicPair() {}
 
     AtomicPair(Atom& _atom1, Atom& _atom2)
-        : real(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r, _atom1.U + _atom2.U),
-          average(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r, _atom1.U + _atom2.U),
+        : real(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r,
+               sym_mat3_expr(_atom1.U_expr[0]+_atom2.U_expr[0],
+                             _atom1.U_expr[1]+_atom2.U_expr[1],
+                             _atom1.U_expr[2]+_atom2.U_expr[2],
+                             _atom1.U_expr[3]+_atom2.U_expr[3],
+                             _atom1.U_expr[4]+_atom2.U_expr[4],
+                             _atom1.U_expr[5]+_atom2.U_expr[5])),
+          average(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r,
+               sym_mat3_expr(_atom1.U_expr[0]+_atom2.U_expr[0],
+                             _atom1.U_expr[1]+_atom2.U_expr[1],
+                             _atom1.U_expr[2]+_atom2.U_expr[2],
+                             _atom1.U_expr[3]+_atom2.U_expr[3],
+                             _atom1.U_expr[4]+_atom2.U_expr[4],
+                             _atom1.U_expr[5]+_atom2.U_expr[5])),
           atomic_type1(_atom1.atomic_type),
           atomic_type2(_atom2.atomic_type),
           multiplier(_atom1.multiplier * _atom2.multiplier),
@@ -427,7 +456,7 @@ public:
 
 class DoubleADPMode : public PairModifier {
 public:
-    DoubleADPMode(ADPMode* mode1, ADPMode* mode2, double _amplitude)
+    DoubleADPMode(ADPMode* mode1, ADPMode* mode2, yell::ExprPtr _amplitude)
         : amplitude(_amplitude)
     {
         modes[0] = mode1;
@@ -437,18 +466,19 @@ public:
     bool generates_pairs() { return true; }
 
     void modify_pairs(AtomicPairPool* const pool) {
-        for (vector<AtomicDisplacement>::iterator disp1 = modes[0]->atomic_displacements.begin();
-             disp1 != modes[0]->atomic_displacements.end(); disp1++)
-            for (vector<AtomicDisplacement>::iterator disp2 = modes[1]->atomic_displacements.begin();
-                 disp2 != modes[1]->atomic_displacements.end(); disp2++)
-                pool->get_pair(disp1->atom, disp2->atom).U() +=
-                    -amplitude * (outer_product(disp1->displacement_vector, disp2->displacement_vector)
-                                + outer_product(disp2->displacement_vector, disp1->displacement_vector));
+        for (auto disp1 = modes[0]->atomic_displacements.begin();
+             disp1 != modes[0]->atomic_displacements.end(); ++disp1)
+            for (auto disp2 = modes[1]->atomic_displacements.begin();
+                 disp2 != modes[1]->atomic_displacements.end(); ++disp2) {
+                sym_mat3<double> outer =
+                    -(outer_product(disp1->displacement_vector, disp2->displacement_vector)
+                    + outer_product(disp2->displacement_vector, disp1->displacement_vector));
+                pool->get_pair(disp1->atom, disp2->atom).U() += amplitude * outer;
+            }
     }
 
     bool operator==(const DoubleADPMode& inp) const {
-        return inp.modes[0] == modes[0] && inp.modes[1] == modes[1]
-            && almost_equal(amplitude, inp.amplitude);
+        return inp.modes[0] == modes[0] && inp.modes[1] == modes[1];
     }
     bool operator!=(const DoubleADPMode& inp) const { return !(*this == inp); }
 
@@ -456,7 +486,7 @@ public:
 
 private:
     ADPMode* modes[2];
-    double amplitude;
+    yell::ExprPtr amplitude;
 };
 
 class StaticShift : public PairModifier {
@@ -515,26 +545,24 @@ class SizeEffect : public PairModifier {
 public:
     bool generates_pairs() { return true; }
 
-    SizeEffect(ADPMode* _mode, ChemicalUnit* _cu, double _amplitude)
+    SizeEffect(ADPMode* _mode, ChemicalUnit* _cu, yell::ExprPtr _amplitude)
         : cu(_cu), mode(_mode), amplitude(_amplitude), cu_to_adp_mode(false) {}
-    SizeEffect(ChemicalUnit* _cu, ADPMode* _mode, double _amplitude)
+    SizeEffect(ChemicalUnit* _cu, ADPMode* _mode, yell::ExprPtr _amplitude)
         : cu(_cu), mode(_mode), amplitude(_amplitude), cu_to_adp_mode(true) {}
 
     void modify_pairs(AtomicPairPool* const pool) {
         vector<Atom*> atoms = cu->get_atoms();
-        for (vector<Atom*>::iterator atom = atoms.begin(); atom != atoms.end(); atom++)
-            for (vector<AtomicDisplacement>::iterator ad = mode->atomic_displacements.begin();
+        for (auto atom = atoms.begin(); atom != atoms.end(); ++atom)
+            for (auto ad = mode->atomic_displacements.begin();
                  ad != mode->atomic_displacements.end(); ++ad)
                 if (cu_to_adp_mode)
-                    pool->get_pair(*atom, ad->atom).r() += ad->displacement_vector * amplitude;
+                    pool->get_pair(*atom, ad->atom).r() += amplitude * ad->displacement_vector;
                 else
-                    pool->get_pair(ad->atom, *atom).r() -= ad->displacement_vector * amplitude;
+                    pool->get_pair(ad->atom, *atom).r() -= amplitude * ad->displacement_vector;
     }
 
     bool operator==(const SizeEffect& inp) const {
-        return cu == inp.cu && mode == inp.mode
-            && almost_equal(amplitude, inp.amplitude)
-            && cu_to_adp_mode == inp.cu_to_adp_mode;
+        return cu == inp.cu && mode == inp.mode && cu_to_adp_mode == inp.cu_to_adp_mode;
     }
     bool operator!=(const SizeEffect& inp) const { return !(*this == inp); }
 
@@ -543,7 +571,7 @@ public:
     bool cu_to_adp_mode; ///< true if CU is at start and ADP mode at end of vector
     ChemicalUnit* cu;
     ADPMode* mode;
-    double amplitude;
+    yell::ExprPtr amplitude;
 };
 
 class ZeroVectorCorrelation : public PairModifier {

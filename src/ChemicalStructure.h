@@ -23,6 +23,7 @@
 #include "utils.h"
 #include "Scatterers.h"
 #include "LaueSymmetry.h"
+#include "expr.hpp"
 
 #include <cctbx/uctbx.h>
 #include <scitbx/array_family/tiny.h>
@@ -186,8 +187,14 @@ public:
     double multiplier; ///< multiplier from symmetry; unlike occupancy, unaffected by SubstitutionalCorrelation
     vec3<double> r;
     sym_mat3<double> U;
+    /// ExprPtr representations of U[0..5] (fractional coords).
+    /// Populated by ParameterizedAtomData::update() so analytical derivatives
+    /// flow through pair.U() ExprPtr trees.  Initialised to lit(U[i]) here.
+    yell::ExprPtr U_expr[6];
 
-    Atom() {}
+    Atom() {
+        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(0);
+    }
 
     /// Atom with Uiso and metric tensor.
     Atom(string const& _label, double _multiplier, double _occupancy,
@@ -199,6 +206,7 @@ public:
           r(r1, r2, r3), U(Uiso * reciprocal_metric_tensor)
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
+        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
     }
 
     /// Constructor for tests only.
@@ -209,6 +217,7 @@ public:
           label(_label), multiplier(1)
     {
         atomic_type = AtomicTypeCollection::get(_label, XRay);
+        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
     }
 
     /// General constructor. Uij parameters are Uij/ai*aj.
@@ -220,6 +229,7 @@ public:
           r(r1, r2, r3), U(U11, U22, U33, U12, U13, U23), label(_label)
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
+        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
     }
 
     double get_occupancy()           { return occupancy; }

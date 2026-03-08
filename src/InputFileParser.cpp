@@ -281,7 +281,7 @@ static void do_correlators(
 static void do_double_adp_mode(
     DoubleADPMode*& out,
     StructurePartRef a, StructurePartRef b,
-    double c, bool& pass)
+    yell::ExprPtr c, bool& pass)
 {
     try { out = Model::create_double_adp_mode(a, b, c); }
     catch (...) { pass = false; }
@@ -290,7 +290,7 @@ static void do_double_adp_mode(
 static void do_size_effect(
     SizeEffect*& out,
     StructurePartRef a, StructurePartRef b,
-    double c, bool& pass)
+    yell::ExprPtr c, bool& pass)
 {
     try { out = Model::create_size_effect(a, b, c); }
     catch (...) { pass = false; }
@@ -321,7 +321,7 @@ void InputParser::InputParserI()
     adp_correlation =
     lit("ADPCorrelation")
     > '('
-    > (identifier > ',' > identifier > ',' > number)[
+    > (identifier > ',' > identifier > ',' > expr_number)[
         phoenix::bind(&do_double_adp_mode, _val, _1, _2, _3, _pass)]
     > ')'
     ;
@@ -329,7 +329,7 @@ void InputParser::InputParserI()
     size_effect =
     lit("SizeEffect")
     > '('
-    > (identifier > ',' > identifier > ',' > number)[
+    > (identifier > ',' > identifier > ',' > expr_number)[
         phoenix::bind(&do_size_effect, _val, _1, _2, _3, _pass)]
     > ')'
     ;

@@ -432,12 +432,12 @@ public:
     modes.concat(_modes);
   }
   
-  static DoubleADPMode* create_double_adp_mode(StructurePartRef mode1,StructurePartRef mode2,double amplitude)
+  static DoubleADPMode* create_double_adp_mode(StructurePartRef mode1,StructurePartRef mode2,yell::ExprPtr amplitude)
   {
-    return new DoubleADPMode(boost::get<ADPMode*> (mode1),boost::get<ADPMode*>(mode2),amplitude);
+    return new DoubleADPMode(boost::get<ADPMode*>(mode1),boost::get<ADPMode*>(mode2),amplitude);
   }
-  
-  static SizeEffect* create_size_effect(StructurePartRef el1,StructurePartRef el2, double amplitude)
+
+  static SizeEffect* create_size_effect(StructurePartRef el1,StructurePartRef el2, yell::ExprPtr amplitude)
   {
     if(boost::get<ChemicalUnit*>(&el1)) //check that first element is ChemicalUnit
       return new SizeEffect(boost::get<ChemicalUnit*>(el1),boost::get<ADPMode*>(el2), amplitude);
