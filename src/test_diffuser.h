@@ -687,12 +687,15 @@ public:
     {
         ChemicalUnitNode* a_variant;
         string variant_str = "Variant[ (p=0.5) Mn = Mn 1 0 0 0 0 (p=0.5) Void ]";
-        
+
+        Model a_model;
+        a_parser.add_model(&a_model);
+
         // Parse the variant
         TS_ASSERT(run_parser(variant_str, a_parser.variant, a_skipper, a_variant));
         
         // Get the Mn atom (it's the first unit in the node)
-        vector<Atom*> atoms = a_variant->chemical_units[0]->get_atoms();
+        vector<Atom*> atoms = a_variant->chemical_units[0].get_atoms();
         TS_ASSERT_EQUALS(atoms.size(), 1);
         Atom* mn = atoms[0];
         
@@ -2446,188 +2449,6 @@ public:
         TS_ASSERT(test_parser_nores("#Ruby-type comment\n",a_parser.skipper));
     }
 
-    void test_filter_asymmetric_unit_m()  {
-        // The symmetry m is a dummy symmetry for the z mirror part of 6/m 4/m 2/m
-        vector<AtomicPair> pairs;
-        AtomicPair ethalon(atom1,atom2);
-        for(int i=0; i<3; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[1].average_r()=vec3<double>(10,20,0); //occupancy should be 1/2
-        pairs[2].average_r()=-pairs[2].average_r(); //pair should be deleted
-
-        LaueSymmetry a_symmetry("6/m");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        // ethalon.average_p() is ExprPtr
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[1].average_p()->eval(zero_p), 1e-7); // x y 0 should decrease occupancy
-        TS_ASSERT_EQUALS(2,pairs.size());
-    }
-    void test_filter_asymmetric_unit_mmm()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<12; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/8
-        pairs[1].average_r()=vec3<double>(10,20,0); //occupancy should be 1/2
-        pairs[2].average_r()=vec3<double>(10,0,13); //occupancy should be 1/2
-        pairs[3].average_r()=vec3<double>(0,10,20); //occupancy should be 1/2
-
-        pairs[4].average_r()=vec3<double>(1,2,3); //This one stays
-        yell::ExprPtr ethalon_p = pairs[4].average_p();
-        pairs[5].average_r()=vec3<double>(1,2,-3); //pair should be deleted
-        pairs[6].average_r()=vec3<double>(1,-2,3); //pair should be deleted
-        pairs[7].average_r()=vec3<double>(1,-2,-3); //pair should be deleted
-
-        pairs[8].average_r()=vec3<double>(-1,2,3); //pair should be deleted
-        pairs[9].average_r()=vec3<double>(-1,2,-3); //pair should be deleted
-        pairs[10].average_r()=vec3<double>(-1,-2,3); //pair should be deleted
-        pairs[11].average_r()=vec3<double>(-1,-2,-3); //pair should be deleted
-
-        LaueSymmetry a_symmetry("mmm");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/8, pairs[0].average_p()->eval(zero_p), 1e-7);
-
-        for(int i=1; i<4; ++i)
-            TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/2, pairs[i].average_p()->eval(zero_p), 1e-7);
-
-        TS_ASSERT_EQUALS(5,pairs.size()); //  all the rest are deleted
-    }
-    void test_filter_asymmetric_unit_4mmm()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<4; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/16
-        pairs[1].average_r()=vec3<double>(10,10,12); //occupancy should be 1/2
-
-
-        pairs[2].average_r()=vec3<double>(3,2,1); //This one stays
-        yell::ExprPtr ethalon_p = pairs[2].average_p();
-        pairs[3].average_r()=vec3<double>(2,3,1); //pair should be deleted
-
-        LaueSymmetry a_symmetry("4/mmm");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/16, pairs[0].average_p()->eval(zero_p), 1e-7);
-
-
-        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/2, pairs[1].average_p()->eval(zero_p), 1e-7);
-
-//    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
-        TS_ASSERT_EQUALS(3,pairs.size());
-    }
-    void test_filter_asymmetric_unit_m3m()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<5; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/48
-        pairs[1].average_r()=vec3<double>(10,0,0); //occupancy should be 1/8
-
-        pairs[2].average_r()=vec3<double>(3,2,1); //This one does not change
-        yell::ExprPtr ethalon_p = pairs[2].average_p();
-        pairs[3].average_r()=vec3<double>(2,3,1); //pair should be deleted
-        pairs[4].average_r()=vec3<double>(2,1,3); //pair should also be deleted
-
-        LaueSymmetry a_symmetry("m-3m");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/48, pairs[0].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon_p->eval(zero_p)/8, pairs[1].average_p()->eval(zero_p), 1e-7);
-
-//    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
-        TS_ASSERT_EQUALS(3,pairs.size());
-    }
-    void test_filter_asymmetric_unit_6mmm()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<4; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/24
-        pairs[1].average_r()=vec3<double>(10,0,0); //occupancy should be 1/4
-
-        pairs[2].average_r()=vec3<double>(5,2,1); //This one does not change
-        AtomicPair ethalon=pairs[2];
-        pairs[3].average_r()=vec3<double>(3,2,1); //pair should be deleted
-
-        LaueSymmetry a_symmetry("6/mmm");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/24, pairs[0].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/4, pairs[1].average_p()->eval(zero_p), 1e-7);
-
-//    TS_ASSERT_EQUALS(ethalon,pairs[2]); // does not change
-        TS_ASSERT_EQUALS(3,pairs.size());
-    }
-    void test_filter_asymmetric_unit_3barmH()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<7; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/6! Even though the group class is 12
-        pairs[1].average_r()=vec3<double>(0,0,7); //occupancy should be 1/6
-        pairs[2].average_r()=vec3<double>(5,-5,1); //occupancy should be 1/2
-        pairs[3].average_r()=vec3<double>(6,3,2); //occupancy should be 1/2
-
-        pairs[4].average_r()=vec3<double>(4,0,0); //This one does not change even though this is a two fold rotation axis
-        AtomicPair ethalon=pairs[4];
-        pairs[5].average_r()=vec3<double>(4,4,0); //pair should be deleted
-        pairs[6].average_r()=vec3<double>(0,4,0); //pair should be deleted
-
-        LaueSymmetry a_symmetry("-3mH");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[0].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[1].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[2].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[3].average_p()->eval(zero_p), 1e-7);
-
-
-//    TS_ASSERT_EQUALS(ethalon,pairs[4]); // does not change
-        TS_ASSERT_EQUALS(5,pairs.size());
-    }
-    void test_filter_asymmetric_unit_3barmR()  {
-        vector<AtomicPair> pairs;
-        for(int i=0; i<7; ++i)
-            pairs.push_back(AtomicPair(atom1,atom2));
-
-        pairs[0].average_r()=vec3<double>(0,0,0); //occupancy should be 1/6! Even though the group class is 12
-        pairs[1].average_r()=vec3<double>(1,1,1); //occupancy should be 1/6
-        pairs[2].average_r()=vec3<double>(5,5,1); //occupancy should be 1/2
-        pairs[3].average_r()=vec3<double>(6,3,3); //occupancy should be 1/2
-
-        pairs[4].average_r()=vec3<double>(4,0,-4); //This one does not change even though this is a two fold rotation axis
-        AtomicPair ethalon=pairs[4];
-        pairs[5].average_r()=vec3<double>(-4,4,0); //pair should be deleted
-        pairs[6].average_r()=vec3<double>(0,-4,4); //pair should be deleted
-
-        LaueSymmetry a_symmetry("-3mR");
-
-        Eigen::VectorXd zero_p;
-        pairs=a_symmetry.filter_pairs_from_asymmetric_unit(pairs, zero_p);
-
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[0].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/6, pairs[1].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[2].average_p()->eval(zero_p), 1e-7);
-        TS_ASSERT_DELTA(ethalon.average_p()->eval(zero_p)/2, pairs[3].average_p()->eval(zero_p), 1e-7);
-
-//    TS_ASSERT_EQUALS(ethalon,pairs[4]); // does not change
-        TS_ASSERT_EQUALS(5,pairs.size());
-    }
 
     void test_Laue_Symmetry_hkl_in_asu() {
         Grid grid = Grid(trivial_unit_cell,

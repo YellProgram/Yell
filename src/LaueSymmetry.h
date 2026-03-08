@@ -215,8 +215,6 @@ public:
         return generators;
     }
 
-    vector<AtomicPair> filter_pairs_from_asymmetric_unit(vector<AtomicPair>& pairs, const Eigen::VectorXd& params);
-
     void apply_patterson_symmetry(IntensityMap& map)
     {
         for (int i=0; i<generators_on_map.size(); ++i)
