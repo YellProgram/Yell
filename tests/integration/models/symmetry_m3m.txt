@@ -1,0 +1,60 @@
+Cell 3.101 3.101 3.101  90 90 90
+LaueSymmetry m-3m
+DiffuseScatteringGrid -10 -10 -10 0.2 0.2 0.2 100 100 100
+
+CalculationMethod approximate
+Refine false
+
+UnitCell
+[
+  AuAg = Variant[
+    (p=1/2)
+    Au 1  0 0 0  0.002
+
+    (p=1/2)
+    Void
+  ]
+]
+
+Modes[
+]
+
+Correlations
+[
+  [(0,0,0)
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+
+  [(1,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+
+  [(2.5,0,0)
+   Multiplicity 3
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+
+  [(1,1,0)
+   Multiplicity 12
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+  [(1,1.5,2)
+   Multiplicity 48
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+  [(2.5,1,0)
+   Multiplicity 12
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+  [(2.5,2.5,0)
+   Multiplicity 3
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+  [(2.5,2.5,2.5)
+   Multiplicity 1
+   SubstitutionalCorrelation(AuAg,AuAg,0.5)
+  ]
+
+
+]
