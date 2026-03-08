@@ -201,7 +201,10 @@ public:
                               deriv_patterson_map.grid.reciprocal_flag);
         Grid grid_for_pairs_r = grid_for_pairs_p.reciprocal();
 
-        scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
+        // NOTE: scatterers.compute_form_factors_on_grid() is intentionally NOT called here.
+        // Form factors are precomputed in calculate_patterson_map_from_pairs_f() (the forward
+        // pass), which always runs before any derivative call. Calling it here from multiple
+        // parallel threads would cause a data race on ScattererList::gridded_form_factors_.
 
         vector<int> active_indices;
         for (int i = 0; i < n_peaks; ++i) {
