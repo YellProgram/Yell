@@ -1,0 +1,42 @@
+Cell 3.101 3.101 1  90 90 90
+LaueSymmetry 4/mmm
+DiffuseScatteringGrid -30 -30 0 0.1 0.1 1 600 600 1
+
+CalculationMethod exact
+Refine false
+
+UnitCell
+[
+Variant[
+    (p=1)
+    Au = Au 1  0 0 0  0.02
+  ]
+]
+
+Modes[
+Au_x = TranslationalMode(Au,x)
+Au_y = TranslationalMode(Au,y)
+]
+
+Correlations
+[
+  [(0,0,0)
+   Multiplicity 1
+   ADPCorrelation(Au_x,Au_x, 0.02)
+   ADPCorrelation(Au_y,Au_y, 0.02)
+  ]
+  [(1,0,0)
+   Multiplicity 4
+   ADPCorrelation(Au_x,Au_x, 0.01)
+   ADPCorrelation(Au_y,Au_y, 0.005)
+  ]
+
+  [(1,1,0)
+   Multiplicity 4
+   ADPCorrelation(Au_x,Au_x, 0.002)
+   ADPCorrelation(Au_x,Au_y, 0.001)
+   ADPCorrelation(Au_y,Au_x, 0.001)
+   ADPCorrelation(Au_y,Au_y, 0.002)
+  ]
+
+]
