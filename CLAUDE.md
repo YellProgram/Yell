@@ -11,7 +11,7 @@ experimental data using Ceres Solver.
 - **Build dir**: `cmake-build-debug` (CLion default; CMake out-of-source)
 - **Active branch**: `parameterized_model` (parse-once + ExprPtr; branched from `replacing_minimizer`)
 - **C++ standard**: C++20
-- **Current version**: 1.2.9c (in `src/main.cpp`)
+- **Current version**: 1.3c (in `src/main.cpp`)
 
 ---
 
