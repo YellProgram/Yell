@@ -81,6 +81,7 @@ public:
                 }
             }
             const int total_work = (int)work.size();
+            REPORT(MAIN) << "[Evaluate] Starting Jacobian: " << total_work << " items on " << n_threads << " threads.\n";
 
             vector<Model*> thread_models(n_threads);
             for (size_t t = 0; t < n_threads; ++t) thread_models[t] = model_->clone();
@@ -90,6 +91,7 @@ public:
             for (size_t t = 0; t < n_threads; ++t) {
                 workers.emplace_back([&, t, p]() {
                     Model* m = thread_models[t];
+                    int count = 0;
                     while (true) {
                         int wi = next_wi.fetch_add(1);
                         if (wi >= total_work) break;
@@ -100,11 +102,14 @@ public:
                             int i = use_asu ? asu[ii] : ii;
                             jacobians[w.b][ii * block_sz + w.j] = -dI_map.at(i) * weights_->at(i);
                         }
+                        count++;
                     }
+                    // REPORT(MAIN) << "  Thread " << t << " finished " << count << " items.\n";
                 });
             }
             for (auto& w : workers) w.join();
             for (auto* m : thread_models) delete m;
+            REPORT(MAIN) << "[Evaluate] Jacobian finished.\n";
         }
 
         return true;
@@ -280,6 +285,7 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         if (nt <= 0) nt = std::thread::hardware_concurrency();
         if (nt <= 0) nt = 1;
         options.num_threads = nt;
+        REPORT(MAIN) << "Ceres num_threads: " << options.num_threads << "\n";
     }
     last_eval_params_.resize(parameters_number);
     options.update_state_every_iteration = true;

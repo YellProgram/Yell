@@ -16,6 +16,7 @@
 #  define SCITBX_FFTPACK_COMPLEX_TO_COMPLEX_3D_NO_PRAGMA_OMP
 #endif
 #include <scitbx/fftpack/complex_to_complex_3d.h>
+#include "pocketfft_hdronly.h"
 #include <complex>
 #include <assert.h>
 #include "basic_io.h"
@@ -134,13 +135,6 @@ public:
         invert();
     }
 
-    /// Performs fourier transform of intensity map and inverts grid
-    void invert()
-    {
-        perform_shifted_fft();
-        invert_grid();
-    }
-
     /// Inverts grid, does nothing with intensity map
     void invert_grid()
     {
@@ -183,8 +177,47 @@ public:
                         data[data_accessor(i,j,k)]*=-1;
     }
 
-    /** performs fourier transform, assuming that origin of coordinates is in point grid_size/2.
-     */
+    pocketfft::shape_t pocketfft_shape() const {
+        return {(size_t)data_accessor[0], (size_t)data_accessor[1], (size_t)data_accessor[2]};
+    }
+    pocketfft::stride_t pocketfft_stride() const {
+        size_t s2 = sizeof(std::complex<double>);
+        size_t s1 = s2 * data_accessor[2];
+        size_t s0 = s1 * data_accessor[1];
+        return {(std::ptrdiff_t)s0, (std::ptrdiff_t)s1, (std::ptrdiff_t)s2};
+    }
+    pocketfft::shape_t pocketfft_axes() const {
+        return {0, 1, 2};
+    }
+
+    void perform_fft()
+    {
+        auto shape  = pocketfft_shape();
+        auto stride = pocketfft_stride();
+        auto axes   = pocketfft_axes();
+
+        if (is_in_reciprocal_space())
+        {
+            // Backward: Reciprocal -> Real
+            pocketfft::c2c(shape, stride, stride, axes, false, data.begin(), data.begin(), 1.0);
+        }
+        else
+        {
+            // Forward: Real -> Reciprocal
+            pocketfft::c2c(shape, stride, stride, axes, true, data.begin(), data.begin(), 1.0);
+
+            // PocketFFT doesn't scale by 1/N by default on forward transform.
+            double scale = 1.0/data_accessor.size_1d();
+            for (auto& val : data) val *= scale;
+        }
+    }
+
+    void perform_fft(scitbx::fftpack::complex_to_complex_3d<double>& fft)
+    {
+        // For now, ignore the passed scitbx plan and use pocketfft to ensure parallelism.
+        perform_fft();
+    }
+
     void perform_shifted_fft()
     {
         flip_signs_in_chessboard_way();
@@ -193,25 +226,23 @@ public:
         flip_signs_if_nessesary();
     }
 
-    void perform_fft()
+    void perform_shifted_fft(scitbx::fftpack::complex_to_complex_3d<double>& fft)
     {
-        scitbx::fftpack::complex_to_complex_3d<double> fft(data_accessor);
-        scitbx::af::ref<std::complex<double>, scitbx::af::c_grid<3,int> >    cmap(data.begin(), data_accessor);
-
-        if (is_in_reciprocal_space())
-            fft.backward(cmap);
-        else
-        {
-            fft.forward(cmap);
-
-            // for some reason this forward and backward transforms do not divide by number of pixels in the map. This is why we apply it by hand
-            double scale = 1.0/data_accessor.size_1d();
-            init_iterator();
-            while(next())
-                current_array_value_c()*=scale;
-        }
-
+        perform_shifted_fft();
     }
+
+    /// Performs fourier transform of intensity map and inverts grid
+    void invert()
+    {
+        perform_shifted_fft();
+        invert_grid();
+    }
+
+    void invert(scitbx::fftpack::complex_to_complex_3d<double>& fft)
+    {
+        invert();
+    }
+
     void init_iterator()
     {
         iterator=-1;//because next() will be used before first actions

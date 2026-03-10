@@ -207,3 +207,8 @@ TEST(ParallelTiming, DerivativeCalcSpeedup)
         << "Derivative speedup " << speedup << "x < 3x with " << N_THREADS
         << " threads.  Check that CeresMinimizer uses the flat work-queue.";
 }
+
+TEST(ParallelTiming, PrintHardwareConcurrency)
+{
+    std::cout << "[Hardware] std::thread::hardware_concurrency() = " << std::thread::hardware_concurrency() << std::endl;
+}

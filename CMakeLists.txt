@@ -113,7 +113,10 @@ IF(UNIX)
   #set(LAPACK_LIBRARIES  lapack blas gfortran) #f2c dl
 
   set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
+  # -Wl,-Bstatic makes everything after it static. 
+  # We must ensure libpthread is linked dynamically, otherwise std::thread may be broken.
   set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
+  set(CMAKE_THREAD_LIBS_INIT "-Wl,-Bdynamic -lpthread -Wl,-Bstatic")
 #  find_package(LAPACK)
 ENDIF(UNIX)
 ENDIF(APPLE)
@@ -123,9 +126,10 @@ IF(MINGW) #Windows on github actions
     set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
 ENDIF(MINGW)
-
 include_directories( ${CCTBX_PATH}
         ${BOOST_INCLUDEDIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        src/
         ${CXXTEST_PATH}
 )
 link_directories(${LAPACK_PATH}/lib)
