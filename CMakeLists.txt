@@ -22,6 +22,7 @@ set(HDF5_LIBRARIES hdf5_cpp hdf5_hl_cpp hdf5 hdf5_hl szip z)
 
 include(ExternalProject)
 include(FetchContent)
+find_package(Threads REQUIRED)
 
 ExternalProject_Add(
         eigen
@@ -178,8 +179,10 @@ set_target_properties(yell-minimizer
 target_include_directories(yell-minimizer PUBLIC ${CMAKE_BINARY_DIR}/ceres-solver/include
         ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3
         ${CMAKE_BINARY_DIR}/glog-install/include)
+target_link_libraries(yell-minimizer PUBLIC Threads::Threads)
 
 target_include_directories(yell-lib PUBLIC ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
+target_link_libraries(yell-lib PUBLIC Threads::Threads)
 add_dependencies(yell-lib eigen)
 
 DownloadHDF5For(yell-lib )

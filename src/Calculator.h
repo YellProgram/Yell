@@ -127,14 +127,20 @@ public:
 
         scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
 
-        std::mutex map_mutex;
         std::atomic<int> next_peak(0);
-        
+
         int n_threads = num_threads;
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
 
-        auto worker = [&]() {
+        // Each thread accumulates into its own private map — no lock needed.
+        // After join, maps are summed into patterson_map.
+        vector<IntensityMap> local_maps(n_threads, patterson_map);
+        for (auto& lm : local_maps)
+            for (int i = 0; i < lm.size_1d(); ++i) lm.at_c(i) = 0;
+
+        auto worker = [&](int t) {
+            IntensityMap& local_map = local_maps[t];
             while (true) {
                 int k = next_peak.fetch_add(1);
                 if (k >= n_peaks) break;
@@ -162,28 +168,29 @@ public:
                         scale * calculate_scattering_from_a_pair_in_a_point_c(
                             f1, f2,
                             pk.coefficient,
-                            1.0, 
+                            1.0,
                             pair_patterson_map.current_s(),
                             r_res,
                             pk.U);
                 }
 
                 pair_patterson_map.invert();
-
-                {
-                    std::lock_guard<std::mutex> lock(map_mutex);
-                    add_pair_to_appropriate_place(pair_patterson_map, patterson_map, r_grid, periodic_directions);
-                }
+                add_pair_to_appropriate_place(pair_patterson_map, local_map, r_grid, periodic_directions);
             }
         };
 
         if (n_threads <= 1) {
-            worker();
+            worker(0);
         } else {
             vector<std::thread> workers;
-            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker, t);
             for (auto& w : workers) w.join();
         }
+
+        // Reduction: sum thread-local maps into output.
+        for (int t = 0; t < n_threads; ++t)
+            for (int i = 0; i < patterson_map.size_1d(); ++i)
+                patterson_map.at_c(i) += local_maps[t].at_c(i);
     }
 
     /// FFT-path analytical derivative map calculation for a single parameter.
@@ -226,14 +233,19 @@ public:
             if (has_susc) active_indices.push_back(i);
         }
 
-        std::mutex map_mutex;
         std::atomic<int> next_active(0);
-        
+
         int n_threads = num_threads;
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
 
-        auto worker = [&]() {
+        // Each thread accumulates into its own private map — no lock needed.
+        vector<IntensityMap> local_maps(n_threads, deriv_patterson_map);
+        for (auto& lm : local_maps)
+            for (int i = 0; i < lm.size_1d(); ++i) lm.at_c(i) = 0;
+
+        auto worker = [&](int t) {
+            IntensityMap& local_map = local_maps[t];
             while (true) {
                 int idx = next_active.fetch_add(1);
                 if (idx >= (int)active_indices.size()) break;
@@ -257,7 +269,7 @@ public:
                 while (pair_patterson_map.next()) {
                     complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
                     complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
-                    
+
                     vec3<double> s = pair_patterson_map.current_s();
                     double phase_val = M_2PI * (s * r_res);
                     double adp_val   = M2PISQ * (s * pk.U * s);
@@ -271,21 +283,22 @@ public:
                 }
 
                 pair_patterson_map.invert();
-
-                {
-                    std::lock_guard<std::mutex> lock(map_mutex);
-                    add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map, r_grid, periodic_directions);
-                }
+                add_pair_to_appropriate_place(pair_patterson_map, local_map, r_grid, periodic_directions);
             }
         };
 
         if (n_threads <= 1) {
-            worker();
+            worker(0);
         } else {
             vector<std::thread> workers;
-            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker, t);
             for (auto& w : workers) w.join();
         }
+
+        // Reduction: sum thread-local maps into output.
+        for (int t = 0; t < n_threads; ++t)
+            for (int i = 0; i < deriv_patterson_map.size_1d(); ++i)
+                deriv_patterson_map.at_c(i) += local_maps[t].at_c(i);
     }
 
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)

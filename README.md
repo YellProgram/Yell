@@ -96,6 +96,41 @@ cmake --build cmake-build-debug --target yell -j16   # debug
 cmake --build cmake-build-release --target yell -j16  # release
 ```
 
+### Native optimisation (recommended for production runs)
+
+The default Release build uses `-O3`. For maximum performance on your specific
+machine, pass `-march=native` and related flags at configure time:
+
+```bash
+cmake -B cmake-build-native -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOTAL_STATIC=ON \
+  "-DCMAKE_CXX_FLAGS=-march=native -mtune=native -O3 -ffast-math -funroll-loops"
+cmake --build cmake-build-native --target yell -j$(nproc)
+```
+
+**What each flag does:**
+
+| Flag | Effect |
+|---|---|
+| `-march=native` | Enable all instruction sets available on this CPU (AVX2, AVX-512, etc.) |
+| `-mtune=native` | Tune instruction scheduling for this CPU's pipeline |
+| `-O3` | Full optimisation (also set by `Release` build type, but explicit here) |
+| `-ffast-math` | Allow FP reassociation and approximate math — measurable speedup on inner loops; slight IEEE-754 trade-off |
+| `-funroll-loops` | Unroll inner loops for reduced branch overhead |
+
+> **Warning:** The resulting binary is CPU-specific. A binary built with
+> `-march=native` on an AMD EPYC 7763 will crash with `Illegal instruction`
+> on a machine that lacks AVX-512. Always build on the machine you intend to run on.
+
+To use Clang instead of the system GCC, add `-DCMAKE_CXX_COMPILER=clang++`
+(and `-DCMAKE_C_COMPILER=clang`):
+
+```bash
+cmake -B cmake-build-native -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOTAL_STATIC=ON \
+  -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang \
+  "-DCMAKE_CXX_FLAGS=-march=native -mtune=native -O3 -ffast-math -funroll-loops"
+cmake --build cmake-build-native --target yell -j$(nproc)
+```
+
 ### If something goes wrong
 
 To force a re-download of HDF5/bitshuffle without wiping the whole build directory:
