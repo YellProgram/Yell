@@ -129,13 +129,13 @@ public:
 
         // Two-phase: compute all pair maps in parallel (no shared state), then
         // accumulate into the output serially (no mutex needed).
-        struct PairResult {
-            vec3<int>    r_grid{0, 0, 0};
-            IntensityMap map;
-            PairResult() = default;
-        };
-        vector<PairResult> results(n_peaks);
-        for (auto& r : results) r.map = IntensityMap(pair_grid_size);
+        // Use emplace_back to construct IntensityMaps in-place (avoids copy-assignment
+        // of af::versa which has shallow/reference-counted semantics).
+        vector<IntensityMap> pair_maps;
+        pair_maps.reserve(n_peaks);
+        for (int k = 0; k < n_peaks; ++k)
+            pair_maps.emplace_back(pair_grid_size);
+        vector<vec3<int>> r_grids(n_peaks);
 
         std::atomic<int> next_peak(0);
 
@@ -152,7 +152,7 @@ public:
                 const PattersonPeak& apk = avg_peaks[k];
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
 
-                IntensityMap& ppm = results[k].map;
+                IntensityMap& ppm = pair_maps[k];
                 ppm.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
@@ -161,7 +161,7 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                results[k].r_grid = r_grid;
+                r_grids[k] = r_grid;
 
                 ppm.init_iterator();
                 while (ppm.next()) {
@@ -193,8 +193,8 @@ public:
 
         // Serial accumulation: peaks with different r_grid write to disjoint regions;
         // peaks with the same r_grid are summed correctly in sequence.
-        for (auto& res : results)
-            add_pair_to_appropriate_place(res.map, patterson_map, res.r_grid, periodic_directions);
+        for (int k = 0; k < n_peaks; ++k)
+            add_pair_to_appropriate_place(pair_maps[k], patterson_map, r_grids[k], periodic_directions);
     }
 
     /// FFT-path analytical derivative map calculation for a single parameter.
@@ -241,13 +241,13 @@ public:
 
         // Two-phase: compute all pair maps in parallel (no shared state), then
         // accumulate into the output serially (no mutex needed).
-        struct PairResult {
-            vec3<int>    r_grid{0, 0, 0};
-            IntensityMap map;
-            PairResult() = default;
-        };
-        vector<PairResult> results(n_active);
-        for (auto& r : results) r.map = IntensityMap(pair_grid_size);
+        // Use emplace_back to construct IntensityMaps in-place (avoids copy-assignment
+        // of af::versa which has shallow/reference-counted semantics).
+        vector<IntensityMap> pair_maps;
+        pair_maps.reserve(n_active);
+        for (int i = 0; i < n_active; ++i)
+            pair_maps.emplace_back(pair_grid_size);
+        vector<vec3<int>> r_grids(n_active);
 
         std::atomic<int> next_active(0);
 
@@ -266,7 +266,7 @@ public:
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
                 const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
 
-                IntensityMap& ppm = results[idx].map;
+                IntensityMap& ppm = pair_maps[idx];
                 ppm.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
@@ -275,7 +275,7 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                results[idx].r_grid = r_grid;
+                r_grids[idx] = r_grid;
 
                 ppm.init_iterator();
                 while (ppm.next()) {
@@ -308,8 +308,8 @@ public:
 
         // Serial accumulation: peaks with different r_grid write to disjoint regions;
         // peaks with the same r_grid are summed correctly in sequence.
-        for (auto& res : results)
-            add_pair_to_appropriate_place(res.map, deriv_patterson_map, res.r_grid, periodic_directions);
+        for (int i = 0; i < n_active; ++i)
+            add_pair_to_appropriate_place(pair_maps[i], deriv_patterson_map, r_grids[i], periodic_directions);
     }
 
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)
