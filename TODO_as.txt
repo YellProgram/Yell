@@ -1,0 +1,2 @@
+
+accum_mutex - when pairs are accumulated, they have their own accumulators, might be slow. Can do instead many processes calculate pairs, one distributes.
