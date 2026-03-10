@@ -9,7 +9,6 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CCTBX_PATH lib/cctbx_stubs CACHE PATH "Path to cctbx c++ files")
 set(CXXTEST_PATH lib/cxxtest CACHE PATH "Path to cxxtestt")
-set(LEVMAR_PATH lib/levmar CACHE PATH "Path to levmar library")
 set(LAPACK_PATH lib/lapack/lapack-build CACHE PATH "Path to lapack and blas")
 
 set(CERES_PATH ../../libs/ceres-solver)
@@ -125,11 +124,10 @@ IF(MINGW) #Windows on github actions
 ENDIF(MINGW)
 
 include_directories( ${CCTBX_PATH}
-        ${LEVMAR_PATH}/levmar-2.6
         ${BOOST_INCLUDEDIR}
         ${CXXTEST_PATH}
 )
-link_directories(${LEVMAR_PATH}/lib ${LEVMAR_PATH}/levmar-build ${LAPACK_PATH}/lib)
+link_directories(${LAPACK_PATH}/lib)
 
 #DUMP all include libs
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
@@ -197,7 +195,7 @@ add_dependencies(yell-minimizer eigen ceres-solver) #
 #ADD_DEPENDENCIES(yell yell-lib cctbx) # ${ZLIB_LIBRARY} ${LAPACK_LIBRARIES})
 
 target_link_libraries(yell PUBLIC
-        yell-lib yell-minimizer levmar cctbx ${CERES_LIB} glog gflags ${LAPACK_LIBRARIES})
+        yell-lib yell-minimizer cctbx ${CERES_LIB} glog gflags ${LAPACK_LIBRARIES})
 
 add_definitions(-DPATH_TO_YELL_SRC="${CMAKE_SOURCE_DIR}/src")
 
@@ -209,7 +207,7 @@ if(CXXTEST_FOUND)
     enable_testing()
     CXXTEST_ADD_TEST(test-yell test_runner.cpp
         ${CMAKE_SOURCE_DIR}/src/test_diffuser.h)
-    target_link_libraries(test-yell yell-lib levmar cctbx ${LAPACK_LIBRARIES})
+    target_link_libraries(test-yell yell-lib cctbx ${LAPACK_LIBRARIES})
     target_include_directories(test-yell PUBLIC ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
     add_dependencies(test-yell eigen)
 endif()
@@ -225,7 +223,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(test-yell-gtest ${CMAKE_SOURCE_DIR}/src/test_expr_gtest.cpp)
 target_link_libraries(test-yell-gtest
-    yell-lib levmar cctbx ${LAPACK_LIBRARIES}
+    yell-lib cctbx ${LAPACK_LIBRARIES}
     GTest::gtest_main)
 target_include_directories(test-yell-gtest PUBLIC
     ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)

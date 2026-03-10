@@ -32,7 +32,6 @@
 #include "ChemicalStructure.h"
 #include "AtomicPairs.h"
 #include "Calculator.h"
-#include "Minimizer.h"
 #include "SymmetryElement.h"
 #include "CeresMinimizer.h"
 

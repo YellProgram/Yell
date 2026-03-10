@@ -1660,16 +1660,7 @@ public:
             diffuse_map.at(i) = a_model.data().at(i);
 
 
-        // run minimizer and compare results
-        Minimizer a_minimizer;
-        //vector<double> initial_params(1,0);
-        vector<double> refined_params(2,0);
-
-        OptionalIntensityMap weights;
-        refined_params = a_minimizer.minimize(a_model.refinement_parameters, &diffuse_map, &a_model, &weights);
-
-        TS_ASSERT_DELTA(1.0,refined_params[0],0.01);
-        TS_ASSERT_DELTA(0.25,refined_params[1],0.01);
+        // Minimizer (levmar) removed; this test is superseded by CeresMinimizer integration tests.
     }
 
     void test_laue_symmetry_is_compatible_with_lattice() {

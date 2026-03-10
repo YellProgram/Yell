@@ -29,8 +29,6 @@ private:
     mutable std::vector<double> last_eval_params_;
 
 
-    //void func_for_levmar(double *p, double *x, int parameters_number, int datapoints_number, void *data)
-    //dlevmar_dif(func_for_levmar, p, x, initial_params.size(),experimental_data->size_1d(), refinement_options.max_number_of_iterations, opts, info, NULL, covar, this);
 };
 
 
