@@ -228,3 +228,50 @@ See task list for full detail. High-level sequence:
 9. Reimplement intensity calculation over list of `PattersonPeak`
 10. Derivatives through FFT path; test atom scatterer power derivatives
 11. Full refinement loop with analytical derivatives
+
+---
+
+## Known Thread-Safety Issues (parallel Jacobian, `Derivatives analytical`)
+
+All issues below surface when `Derivatives analytical` + `MaxProcessors > 1`:
+`AnalyticalYellCostFunction::Evaluate` spawns N clone threads, each calling
+`clone->calculate_derivative(p, j, 1)`.
+
+### ★ CONFIRMED RACE: `ParameterizedAtomData::atom_ptr`
+- `Model::clone()` copy-constructs `parameterized_atoms_`, duplicating `Atom*`
+  pointers without remapping them to the clone's own (deep-copied) Atom objects.
+- All N clone threads call `pad.update(q)` simultaneously → concurrent writes to
+  the same `Atom::r`, `Atom::U`, `Atom::U_expr`.
+- **Dormant** in tricarboxamide (no parameterized atoms). Fatal for any model that
+  uses `ParameterizedAtom` syntax with parallelism.
+- Fix: remap `atom_ptr` in `Model::clone()` to the cloned atom tree.
+  See detailed comment in `src/ParameterizedAtom.h`.
+
+### ★ SUSPECTED RACE: unidentified root cause in tricarboxamide parallel run
+- `work_refine_add2022_tricarboxamide_parallel_blocked` crashes on disorder-s02
+  (Linux, 48 cores, Ubuntu 24.10) with `MaxProcessors 16`, Heisenbug (disappears
+  under gdb), reproducible at ~33 s. Sequential run (MaxProcessors 1) is correct.
+- Heap corruption-style crash after the per-r_grid mutex → global `accum_mutex`
+  fix in `src/Calculator.h`.
+- Investigation ruled out: ExprPtr eval (immutable nodes, per-call caches),
+  ScattererList (per-clone copy), MolecularScatterer::form_factor_at_c (stateless),
+  LaueSymmetry::apply_patterson_symmetry (value semantics), pool deep-copy path.
+- Remaining suspects (not yet confirmed):
+  1. **`SubstitutionalCorrelation::chemical_units[0/1]`**: clone-side modifiers hold
+     raw pointers to the ORIGINAL model's `ChemicalUnit*`. Concurrent `get_atoms()`
+     calls from 16 threads are read-only but touch shared refcount objects (ExprPtr
+     in Atom::U_expr). Unlikely to cause corruption on its own.
+  2. **`Model::clone()` shallow-copies `intensity_map` / `average_intensity_map`**:
+     comment says "deep copy" but `IntensityMap::operator=` is compiler-generated
+     and calls `af::versa::operator=` (shallow/aliased). All clones share one buffer.
+     Harmless as long as `calculate_derivative` never writes to `intensity_map` —
+     currently true, but fragile.
+  3. **`OutputHandler report` global**: `first_run_flag`, `last_run_flag` are plain
+     `bool` read/written from multiple threads without synchronisation. Technically
+     UB (data race), though unlikely to cause heap corruption.
+  4. **`Scatterer::current_form_factor` / `gridded_form_factors`**: legacy mutable
+     fields on global `AtomicTypeCollection` objects. Not written by the direct-calc
+     path (tricarboxamide uses `CalculationMethod approximate`) but present and
+     un-guarded. Would race if old `calculate_scattering_from_pairs` path were active.
+  5. **glog / ceres internal state**: logging from 16 threads; Ceres `num_threads`
+     might interact with clone threads in unexpected ways.
