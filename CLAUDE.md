@@ -237,15 +237,15 @@ All issues below surface when `Derivatives analytical` + `MaxProcessors > 1`:
 `AnalyticalYellCostFunction::Evaluate` spawns N clone threads, each calling
 `clone->calculate_derivative(p, j, 1)`.
 
-### ★ CONFIRMED RACE: `ParameterizedAtomData::atom_ptr`
-- `Model::clone()` copy-constructs `parameterized_atoms_`, duplicating `Atom*`
-  pointers without remapping them to the clone's own (deep-copied) Atom objects.
-- All N clone threads call `pad.update(q)` simultaneously → concurrent writes to
-  the same `Atom::r`, `Atom::U`, `Atom::U_expr`.
-- **Dormant** in tricarboxamide (no parameterized atoms). Fatal for any model that
-  uses `ParameterizedAtom` syntax with parallelism.
-- Fix: remap `atom_ptr` in `Model::clone()` to the cloned atom tree.
-  See detailed comment in `src/ParameterizedAtom.h`.
+### ✓ FIXED: `ParameterizedAtomData::atom_ptr`
+- `Model::clone()` previously copy-constructed `parameterized_atoms_`, leaving
+  `atom_ptr` pointing into the original model's atom tree.  All N threads called
+  `pad.update(q)` → concurrent writes to the same `Atom::r/U/U_expr`.
+- **Fix** (model.h `clone()`): snapshots original `Atom*` list, deep-copies via
+  `new Model(*this)`, then builds `unordered_map<Atom*, Atom*>` from the p_vector
+  traversal and remaps every `pad.atom_ptr` to the clone's own tree.  O(n) in
+  number of atoms, guarded by `!parameterized_atoms_.empty()` so zero cost when
+  no parameterized atoms are present (tricarboxamide, most existing models).
 
 ### ★ SUSPECTED RACE: unidentified root cause in tricarboxamide parallel run
 - `work_refine_add2022_tricarboxamide_parallel_blocked` crashes on disorder-s02

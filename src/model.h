@@ -27,6 +27,7 @@
 #include "ExprFormulaParser.h"
 #include <set>
 #include <sstream>
+#include <unordered_map>
 #include "ParameterizedAtom.h"
 #include <boost/fusion/tuple.hpp>
 
@@ -44,6 +45,19 @@ class Model : public MinimizerCalculator {
 private:
   static double sq(double x) {
     return x*x;
+  }
+
+  // Flatten all Atom* from a UnitCell in a consistent traversal order.
+  // Used by clone() to build the original→clone atom remap.
+  static std::vector<Atom*> collect_atoms_(UnitCell& cell) {
+    std::vector<Atom*> result;
+    for (int i = 0; i < cell.chemical_unit_nodes.size(); ++i) {
+      ChemicalUnitNode& node = cell.chemical_unit_nodes[i];
+      for (int j = 0; j < node.chemical_units.size(); ++j)
+        for (Atom* a : node.chemical_units[j].get_atoms())
+          result.push_back(a);
+    }
+    return result;
   }
 public:
   static void register_molecular_scatterers(vector<boost::tuple<string,Scatterer*> > scatterers) {
@@ -546,16 +560,41 @@ public:
   vector<ScattererList> thread_scatterer_lists_;
 
   Model* clone() const {
+      // Snapshot atom pointers from the original BEFORE copy-constructing, so we
+      // can build the remap after p_vector has deep-copied the atom tree.
+      auto orig_atoms = collect_atoms_(const_cast<UnitCell&>(cell));
+
       Model* m = new Model(*this);
-      // Deep copy intensity maps to avoid buffer races
+      // NOTE: Model(*this) already deep-copies intensity_map / average_intensity_map
+      // via IntensityMap's explicit copy constructor.  The assignments below use the
+      // compiler-generated IntensityMap::operator= which calls af::versa::operator=
+      // (shallow/aliased) — they intentionally re-alias the buffers so clones always
+      // start from the same base map.  calculate_derivative() never writes to these
+      // maps, so the alias is safe.
       m->intensity_map = intensity_map;
       m->average_intensity_map = average_intensity_map;
-      
-      // Deep copy pools
+
+      // Deep copy pools (modifiers clone themselves; pairs vector is value-copied).
       m->pools.clear();
-      for (size_t i = 0; i < pools.size(); ++i) {
+      for (size_t i = 0; i < pools.size(); ++i)
           m->pools.push_back(new AtomicPairPool(*pools[i]));
+
+      // Fix the ParameterizedAtomData::atom_ptr race:
+      // Model(*this) deep-copies cell.chemical_unit_nodes (all Atom objects are new),
+      // but parameterized_atoms_[i].atom_ptr is copy-constructed as a raw pointer and
+      // still points into THIS model's atom tree.  Remap each pointer to its
+      // counterpart in the clone's tree so each clone thread writes to its own Atom.
+      if (!m->parameterized_atoms_.empty()) {
+          auto clone_atoms = collect_atoms_(m->cell);
+          std::unordered_map<Atom*, Atom*> remap;
+          remap.reserve(orig_atoms.size());
+          for (size_t i = 0; i < orig_atoms.size(); ++i)
+              remap[orig_atoms[i]] = clone_atoms[i];
+          for (auto& pad : m->parameterized_atoms_)
+              if (auto it = remap.find(pad.atom_ptr); it != remap.end())
+                  pad.atom_ptr = it->second;
       }
+
       return m;
   }
   

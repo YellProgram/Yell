@@ -32,29 +32,15 @@ struct ParameterizedAtomData
     // p must be the current refinement parameter vector (same indexing as
     // when initialize_refinable_variables was called).
     //
-    // TODO: RACE CONDITION SUSPECT — PARALLEL JACOBIAN SAFETY
+    // NOTE: atom_ptr race condition — FIXED in Model::clone() (see model.h).
     //
-    // Model::clone() copy-constructs parameterized_atoms_, which copies the
-    // Atom* pointers by value.  All 16 Model clones therefore share the SAME
-    // underlying Atom objects.  When CeresMinimizer spawns 16 threads that each
-    // call clone->calculate_derivative() → pad.update(), every thread writes
-    // through *atom_ptr to the same heap-allocated Atom struct simultaneously.
+    // Previously, Model::clone() copy-constructed parameterized_atoms_ but left
+    // atom_ptr pointing into the original model's atom tree, so all N parallel
+    // Jacobian threads wrote through the same Atom objects simultaneously.
     //
-    // Affected fields written per call: multiplier, r[0..2], U[0..5], U_expr[0..5].
-    //
-    // This data race is currently benign only because the tricarboxamide test
-    // model does NOT use parameterized atoms.  Any model that combines
-    //   • ParameterizedAtom (e.g. "Atom C1 x+dp1 ...")
-    //   • MaxProcessors > 1
-    //   • Derivatives analytical
-    // will produce silent corruption or a crash.
-    //
-    // Fix: give each Model clone its own Atom copies instead of sharing pointers.
-    // The fix should happen in Model::clone(): deep-copy the atom tree
-    // (cell.chemical_unit_nodes already deep-copies Atom objects via p_vector,
-    // but parameterized_atoms_[i].atom_ptr still points into the ORIGINAL tree).
-    // After cloning, remap each atom_ptr to the corresponding Atom in the clone's
-    // cell.chemical_unit_nodes by matching atom label or pointer identity.
+    // The fix in Model::clone() builds a map (original Atom* → clone Atom*) from
+    // the p_vector deep-copy of cell.chemical_unit_nodes and remaps every atom_ptr
+    // before returning the clone.  Each clone thread now writes to its own Atom.
     void update(const Eigen::VectorXd& p, yell::EvaluationCache* cache = nullptr) const
     {
         atom_ptr->multiplier = param_exprs[0]->eval(p, cache);
