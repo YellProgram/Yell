@@ -65,36 +65,45 @@ public:
             if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
             if (n_threads <= 0) n_threads = 1;
 
+            // Build a flat work list across ALL blocks so n_threads stay busy
+            // regardless of how many parameters are in each block.
+            struct WorkItem { int b; int j; int global_idx; };
+            vector<WorkItem> work;
+            {
+                int global_offset = 1;
+                for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
+                    int block_sz = parameter_block_sizes()[b];
+                    if (jacobians[b]) {
+                        for (int j = 0; j < block_sz; ++j)
+                            work.push_back({(int)b, j, global_offset + j});
+                    }
+                    global_offset += block_sz;
+                }
+            }
+            const int total_work = (int)work.size();
+
             vector<Model*> thread_models(n_threads);
             for (size_t t = 0; t < n_threads; ++t) thread_models[t] = model_->clone();
 
-            int global_offset = 1;
-            for (size_t b = 0; b < parameter_block_sizes().size(); ++b) {
-                int block_sz = parameter_block_sizes()[b];
-                if (jacobians[b]) {
-                    std::atomic<int> next_j(0);
-                    vector<std::thread> workers;
-                    for (size_t t = 0; t < n_threads; ++t) {
-                        workers.emplace_back([&, t, p]() {
-                            Model* m = thread_models[t];
-                            while (true) {
-                                int j = next_j.fetch_add(1);
-                                if (j >= block_sz) break;
-
-                                // Each thread calculates one derivative serially (num_threads=1)
-                                IntensityMap dI_map = m->calculate_derivative(p, global_offset + j, 1);
-                                for (int ii = 0; ii < n_obs; ++ii) {
-                                    int i = use_asu ? asu[ii] : ii;
-                                    jacobians[b][ii * block_sz + j] = -dI_map.at(i) * weights_->at(i);
-                                }
-                            }
-                        });
+            std::atomic<int> next_wi(0);
+            vector<std::thread> workers;
+            for (size_t t = 0; t < n_threads; ++t) {
+                workers.emplace_back([&, t, p]() {
+                    Model* m = thread_models[t];
+                    while (true) {
+                        int wi = next_wi.fetch_add(1);
+                        if (wi >= total_work) break;
+                        const WorkItem& w = work[wi];
+                        int block_sz = parameter_block_sizes()[w.b];
+                        IntensityMap dI_map = m->calculate_derivative(p, w.global_idx, 1);
+                        for (int ii = 0; ii < n_obs; ++ii) {
+                            int i = use_asu ? asu[ii] : ii;
+                            jacobians[w.b][ii * block_sz + w.j] = -dI_map.at(i) * weights_->at(i);
+                        }
                     }
-                    for (auto& w : workers) w.join();
-                }
-                global_offset += block_sz;
+                });
             }
-
+            for (auto& w : workers) w.join();
             for (auto* m : thread_models) delete m;
         }
 
