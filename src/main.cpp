@@ -263,13 +263,64 @@ int main (int argc, char * const argv[]) {
         throw(TerminateProgram());
       }
 
-      CeresMinimizer a_minimizer;
       vector<double> refined_params;
+      vector<double> covar;
       a_model.init_asu();
-      refined_params = a_minimizer.minimize(a_model.refinement_parameters, experimental_diffuse_map.get_intensity_map(),
-                                            &a_model, &a_model.weights, a_model.refinement_options);
 
-      vector<double> esd = esd_from_covar(a_minimizer.covar, refined_params);
+      int n_supercycles = a_model.refinement_options.num_supercycles;
+      int n_blocks      = (int)a_model.parameter_blocks.size();
+
+      if (n_supercycles > 0 && n_blocks > 1) {
+        // Sequential coordinate descent: refine one block at a time, cycling.
+        set<int> original_active = a_model.active_blocks;
+
+        // Determine which 1-based block indices participate in the cycle.
+        vector<int> cycle_blocks;
+        for (int b = 1; b <= n_blocks; ++b)
+          if (original_active.empty() || original_active.count(b))
+            cycle_blocks.push_back(b);
+
+        REPORT(MAIN) << "Sequential refinement: " << n_supercycles << " supercycle(s), "
+                     << cycle_blocks.size() << " block(s) per supercycle.\n";
+
+        vector<double> current_params = a_model.refinement_parameters;
+        for (int sc = 0; sc < n_supercycles; ++sc) {
+          REPORT(MAIN) << "\n=== Supercycle " << (sc + 1) << " / " << n_supercycles << " ===\n";
+          for (int b : cycle_blocks) {
+            REPORT(MAIN) << "--- Block " << b << " ---\n";
+            a_model.active_blocks = { b };
+            a_model.refinement_options.trajectory_filename =
+                "refinement_trajectory_sc" + std::to_string(sc + 1)
+                + "_b" + std::to_string(b) + ".json";
+
+            CeresMinimizer block_minimizer;
+            current_params = block_minimizer.minimize(
+                current_params,
+                experimental_diffuse_map.get_intensity_map(),
+                &a_model, &a_model.weights, a_model.refinement_options);
+          }
+        }
+
+        // Restore original active set and compute final covariance over all active params.
+        a_model.active_blocks = original_active;
+        refined_params = current_params;
+
+        REPORT(MAIN) << "Computing covariance matrix...\n";
+        Eigen::MatrixXd cov_mat = a_model.compute_full_covariance(
+            refined_params, *experimental_diffuse_map.get_intensity_map(), a_model.weights);
+        covar = vector<double>(cov_mat.data(), cov_mat.data() + cov_mat.size());
+        REPORT(MAIN) << "Done.\n";
+
+      } else {
+        // Original single-shot refinement.
+        CeresMinimizer a_minimizer;
+        refined_params = a_minimizer.minimize(a_model.refinement_parameters,
+                                              experimental_diffuse_map.get_intensity_map(),
+                                              &a_model, &a_model.weights, a_model.refinement_options);
+        covar = a_minimizer.covar;
+      }
+
+      vector<double> esd = esd_from_covar(covar, refined_params);
 
       // Pre-compute flat index of the first parameter in each block
       vector<int> block_starts;
@@ -325,9 +376,9 @@ int main (int argc, char * const argv[]) {
       a_model.refinement_parameters = refined_params;
 
       if (a_model.print_covariance_matrix)
-        print_covariance(a_minimizer.covar, refined_params);
+        print_covariance(covar, refined_params);
 
-      print_correlations(a_minimizer.covar, refined_params, a_model.refined_variable_names);
+      print_correlations(covar, refined_params, a_model.refined_variable_names);
     }
     else {
       report.last_run();

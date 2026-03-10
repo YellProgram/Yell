@@ -72,6 +72,12 @@ struct RefinementOptions {
     // so it handles dangling (zero-column) parameters gracefully.
     bool   use_dense_qr;         // true → DENSE_QR (default), false → DENSE_NORMAL_CHOLESKY
     bool   scale_before_refine;  // true → analytically optimise Scale before first Ceres step
+    // Sequential block refinement: cycle through each block separately, running Ceres
+    // once per block per supercycle.  0 = off (all active blocks refined together, old behaviour).
+    int    num_supercycles;
+    // Filename for the iteration-by-iteration trajectory JSON.
+    // In supercycle mode this is overridden per block call; set explicitly to control it.
+    std::string trajectory_filename;
 
     static RefinementOptions default_refinement_options() {
         RefinementOptions result;
@@ -84,6 +90,8 @@ struct RefinementOptions {
         result.gradient_tolerance  = 1E-10;
         result.use_dense_qr        = true;
         result.scale_before_refine = true;
+        result.num_supercycles     = 0;
+        result.trajectory_filename = "refinement_trajectory.json";
         return result;
     }
 };

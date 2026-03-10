@@ -116,6 +116,7 @@ public:
   void set_gradient_tolerance(double inp) { refinement_options.gradient_tolerance = inp; }
   void set_use_dense_qr(bool use_qr) { refinement_options.use_dense_qr = use_qr; }
   void set_scale_before_refine(bool inp) { refinement_options.scale_before_refine = inp; }
+  void set_num_supercycles(int inp)      { refinement_options.num_supercycles = inp; }
 
   double R_factor(IntensityMap& exp, R_FACTORS r,WEIGHTED_OPTIONS weighted)
   {

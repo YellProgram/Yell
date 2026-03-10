@@ -275,7 +275,7 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     last_eval_params_.resize(parameters_number);
     options.update_state_every_iteration = true;
     
-    JsonIterationLogger logger(model, p_pointers, block_sizes, "refinement_trajectory.json");
+    JsonIterationLogger logger(model, p_pointers, block_sizes, refinement_options.trajectory_filename);
     options.callbacks.push_back(&logger);
     
     ceres::Solver::Summary summary;
