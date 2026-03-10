@@ -29,6 +29,8 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <map>
+#include <tuple>
 
 using namespace std;
 using namespace scitbx;
@@ -127,21 +129,32 @@ public:
 
         scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
 
-        // Two-phase: compute all pair maps in parallel (no shared state), then
-        // accumulate into the output serially (no mutex needed).
-        // Use emplace_back to construct IntensityMaps in-place (avoids copy-assignment
-        // of af::versa which has shallow/reference-counted semantics).
-        vector<IntensityMap> pair_maps;
-        pair_maps.reserve(n_peaks);
-        for (int k = 0; k < n_peaks; ++k)
-            pair_maps.emplace_back(pair_grid_size);
-        vector<vec3<int>> r_grids(n_peaks);
-
-        std::atomic<int> next_peak(0);
-
         int n_threads = num_threads;
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
+
+        // Pre-compute r_grid for each peak and assign a per-r_grid mutex index.
+        // Peaks sharing the same r_grid write to the same output region and must
+        // be serialised against each other; peaks at different r_grids are
+        // independent and can run fully in parallel.
+        vector<vec3<int>> r_grids_all(n_peaks);
+        for (int k = 0; k < n_peaks; ++k) {
+            vec3<double> dummy;
+            grid_and_residual(avg_peaks[k].r, patterson_map.grid, r_grids_all[k], dummy);
+        }
+        map<tuple<int,int,int>, int> r_grid_to_mutex_idx;
+        for (auto& rg : r_grids_all) {
+            auto key = make_tuple(rg[0], rg[1], rg[2]);
+            r_grid_to_mutex_idx.try_emplace(key, (int)r_grid_to_mutex_idx.size());
+        }
+        vector<std::mutex> r_mutexes(r_grid_to_mutex_idx.size());
+        vector<int> peak_mutex_idx(n_peaks);
+        for (int k = 0; k < n_peaks; ++k) {
+            auto key = make_tuple(r_grids_all[k][0], r_grids_all[k][1], r_grids_all[k][2]);
+            peak_mutex_idx[k] = r_grid_to_mutex_idx.at(key);
+        }
+
+        std::atomic<int> next_peak(0);
 
         auto worker = [&]() {
             while (true) {
@@ -152,8 +165,8 @@ public:
                 const PattersonPeak& apk = avg_peaks[k];
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
 
-                IntensityMap& ppm = pair_maps[k];
-                ppm.set_grid(grid_for_pairs_r);
+                IntensityMap pair_patterson_map(pair_grid_size);
+                pair_patterson_map.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
                 vec3<double> r_res;
@@ -161,25 +174,29 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                r_grids[k] = r_grid;
-
-                ppm.init_iterator();
-                while (ppm.next()) {
+                pair_patterson_map.init_iterator();
+                while (pair_patterson_map.next()) {
                     complex<double> f1 = scatterers.f_gridded(fpk.type1_idx,
-                                                              ppm.current_index());
+                                                              pair_patterson_map.current_index());
                     complex<double> f2 = scatterers.f_gridded(fpk.type2_idx,
-                                                              ppm.current_index());
-                    ppm.current_array_value_c() =
+                                                              pair_patterson_map.current_index());
+                    pair_patterson_map.current_array_value_c() =
                         scale * calculate_scattering_from_a_pair_in_a_point_c(
                             f1, f2,
                             pk.coefficient,
                             1.0,
-                            ppm.current_s(),
+                            pair_patterson_map.current_s(),
                             r_res,
                             pk.U);
                 }
 
-                ppm.invert();
+                pair_patterson_map.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(r_mutexes[peak_mutex_idx[k]]);
+                    add_pair_to_appropriate_place(pair_patterson_map, patterson_map,
+                                                  r_grids_all[k], periodic_directions);
+                }
             }
         };
 
@@ -190,11 +207,6 @@ public:
             for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
             for (auto& w : workers) w.join();
         }
-
-        // Serial accumulation: peaks with different r_grid write to disjoint regions;
-        // peaks with the same r_grid are summed correctly in sequence.
-        for (int k = 0; k < n_peaks; ++k)
-            add_pair_to_appropriate_place(pair_maps[k], patterson_map, r_grids[k], periodic_directions);
     }
 
     /// FFT-path analytical derivative map calculation for a single parameter.
@@ -239,21 +251,31 @@ public:
 
         const int n_active = (int)active_indices.size();
 
-        // Two-phase: compute all pair maps in parallel (no shared state), then
-        // accumulate into the output serially (no mutex needed).
-        // Use emplace_back to construct IntensityMaps in-place (avoids copy-assignment
-        // of af::versa which has shallow/reference-counted semantics).
-        vector<IntensityMap> pair_maps;
-        pair_maps.reserve(n_active);
-        for (int i = 0; i < n_active; ++i)
-            pair_maps.emplace_back(pair_grid_size);
-        vector<vec3<int>> r_grids(n_active);
-
-        std::atomic<int> next_active(0);
-
         int n_threads = num_threads;
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
+
+        // Pre-compute r_grid for each active peak and assign per-r_grid mutex indices.
+        vector<vec3<int>> r_grids_all(n_active);
+        for (int idx = 0; idx < n_active; ++idx) {
+            int k = active_indices[idx];
+            vec3<double> dummy;
+            grid_and_residual(base_avg_peaks[k].r, deriv_patterson_map.grid,
+                              r_grids_all[idx], dummy);
+        }
+        map<tuple<int,int,int>, int> r_grid_to_mutex_idx;
+        for (auto& rg : r_grids_all) {
+            auto key = make_tuple(rg[0], rg[1], rg[2]);
+            r_grid_to_mutex_idx.try_emplace(key, (int)r_grid_to_mutex_idx.size());
+        }
+        vector<std::mutex> r_mutexes(r_grid_to_mutex_idx.size());
+        vector<int> active_mutex_idx(n_active);
+        for (int idx = 0; idx < n_active; ++idx) {
+            auto key = make_tuple(r_grids_all[idx][0], r_grids_all[idx][1], r_grids_all[idx][2]);
+            active_mutex_idx[idx] = r_grid_to_mutex_idx.at(key);
+        }
+
+        std::atomic<int> next_active(0);
 
         auto worker = [&]() {
             while (true) {
@@ -266,8 +288,8 @@ public:
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
                 const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
 
-                IntensityMap& ppm = pair_maps[idx];
-                ppm.set_grid(grid_for_pairs_r);
+                IntensityMap pair_patterson_map(pair_grid_size);
+                pair_patterson_map.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
                 vec3<double> r_res;
@@ -275,14 +297,12 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                r_grids[idx] = r_grid;
+                pair_patterson_map.init_iterator();
+                while (pair_patterson_map.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
 
-                ppm.init_iterator();
-                while (ppm.next()) {
-                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, ppm.current_index());
-                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, ppm.current_index());
-
-                    vec3<double> s = ppm.current_s();
+                    vec3<double> s = pair_patterson_map.current_s();
                     double phase_val = M_2PI * (s * r_res);
                     double adp_val   = M2PISQ * (s * pk.U * s);
                     complex<double> E = exp(complex<double>(adp_val, phase_val));
@@ -291,10 +311,16 @@ public:
                     double d_adp   = M2PISQ * (s * sk.d_U * s);
 
                     complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
-                    ppm.current_array_value_c() = scale * conj(f1) * f2 * d_term;
+                    pair_patterson_map.current_array_value_c() = scale * conj(f1) * f2 * d_term;
                 }
 
-                ppm.invert();
+                pair_patterson_map.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(r_mutexes[active_mutex_idx[idx]]);
+                    add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map,
+                                                  r_grids_all[idx], periodic_directions);
+                }
             }
         };
 
@@ -305,11 +331,6 @@ public:
             for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
             for (auto& w : workers) w.join();
         }
-
-        // Serial accumulation: peaks with different r_grid write to disjoint regions;
-        // peaks with the same r_grid are summed correctly in sequence.
-        for (int i = 0; i < n_active; ++i)
-            add_pair_to_appropriate_place(pair_maps[i], deriv_patterson_map, r_grids[i], periodic_directions);
     }
 
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)
