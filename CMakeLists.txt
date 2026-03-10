@@ -190,6 +190,13 @@ DownloadHDF5For(yell-lib )
 link_directories(${CMAKE_BINARY_DIR}/gflags-install/lib/ ${CMAKE_BINARY_DIR}/glog-install/lib/ ${CMAKE_BINARY_DIR}/ceres-solver/lib)
 
 add_definitions(-DGLOG_USE_GLOG_EXPORT)
+# Disable OpenMP parallelisation inside the cctbx 3D FFT.
+# We provide outer parallelism (one thread per pair peak); the inner OMP team
+# causes O(n_threads * omp_team_size) thread contention and completely
+# serialises the forward/derivative calculation.  basic_classes.h and Grid.h
+# include complex_to_complex_3d.h before IntensityMap.h has a chance to set
+# the macro, so it must be a global compile definition.
+add_definitions(-DSCITBX_FFTPACK_COMPLEX_TO_COMPLEX_3D_NO_PRAGMA_OMP)
 
 add_executable(yell src/main.cpp)
 add_dependencies(ceres-solver extern_gflags glog-lib)
