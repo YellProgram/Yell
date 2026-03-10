@@ -24,6 +24,36 @@ include(ExternalProject)
 include(FetchContent)
 find_package(Threads REQUIRED)
 
+# pocketfft — header-only, single file.  FetchContent downloads the repo and
+# we expose its source dir so #include "pocketfft_hdronly.h" works everywhere.
+# pocketfft — single-header, header-only FFT library.
+# Use the copy in lib/ if present (committed or manually placed), otherwise
+# download just the header from the canonical GitLab source.
+set(POCKETFFT_HEADER_NAME pocketfft_hdronly.h)
+set(POCKETFFT_LOCAL_DIR   ${CMAKE_SOURCE_DIR}/lib)
+set(POCKETFFT_DOWNLOAD_DIR ${CMAKE_BINARY_DIR}/pocketfft-download)
+if(EXISTS "${POCKETFFT_LOCAL_DIR}/${POCKETFFT_HEADER_NAME}")
+    set(POCKETFFT_INCLUDE_DIR ${POCKETFFT_LOCAL_DIR})
+    message(STATUS "pocketfft: using local copy at ${POCKETFFT_INCLUDE_DIR}")
+else()
+    file(MAKE_DIRECTORY ${POCKETFFT_DOWNLOAD_DIR})
+    if(NOT EXISTS "${POCKETFFT_DOWNLOAD_DIR}/${POCKETFFT_HEADER_NAME}")
+        message(STATUS "pocketfft: downloading header...")
+        file(DOWNLOAD
+            "https://gitlab.mpcdf.mpg.de/mtr/pocketfft/-/raw/master/pocketfft_hdronly.h"
+            "${POCKETFFT_DOWNLOAD_DIR}/${POCKETFFT_HEADER_NAME}"
+            STATUS download_status
+            TLS_VERIFY ON)
+        list(GET download_status 0 download_code)
+        if(NOT download_code EQUAL 0)
+            message(FATAL_ERROR "pocketfft download failed: ${download_status}\n"
+                "Place pocketfft_hdronly.h in ${POCKETFFT_LOCAL_DIR} manually.")
+        endif()
+        message(STATUS "pocketfft: downloaded to ${POCKETFFT_DOWNLOAD_DIR}")
+    endif()
+    set(POCKETFFT_INCLUDE_DIR ${POCKETFFT_DOWNLOAD_DIR})
+endif()
+
 ExternalProject_Add(
         eigen
         URL  https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
@@ -129,6 +159,7 @@ ENDIF(MINGW)
 include_directories( ${CCTBX_PATH}
         ${BOOST_INCLUDEDIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${POCKETFFT_INCLUDE_DIR}
         src/
         ${CXXTEST_PATH}
 )
@@ -174,7 +205,7 @@ add_library(yell-lib src/basic_classes.cpp
 
 add_library(yell-minimizer
         src/CeresMinimizer.cpp
-        src/CeresMinimizer.h)
+        src/CeresMinimizer.h )
 set_target_properties(yell-minimizer
         PROPERTIES
         CXX_STANDARD 20
