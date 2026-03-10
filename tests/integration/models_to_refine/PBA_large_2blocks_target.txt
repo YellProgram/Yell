@@ -1,0 +1,103 @@
+Cell 10.617 10.617 10.617 90 90 90
+DiffuseScatteringGrid    -15 -15 -15     1/2 1/2 1/2    60 60 60
+LaueSymmetry m-3m
+CalculationMethod approximate
+Refine true
+MaxNumberOfIterations 10
+RecalculateAverage true
+
+FFTGridSize 32 32 32
+
+MolecularScatterers [
+CoCN_mol = [
+      Co 1       0       0       0            0.01361 0.01361 0.01361  0 0 0
+      C  1       0.1857  0.0000  0.0000       0.0212 0.062  0.062  0 0 0
+      N  1       0.2953  0.0000  0.0000       0.025  0.06   0.06   0 0 0
+      C  1      -0.1857  0.0000  0.0000       0.0212 0.062  0.062  0 0 0
+      N  1      -0.2953  0.0000  0.0000       0.025  0.06   0.06   0 0 0
+      C  1       0.0000  0.1857  0.0000       0.062  0.0212 0.062  0 0 0
+      N  1       0.0000  0.2953  0.0000       0.06   0.025  0.06   0 0 0
+      C  1       0.0000 -0.1857  0.0000       0.062  0.0212 0.062  0 0 0
+      N  1       0.0000 -0.2953  0.0000       0.06   0.025  0.06   0 0 0
+      C  1       0.0000  0.0000  0.1857       0.062  0.062  0.0212 0 0 0
+      N  1       0.0000  0.0000  0.2953       0.06   0.06   0.025  0 0 0
+      C  1       0.0000  0.0000 -0.1857       0.062  0.062  0.0212 0 0 0
+      N  1       0.0000  0.0000 -0.2953       0.06   0.06   0.025  0 0 0
+      ] 
+]
+
+
+Scale 0.0074233(13)
+RefinableVariables
+
+[#Block 0
+d_adp_Mn=0.063973;
+d_adp_Co=0.029665;
+adp_0_xx=0.041611;
+adp_0_MnMn_xx=0.016620;
+
+#Block 1
+adp_1_xx=0.0102;
+adp_1_xy=0.0011;
+adp_1_zz=0.0021;
+dr_1_x=0.0001;
+dp1=0.002;
+
+]
+
+UnitCell
+[
+  Variant[
+    (p=1)
+    Mn = Mn 1       0  0    0            d_adp_Mn
+  ]
+  CoCN_var = Variant[
+    (p=2/3)
+    CoCN = CoCN_mol 1 0 0 0 d_adp_Co
+	
+    (p=1/3)
+    Void
+	]
+
+]
+
+Modes
+[
+CoCN_x = TranslationalMode(CoCN,x)
+CoCN_y = TranslationalMode(CoCN,y)
+CoCN_z = TranslationalMode(CoCN,z)
+Mn_x = TranslationalMode(Mn,x)
+Mn_y = TranslationalMode(Mn,y)
+Mn_z = TranslationalMode(Mn,z)
+]
+
+Correlations
+[
+
+[(0,0,0)
+  Multiplicity 4
+  ADPCorrelation(CoCN_x, CoCN_x, adp_0_xx)
+  ADPCorrelation(CoCN_y, CoCN_y, adp_0_xx)
+  ADPCorrelation(CoCN_z, CoCN_z, adp_0_xx)
+  ADPCorrelation(Mn_x, Mn_x, adp_0_MnMn_xx)
+  ADPCorrelation(Mn_y, Mn_y, adp_0_MnMn_xx)
+  ADPCorrelation(Mn_z, Mn_z, adp_0_MnMn_xx)
+  SubstitutionalCorrelation(CoCN_var, CoCN_var, 0.67)
+]
+
+
+
+
+[(1/2,1/2,0)
+  Multiplicity 48
+  ADPCorrelation(CoCN_x, CoCN_x, adp_1_xx)
+  ADPCorrelation(CoCN_x, CoCN_y, adp_1_xy)
+  ADPCorrelation(CoCN_y, CoCN_x, adp_1_xy)
+  ADPCorrelation(CoCN_y, CoCN_y, adp_1_xx)
+  ADPCorrelation(CoCN_z, CoCN_z, adp_1_zz)
+  SizeEffect(CoCN, CoCN_x, dr_1_x)
+  SizeEffect(CoCN, CoCN_y, dr_1_x)
+  SubstitutionalCorrelation(CoCN_var, CoCN_var, 4/9+dp1)
+]
+
+]

@@ -1,0 +1,289 @@
+# A Fe-Void example input file for Yell
+
+Cell 14.12 14.12 6.93 90 90 120
+LaueSymmetry 6/m
+DiffuseScatteringGrid -12 -12 -6 1/30 1/30 1 720 720 12
+
+CalculationMethod approximate
+Refine true
+MaxNumberOfIterations 2
+FFTGridSize 128 128 12
+
+Scale 0.026036(4)
+RefinableVariables
+[
+dp10=-0.062535(19);
+dp20=0.024663(17);
+dp21=0.023491(17);
+dp30=-0.008656(16);
+dp31=-0.010790(16);
+dp32=-0.013217(16);
+dp40=0.004132(16);
+dp41=0.004132(16);
+dp42=0.007737(16);
+dp43=0.006364(16);
+dp50=-0.002279(16);
+dp51=-0.001828(16);
+dp52=-0.003727(16);
+dp53=-0.004368(16);
+dp54=-0.003203(16);
+dp60=0.001678(16);
+dp61=0.000883(16);
+dp62=0.002011(16);
+dp63=0.002075(16);
+dp64=0.002532(16);
+dp65=0.001562(16);
+dp70=-0.000924(16);
+dp71=-0.000859(16);
+dp72=-0.000675(16);
+dp73=-0.001506(16);
+dp74=-0.001595(16);
+dp75=-0.001491(16);
+dp76=-0.001081(16);
+dp80=0.000802(16);
+dp81=0.000532(16);
+dp82=0.000788(16);
+dp83=0.000460(16);
+dp84=0.001063(16);
+dp85=0.000645(16);
+dp86=0.001222(16);
+dp87=0.000481(16);
+]
+
+
+
+MolecularScatterers [
+  V1ms = [     V1=[
+     tricarboxamide=[
+wing = [
+O  1  0.2709 1.0483-1 0.0111  0.048 0.088 0.090  0.044  0.020 0.032
+N  1  0.1989 0.9039-1 0.218   0.061 0.056 0.092  0.030  0.031 0.038 
+C1 1 -0.0107 0.8970-1 0.1319  0.061 0.051 0.041  0.004  0.010 0.030
+C2 1  0.0924 0.9891-1 0.1328  0.055 0.057 0.040  0.006  0.000 0.034 
+C4 1  0.2907 0.8798-1 0.209   0.055 0.068 0.100  0.021  0.018 0.039 
+C3 1  0.1950 0.9823-1 0.1140  0.046 0.056 0.054  0.000 -0.001 0.022 
+C5 1  0.3938 0.9777-1 0.286   0.080 0.100 0.14   0.019 -0.008 0.049
+C6 1  0.2566 0.7824-1 0.3388  0.111 0.111 0.200  0.094  0.075 0.090 
+C7 1  0.3081 0.8563-1 0.0040  0.109 0.154 0.123 -0.005  0.038 0.093
+
+H0A 1  0.1453 0.8653-1  0.2951 0.079 
+H1A 1 -0.019  0.8252-1  0.121  0.060 
+H5A 1 0.3818 0.9920-1  0.4165 0.156 
+H5B 1 0.4120 1.0407-1  0.2074 0.156 
+H5C 1 0.4530 0.9625-1  0.2828 0.156 
+H6A 1 0.2480 0.8012-1  0.4682 0.188 
+H6B 1 0.3117 0.7614-1  0.3366 0.188 
+H6C 1 0.1883 0.7225-1  0.2943 0.188 
+H7A 1 0.2428 0.7934-1 -0.0426 0.175 
+H7B 1 0.3679 0.8421-1 -0.0005 0.175 
+H7C 1 0.3247 0.9184-1 -0.0756 0.175 
+        ]
+       wing*Symmetry(-y, x-y, z)
+       wing*Symmetry(-x+y, -x, z)]
+
+     tricarboxamide*Symmetry(-x, -y, z+1/2)
+  ]]
+
+V2ms = [V1*Symmetry(x, y, 1/2-z)]
+]
+
+UnitCell
+[
+  Var = Variant[
+    (p=1/2)
+    V1ms  1  0 0 0 0
+
+    (p=1/2)
+    V2ms  1  0 0 0 0    
+  ]
+]
+
+Modes[
+]
+
+Correlations
+[
+ [(0,0,0)
+   Multiplicity 1
+   SubstitutionalCorrelation(Var,Var,1/2)
+  ]
+
+ [(1,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp10)
+  ]
+
+  [(2,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp20)
+  ]
+
+  [(2,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp21)
+  ]
+
+  [(3,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp30)
+  ]
+
+  [(3,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp31)
+  ]
+
+  [(3,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp32)
+  ]
+
+  [(4,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp40)
+  ]
+
+  [(4,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp41)
+  ]
+
+  [(4,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp42)
+  ]
+
+  [(4,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp43)
+  ]
+  [(5,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp50)
+  ]
+
+  [(5,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp51)
+  ]
+
+  [(5,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp52)
+  ]
+
+  [(5,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp53)
+  ]
+
+  [(5,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp54)
+  ]
+
+  [(6,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp60)
+  ]
+
+  [(6,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp61)
+  ]
+
+  [(6,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp62)
+  ]
+
+  [(6,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp63)
+  ]
+
+  [(6,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp64)
+  ]
+
+  [(6,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp65)
+  ]
+
+  [(7,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp70)
+  ]
+
+  [(7,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp71)
+  ]
+
+  [(7,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp72)
+  ]
+
+  [(7,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp73)
+  ]
+
+  [(7,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp74)
+  ]
+
+  [(7,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp75)
+  ]
+
+  [(7,6,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp76)
+  ]
+
+  [(8,0,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp80)
+  ]
+
+  [(8,1,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp81)
+  ]
+
+  [(8,2,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp82)
+  ]
+
+  [(8,3,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp83)
+  ]
+
+  [(8,4,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp84)
+  ]
+
+  [(8,5,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp85)
+  ]
+
+  [(8,6,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp86)
+  ]
+
+  [(8,7,0)
+   Multiplicity 6
+   SubstitutionalCorrelation(Var,Var,1/4+dp87)
+  ]
+]
