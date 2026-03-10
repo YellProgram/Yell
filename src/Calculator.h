@@ -29,8 +29,6 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
-#include <map>
-#include <tuple>
 
 using namespace std;
 using namespace scitbx;
@@ -133,27 +131,6 @@ public:
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
 
-        // Pre-compute r_grid for each peak and assign a per-r_grid mutex index.
-        // Peaks sharing the same r_grid write to the same output region and must
-        // be serialised against each other; peaks at different r_grids are
-        // independent and can run fully in parallel.
-        vector<vec3<int>> r_grids_all(n_peaks);
-        for (int k = 0; k < n_peaks; ++k) {
-            vec3<double> dummy;
-            grid_and_residual(avg_peaks[k].r, patterson_map.grid, r_grids_all[k], dummy);
-        }
-        map<tuple<int,int,int>, int> r_grid_to_mutex_idx;
-        for (auto& rg : r_grids_all) {
-            auto key = make_tuple(rg[0], rg[1], rg[2]);
-            r_grid_to_mutex_idx.try_emplace(key, (int)r_grid_to_mutex_idx.size());
-        }
-        vector<std::mutex> r_mutexes(r_grid_to_mutex_idx.size());
-        vector<int> peak_mutex_idx(n_peaks);
-        for (int k = 0; k < n_peaks; ++k) {
-            auto key = make_tuple(r_grids_all[k][0], r_grids_all[k][1], r_grids_all[k][2]);
-            peak_mutex_idx[k] = r_grid_to_mutex_idx.at(key);
-        }
-
         // Pre-allocate one scratch IntensityMap per thread to avoid per-peak
         // malloc contention (each emplace_back constructs in-place via the
         // IntensityMap(vec3<int>) ctor — safe with af::versa ownership).
@@ -163,6 +140,14 @@ public:
         scratch.reserve(n_threads);
         for (int t = 0; t < n_threads; ++t)
             scratch.emplace_back(pair_grid_size);
+
+        // Single global mutex for accumulation.
+        // add_pair_to_appropriate_place writes a pair_grid_size-wide region
+        // centred at r_grid into the output map.  Nearby peaks (|Δr| < pair_grid_size)
+        // write to overlapping regions, so per-r_grid mutexes are insufficient
+        // and cause heap corruption on dense models.  The fill + FFT work is
+        // done lock-free; only the scatter-add step is serialised.
+        std::mutex accum_mutex;
 
         std::atomic<int> next_peak(0);
 
@@ -203,9 +188,9 @@ public:
                 ppm.invert();
 
                 {
-                    std::lock_guard<std::mutex> lock(r_mutexes[peak_mutex_idx[k]]);
+                    std::lock_guard<std::mutex> lock(accum_mutex);
                     add_pair_to_appropriate_place(ppm, patterson_map,
-                                                  r_grids_all[k], periodic_directions);
+                                                  r_grid, periodic_directions);
                 }
             }
         };
@@ -265,30 +250,12 @@ public:
         if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
         if (n_threads <= 0) n_threads = 1;
 
-        // Pre-compute r_grid for each active peak and assign per-r_grid mutex indices.
-        vector<vec3<int>> r_grids_all(n_active);
-        for (int idx = 0; idx < n_active; ++idx) {
-            int k = active_indices[idx];
-            vec3<double> dummy;
-            grid_and_residual(base_avg_peaks[k].r, deriv_patterson_map.grid,
-                              r_grids_all[idx], dummy);
-        }
-        map<tuple<int,int,int>, int> r_grid_to_mutex_idx;
-        for (auto& rg : r_grids_all) {
-            auto key = make_tuple(rg[0], rg[1], rg[2]);
-            r_grid_to_mutex_idx.try_emplace(key, (int)r_grid_to_mutex_idx.size());
-        }
-        vector<std::mutex> r_mutexes(r_grid_to_mutex_idx.size());
-        vector<int> active_mutex_idx(n_active);
-        for (int idx = 0; idx < n_active; ++idx) {
-            auto key = make_tuple(r_grids_all[idx][0], r_grids_all[idx][1], r_grids_all[idx][2]);
-            active_mutex_idx[idx] = r_grid_to_mutex_idx.at(key);
-        }
-
         vector<IntensityMap> scratch;
         scratch.reserve(n_threads);
         for (int t = 0; t < n_threads; ++t)
             scratch.emplace_back(pair_grid_size);
+
+        std::mutex accum_mutex;
 
         std::atomic<int> next_active(0);
 
@@ -332,9 +299,9 @@ public:
                 ppm.invert();
 
                 {
-                    std::lock_guard<std::mutex> lock(r_mutexes[active_mutex_idx[idx]]);
+                    std::lock_guard<std::mutex> lock(accum_mutex);
                     add_pair_to_appropriate_place(ppm, deriv_patterson_map,
-                                                  r_grids_all[idx], periodic_directions);
+                                                  r_grid, periodic_directions);
                 }
             }
         };
