@@ -7,6 +7,14 @@
 
 #include <scitbx/array_family/versa.h>
 #include <scitbx/array_family/accessors/c_grid.h>
+// Disable the internal OpenMP parallelisation of the cctbx 3D FFT.
+// We provide outer parallelism (one thread per pair peak); letting each thread
+// also spawn an OpenMP team causes O(n_threads * omp_num_threads) threads to
+// contend, completely serialising the forward/derivative calculation.
+// With this defined the FFT runs serially in each worker thread — correct and fast.
+#ifndef SCITBX_FFTPACK_COMPLEX_TO_COMPLEX_3D_NO_PRAGMA_OMP
+#  define SCITBX_FFTPACK_COMPLEX_TO_COMPLEX_3D_NO_PRAGMA_OMP
+#endif
 #include <scitbx/fftpack/complex_to_complex_3d.h>
 #include <complex>
 #include <assert.h>
