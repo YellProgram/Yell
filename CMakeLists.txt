@@ -233,3 +233,12 @@ target_include_directories(test-yell-gtest PUBLIC
 add_dependencies(test-yell-gtest eigen)
 include(GoogleTest)
 gtest_discover_tests(test-yell-gtest)
+
+# Parallelism timing tests (slow — run separately, not part of normal CI suite)
+add_executable(test-yell-parallel ${CMAKE_SOURCE_DIR}/src/test_parallel_gtest.cpp)
+target_link_libraries(test-yell-parallel
+    yell-lib yell-minimizer cctbx ${LAPACK_LIBRARIES}
+    GTest::gtest_main)
+target_include_directories(test-yell-parallel PUBLIC
+    ${CMAKE_BINARY_DIR}/eigen-install/include/eigen3)
+add_dependencies(test-yell-parallel eigen)

@@ -154,9 +154,20 @@ public:
             peak_mutex_idx[k] = r_grid_to_mutex_idx.at(key);
         }
 
+        // Pre-allocate one scratch IntensityMap per thread to avoid per-peak
+        // malloc contention (each emplace_back constructs in-place via the
+        // IntensityMap(vec3<int>) ctor — safe with af::versa ownership).
+        // The fill loop overwrites all elements each iteration, so invert()
+        // leaving the buffer in real space is harmless before the next peak.
+        vector<IntensityMap> scratch;
+        scratch.reserve(n_threads);
+        for (int t = 0; t < n_threads; ++t)
+            scratch.emplace_back(pair_grid_size);
+
         std::atomic<int> next_peak(0);
 
-        auto worker = [&]() {
+        auto worker = [&](int t) {
+            IntensityMap& ppm = scratch[t];
             while (true) {
                 int k = next_peak.fetch_add(1);
                 if (k >= n_peaks) break;
@@ -165,8 +176,7 @@ public:
                 const PattersonPeak& apk = avg_peaks[k];
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
 
-                IntensityMap pair_patterson_map(pair_grid_size);
-                pair_patterson_map.set_grid(grid_for_pairs_r);
+                ppm.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
                 vec3<double> r_res;
@@ -174,37 +184,37 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                pair_patterson_map.init_iterator();
-                while (pair_patterson_map.next()) {
+                ppm.init_iterator();
+                while (ppm.next()) {
                     complex<double> f1 = scatterers.f_gridded(fpk.type1_idx,
-                                                              pair_patterson_map.current_index());
+                                                              ppm.current_index());
                     complex<double> f2 = scatterers.f_gridded(fpk.type2_idx,
-                                                              pair_patterson_map.current_index());
-                    pair_patterson_map.current_array_value_c() =
+                                                              ppm.current_index());
+                    ppm.current_array_value_c() =
                         scale * calculate_scattering_from_a_pair_in_a_point_c(
                             f1, f2,
                             pk.coefficient,
                             1.0,
-                            pair_patterson_map.current_s(),
+                            ppm.current_s(),
                             r_res,
                             pk.U);
                 }
 
-                pair_patterson_map.invert();
+                ppm.invert();
 
                 {
                     std::lock_guard<std::mutex> lock(r_mutexes[peak_mutex_idx[k]]);
-                    add_pair_to_appropriate_place(pair_patterson_map, patterson_map,
+                    add_pair_to_appropriate_place(ppm, patterson_map,
                                                   r_grids_all[k], periodic_directions);
                 }
             }
         };
 
         if (n_threads <= 1) {
-            worker();
+            worker(0);
         } else {
             vector<std::thread> workers;
-            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker, t);
             for (auto& w : workers) w.join();
         }
     }
@@ -275,9 +285,15 @@ public:
             active_mutex_idx[idx] = r_grid_to_mutex_idx.at(key);
         }
 
+        vector<IntensityMap> scratch;
+        scratch.reserve(n_threads);
+        for (int t = 0; t < n_threads; ++t)
+            scratch.emplace_back(pair_grid_size);
+
         std::atomic<int> next_active(0);
 
-        auto worker = [&]() {
+        auto worker = [&](int t) {
+            IntensityMap& ppm = scratch[t];
             while (true) {
                 int idx = next_active.fetch_add(1);
                 if (idx >= n_active) break;
@@ -288,8 +304,7 @@ public:
                 const PattersonPeak& pk  = average_flag ? apk : fpk;
                 const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
 
-                IntensityMap pair_patterson_map(pair_grid_size);
-                pair_patterson_map.set_grid(grid_for_pairs_r);
+                ppm.set_grid(grid_for_pairs_r);
 
                 vec3<int>    r_grid;
                 vec3<double> r_res;
@@ -297,12 +312,12 @@ public:
                 if (!average_flag)
                     r_res += fpk.r - apk.r;
 
-                pair_patterson_map.init_iterator();
-                while (pair_patterson_map.next()) {
-                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, pair_patterson_map.current_index());
-                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, pair_patterson_map.current_index());
+                ppm.init_iterator();
+                while (ppm.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, ppm.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, ppm.current_index());
 
-                    vec3<double> s = pair_patterson_map.current_s();
+                    vec3<double> s = ppm.current_s();
                     double phase_val = M_2PI * (s * r_res);
                     double adp_val   = M2PISQ * (s * pk.U * s);
                     complex<double> E = exp(complex<double>(adp_val, phase_val));
@@ -311,24 +326,24 @@ public:
                     double d_adp   = M2PISQ * (s * sk.d_U * s);
 
                     complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
-                    pair_patterson_map.current_array_value_c() = scale * conj(f1) * f2 * d_term;
+                    ppm.current_array_value_c() = scale * conj(f1) * f2 * d_term;
                 }
 
-                pair_patterson_map.invert();
+                ppm.invert();
 
                 {
                     std::lock_guard<std::mutex> lock(r_mutexes[active_mutex_idx[idx]]);
-                    add_pair_to_appropriate_place(pair_patterson_map, deriv_patterson_map,
+                    add_pair_to_appropriate_place(ppm, deriv_patterson_map,
                                                   r_grids_all[idx], periodic_directions);
                 }
             }
         };
 
         if (n_threads <= 1) {
-            worker();
+            worker(0);
         } else {
             vector<std::thread> workers;
-            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker);
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker, t);
             for (auto& w : workers) w.join();
         }
     }
