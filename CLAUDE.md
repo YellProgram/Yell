@@ -196,6 +196,67 @@ The `BOOST_INCLUDEDIR` uses `FORCE` to prevent this.
 
 ---
 
+## Debugging Parallel Execution (TSan workflow)
+
+Use ThreadSanitizer to localise data races in `Derivatives analytical` + `MaxProcessors > 1` runs.
+The Linux server (disorder-s01) is the correct target (macOS TSan is less reliable for this code).
+
+### 1. Add ENABLE_TSAN cmake option (already in CMakeLists.txt)
+
+The `UNIX` branch in `CMakeLists.txt` has an `if(ENABLE_TSAN)` guard that switches from
+`-Wl,-Bstatic` to `-fsanitize=thread -g` (dynamic linking required by TSan):
+
+```cmake
+if(ENABLE_TSAN)
+  set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=thread")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
+  ...
+else()
+  set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
+  ...
+endif()
+```
+
+### 2. Configure and build TSan binary on disorder-s01
+
+```bash
+# TSan build requires CMAKE_TOTAL_STATIC=ON (for HDF5) and Release type
+ssh disorder-s01 "cd ~/ag/yell/Yell && cmake -B cmake-build-tsan \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOTAL_STATIC=ON -DENABLE_TSAN=ON"
+ssh disorder-s01 "cd ~/ag/yell/Yell && cmake --build cmake-build-tsan --target yell -j32"
+```
+
+### 3. Run with ASLR disabled
+
+TSan's shadow memory conflicts with static-linked code memory layout; disabling ASLR avoids
+`FATAL: ThreadSanitizer: unexpected memory mapping` crashes:
+
+```bash
+ssh disorder-s01 "cd /path/to/test/dir && \
+  setarch \$(uname -m) -R ~/ag/yell/Yell/cmake-build-tsan/yell > tsan.log 2>&1"
+```
+
+Check for races: `grep 'data race\|WARNING' tsan.log` — exit 0 means clean.
+
+### 4. Interpret TSan output
+
+TSan reports: thread ID, address, function+file+line, and allocation site.
+Key fields:
+- **Write at … by thread T177** / **Previous write by T176** → two clones writing same address
+- **Allocation trace** (shown when `malloc` was instrumented) → tells you which constructor created the shared object
+- Look at the FUNCTION names in the stack trace — the race is usually in the outermost non-library frame
+
+### 5. Common pitfalls
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `unexpected memory mapping` | TSan + static binary | Use `setarch -R` or `-DENABLE_TSAN=ON` |
+| `hdf5.h: No such file` | cmake found system HDF5 | Add `-DCMAKE_TOTAL_STATIC=ON` |
+| `No rule to make target _debug.a` | `RelWithDebInfo` hits else-branch in hdf5.cmake | Use `-DCMAKE_BUILD_TYPE=Release` |
+| SEGV after races fixed | New pointer invalidated by remap | Check `index_of()` usage after replacing scatterers |
+
+---
+
 ## Refinement Pipeline
 
 ```
