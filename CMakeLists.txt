@@ -143,10 +143,17 @@ IF(UNIX)
   #set(LAPACK_LIBRARIES  lapack blas gfortran) #f2c dl
 
   set(LAPACK_LIBRARIES lapack blas gfortran.a quadmath.a)
-  # -Wl,-Bstatic makes everything after it static. 
-  # We must ensure libpthread is linked dynamically, otherwise std::thread may be broken.
-  set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
-  set(CMAKE_THREAD_LIBS_INIT "-Wl,-Bdynamic -lpthread -Wl,-Bstatic")
+  if(ENABLE_TSAN)
+    # TSan requires dynamic linking — skip -Wl,-Bstatic so the sanitizer runtime loads correctly.
+    set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=thread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -fsanitize=thread -g")
+  else()
+    # -Wl,-Bstatic makes everything after it static.
+    # We must ensure libpthread is linked dynamically, otherwise std::thread may be broken.
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
+    set(CMAKE_THREAD_LIBS_INIT "-Wl,-Bdynamic -lpthread -Wl,-Bstatic")
+  endif()
 #  find_package(LAPACK)
 ENDIF(UNIX)
 ENDIF(APPLE)

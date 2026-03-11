@@ -1,2 +1,4 @@
 
 accum_mutex - when pairs are accumulated, they have their own accumulators, might be slow. Can do instead many processes calculate pairs, one distributes.
+
+go back revision by revision until clion allows to compile the project.
