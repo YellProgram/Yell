@@ -275,7 +275,6 @@ public:
 
     complex<double> form_factor_at_c(vec3<double> s, double d_star_sq);
 
-private:
     vector<Atom*> constituent_atoms;
 
     inline static complex<double> form_factor_in_a_point(complex<double> f,

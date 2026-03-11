@@ -237,41 +237,27 @@ All issues below surface when `Derivatives analytical` + `MaxProcessors > 1`:
 `AnalyticalYellCostFunction::Evaluate` spawns N clone threads, each calling
 `clone->calculate_derivative(p, j, 1)`.
 
-### ✓ FIXED: `ParameterizedAtomData::atom_ptr`
-- `Model::clone()` previously copy-constructed `parameterized_atoms_`, leaving
-  `atom_ptr` pointing into the original model's atom tree.  All N threads called
-  `pad.update(q)` → concurrent writes to the same `Atom::r/U/U_expr`.
-- **Fix** (model.h `clone()`): snapshots original `Atom*` list, deep-copies via
-  `new Model(*this)`, then builds `unordered_map<Atom*, Atom*>` from the p_vector
-  traversal and remaps every `pad.atom_ptr` to the clone's own tree.  O(n) in
-  number of atoms, guarded by `!parameterized_atoms_.empty()` so zero cost when
-  no parameterized atoms are present (tricarboxamide, most existing models).
-
-### ★ SUSPECTED RACE: unidentified root cause in tricarboxamide parallel run
-- `work_refine_add2022_tricarboxamide_parallel_blocked` crashes on disorder-s02
-  (Linux, 48 cores, Ubuntu 24.10) with `MaxProcessors 16`, Heisenbug (disappears
-  under gdb), reproducible at ~33 s. Sequential run (MaxProcessors 1) is correct.
-- Heap corruption-style crash after the per-r_grid mutex → global `accum_mutex`
-  fix in `src/Calculator.h`.
-- Investigation ruled out: ExprPtr eval (immutable nodes, per-call caches),
-  ScattererList (per-clone copy), MolecularScatterer::form_factor_at_c (stateless),
-  LaueSymmetry::apply_patterson_symmetry (value semantics), pool deep-copy path.
-- Remaining suspects (not yet confirmed):
-  1. **`SubstitutionalCorrelation::chemical_units[0/1]`**: clone-side modifiers hold
-     raw pointers to the ORIGINAL model's `ChemicalUnit*`. Concurrent `get_atoms()`
-     calls from 16 threads are read-only but touch shared refcount objects (ExprPtr
-     in Atom::U_expr). Unlikely to cause corruption on its own.
-  2. **`Model::clone()` shallow-copies `intensity_map` / `average_intensity_map`**:
-     comment says "deep copy" but `IntensityMap::operator=` is compiler-generated
-     and calls `af::versa::operator=` (shallow/aliased). All clones share one buffer.
-     Harmless as long as `calculate_derivative` never writes to `intensity_map` —
-     currently true, but fragile.
-  3. **`OutputHandler report` global**: `first_run_flag`, `last_run_flag` are plain
-     `bool` read/written from multiple threads without synchronisation. Technically
-     UB (data race), though unlikely to cause heap corruption.
-  4. **`Scatterer::current_form_factor` / `gridded_form_factors`**: legacy mutable
-     fields on global `AtomicTypeCollection` objects. Not written by the direct-calc
-     path (tricarboxamide uses `CalculationMethod approximate`) but present and
-     un-guarded. Would race if old `calculate_scattering_from_pairs` path were active.
-  5. **glog / ceres internal state**: logging from 16 threads; Ceres `num_threads`
-     might interact with clone threads in unexpected ways.
+### ✓ FIXED: `ParameterizedAtomData::atom_ptr` — MolecularScatterer atoms
+- Root cause (TSan-confirmed): atoms defined inside `MolecularScatterers [...]` are
+  created by `construct_atom()` and stored in `parameterized_atoms_`, but they are
+  NOT added to `cell.chemical_unit_nodes` — they live in a leaked `ChemicalUnit` tree
+  whose raw `Atom*` pointers are also held in `MolecularScatterer::constituent_atoms`
+  (registered globally in `AtomicTypeCollection`).
+- `Model::clone()` used `collect_atoms_(cell)` to build its remap, which only
+  traverses `cell.chemical_unit_nodes` → misses molecular-scatterer atoms → all
+  N clone threads write to the SAME global `Atom` objects.  `MolecularScatterer::
+  form_factor_at_c()` also reads those same atoms → read-write race confirmed by TSan.
+- **Fix** (3 files):
+  1. `ChemicalStructure.h`: make `MolecularScatterer::constituent_atoms` public.
+  2. `Scatterers.h`: add `ScattererList::add_override(orig, replacement)` + per-clone
+     `overrides_` map consulted in `compute_form_factors_on_grid()` instead of the
+     global scatterer — original pointer kept in `scatterers_` so `index_of()` still
+     works for `PattersonPeak` type indices.
+  3. `model.h` `clone()`: after the cell-atom remap, any `parameterized_atoms_` entry
+     still pointing to the original → allocate a private `new Atom(*orig)`, stored in
+     `m->mol_owned_atoms_`.  Then for each `MolecularScatterer` in `scatterer_list_`
+     whose `constituent_atoms` intersect the remap, create a private `MolecularScatterer`
+     copy with remapped atoms, registered via `add_override()`, stored in
+     `m->mol_owned_scatterers_`.  Both vectors deleted in `~Model()`.
+- **Validated**: TSan run on disorder-s01 (MaxProcessors 16, tricarboxamide model)
+  completes with **zero data races**, `Rw=0.0303`, exit 0.  Native build gives identical `Rw`.

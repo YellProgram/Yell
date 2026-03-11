@@ -33,6 +33,7 @@
 #include <complex>
 #include <string>
 #include <map>
+#include <unordered_map>
 
 using namespace std;
 using namespace scitbx;
@@ -193,18 +194,32 @@ public:
     /// Per-pixel form factor at index i (valid after update()).
     complex<double> f(int i) const { return form_factors_[i]; }
 
+    /// Register a per-clone override: when computing form factors for scatterer
+    /// `orig`, use `replacement->form_factor_at_c()` instead.  The original pointer
+    /// is still used for index_of() so PattersonPeak type indices remain valid.
+    void add_override(Scatterer* orig, Scatterer* replacement) {
+        overrides_[orig] = replacement;
+    }
+
     /// Pre-compute gridded form factors for the FFT path.
     /// Replaces AtomicTypeCollection::calculate_form_factors_of_all_atoms_on_grid():
     /// results are stored per-model in gridded_form_factors_[i] instead of on the
     /// shared Scatterer objects, making the FFT path safe for multi-model use.
+    /// Per-clone overrides registered via add_override() are used instead of the
+    /// global scatterer — this ensures MolecularScatterer form factors are computed
+    /// from per-clone private atoms, eliminating the data race.
     void compute_form_factors_on_grid(vec3<int> map_size, Grid grid) {
         gridded_form_factors_.resize(scatterers_.size());
         for (int i = 0; i < (int)scatterers_.size(); ++i) {
+            Scatterer* s = scatterers_[i];
+            auto it = overrides_.find(s);
+            if (it != overrides_.end()) s = it->second;
+
             IntensityMap ff_map(map_size);
             ff_map.set_grid(grid);
             ff_map.init_iterator();
             while (ff_map.next())
-                ff_map.current_array_value_c() = scatterers_[i]->form_factor_at_c(
+                ff_map.current_array_value_c() = s->form_factor_at_c(
                     ff_map.current_s(), ff_map.current_d_star_square());
             gridded_form_factors_[i] = std::move(ff_map);
         }
@@ -216,10 +231,14 @@ public:
         return gridded_form_factors_[idx].at_c(index);
     }
 
-private:
+    // Public to allow Model::clone() to remap MolecularScatterer constituent atoms.
     vector<Scatterer*>        scatterers_;
+
+private:
     vector<complex<double>>   form_factors_;
     vector<IntensityMap>      gridded_form_factors_;
+    // Per-clone form-factor overrides: orig ptr → replacement ptr.
+    unordered_map<Scatterer*, Scatterer*> overrides_;
 };
 
 #endif // YELL_SCATTERERS_H

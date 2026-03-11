@@ -552,6 +552,12 @@ public:
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;
   vector<ParameterizedAtomData> parameterized_atoms_;
+  // Per-clone private atom copies for molecular-scatterer atoms (not in cell).
+  // Empty in the original model; populated and owned by each clone.
+  vector<Atom*> mol_owned_atoms_;
+  // Per-clone private MolecularScatterer copies with remapped constituent_atoms.
+  // Empty in the original model; populated and owned by each clone.
+  vector<MolecularScatterer*> mol_owned_scatterers_;
   bool model_parsed_;
   ScattererList scatterer_list_;
   // Per-thread ScattererList copies — each owns its own gridded_form_factors_.
@@ -559,10 +565,17 @@ public:
   // When form factors become parameterized, invalidate and repopulate here.
   vector<ScattererList> thread_scatterer_lists_;
 
+  // Destructor: release per-clone private atoms and MolecularScatterer copies.
+  // These vectors are populated only in clone(); the original model leaves them empty.
+  ~Model() {
+      for (auto* a  : mol_owned_atoms_)       delete a;
+      for (auto* ms : mol_owned_scatterers_)  delete ms;
+  }
+
   Model* clone() const {
       // Snapshot atom pointers from the original BEFORE copy-constructing, so we
       // can build the remap after p_vector has deep-copied the atom tree.
-      auto orig_atoms = collect_atoms_(const_cast<UnitCell&>(cell));
+      auto orig_cell_atoms = collect_atoms_(const_cast<UnitCell&>(cell));
 
       Model* m = new Model(*this);
       // NOTE: Model(*this) already deep-copies intensity_map / average_intensity_map
@@ -579,20 +592,55 @@ public:
       for (size_t i = 0; i < pools.size(); ++i)
           m->pools.push_back(new AtomicPairPool(*pools[i]));
 
-      // Fix the ParameterizedAtomData::atom_ptr race:
-      // Model(*this) deep-copies cell.chemical_unit_nodes (all Atom objects are new),
-      // but parameterized_atoms_[i].atom_ptr is copy-constructed as a raw pointer and
-      // still points into THIS model's atom tree.  Remap each pointer to its
-      // counterpart in the clone's tree so each clone thread writes to its own Atom.
       if (!m->parameterized_atoms_.empty()) {
-          auto clone_atoms = collect_atoms_(m->cell);
+          // Step 1: remap atoms that live in cell.chemical_unit_nodes (deep-copied
+          // by Model(*this) copy-constructor via p_vector).
+          auto clone_cell_atoms = collect_atoms_(m->cell);
           std::unordered_map<Atom*, Atom*> remap;
-          remap.reserve(orig_atoms.size());
-          for (size_t i = 0; i < orig_atoms.size(); ++i)
-              remap[orig_atoms[i]] = clone_atoms[i];
-          for (auto& pad : m->parameterized_atoms_)
-              if (auto it = remap.find(pad.atom_ptr); it != remap.end())
-                  pad.atom_ptr = it->second;
+          remap.reserve(orig_cell_atoms.size());
+          for (size_t i = 0; i < orig_cell_atoms.size(); ++i)
+              remap[orig_cell_atoms[i]] = clone_cell_atoms[i];
+
+          // Step 2: atoms that live in MolecularScatterers (NOT in cell) are NOT
+          // deep-copied by the copy-constructor — they remain shared with the global
+          // AtomicTypeCollection.  Create per-clone private copies for them.
+          for (auto& pad : m->parameterized_atoms_) {
+              if (remap.find(pad.atom_ptr) == remap.end()) {
+                  // Atom not found in cell traversal → molecular scatterer atom.
+                  // Allocate a private copy so each clone writes to its own Atom.
+                  Atom* private_copy = new Atom(*pad.atom_ptr);
+                  remap[pad.atom_ptr] = private_copy;
+                  m->mol_owned_atoms_.push_back(private_copy);
+              }
+          }
+
+          // Apply full remap to parameterized_atoms_.
+          for (auto& pad : m->parameterized_atoms_) {
+              auto it = remap.find(pad.atom_ptr);
+              if (it != remap.end()) pad.atom_ptr = it->second;
+          }
+
+          // Step 3: fix scatterer_list_.  MolecularScatterer objects in the global
+          // AtomicTypeCollection store raw Atom* in constituent_atoms; these are the
+          // same pointers we just remapped.  For each affected MolecularScatterer,
+          // create a private copy with remapped atoms and register it as an override
+          // in the clone's ScattererList.  The original pointer stays in scatterers_
+          // so index_of() still works for PattersonPeak type-index assignment.
+          for (auto* s_ptr : m->scatterer_list_.scatterers_) {
+              if (auto* ms = dynamic_cast<MolecularScatterer*>(s_ptr)) {
+                  bool needs_remap = false;
+                  for (auto* a : ms->constituent_atoms)
+                      if (remap.count(a)) { needs_remap = true; break; }
+                  if (needs_remap) {
+                      auto* ms_clone = new MolecularScatterer(*ms);
+                      for (auto& a : ms_clone->constituent_atoms)
+                          if (auto it = remap.find(a); it != remap.end())
+                              a = it->second;
+                      m->scatterer_list_.add_override(ms, ms_clone);
+                      m->mol_owned_scatterers_.push_back(ms_clone);
+                  }
+              }
+          }
       }
 
       return m;
