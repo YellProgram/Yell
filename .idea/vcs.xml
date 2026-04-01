@@ -2,5 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cmake-build-release/download_bitshuffle-prefix/src/download_bitshuffle" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cmake-build-release/download_bitshuffle-prefix/src/download_bitshuffle/zstd" vcs="Git" />
   </component>
 </project>

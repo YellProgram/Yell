@@ -500,10 +500,11 @@ Eigen::MatrixXd Model::compute_full_covariance(
   if ((int)thread_scatterer_lists_.size() != n_threads)
       thread_scatterer_lists_.assign(n_threads, scatterer_list_);
 
-  // Compute derivative maps for active[from .. from+count) in parallel,
-  // one column per thread (each column call is single-threaded internally).
+  // Compute derivative columns for active[from .. from+count) in parallel.
+  // Each column is a compact n_obs-length vector (ASU-indexed when use_asu),
+  // with the negation already applied — full IntensityMap is discarded immediately.
   auto compute_block = [&](int from, int count) {
-      vector<IntensityMap> maps(count, IntensityMap(grid));
+      vector<vector<double>> cols(count, vector<double>(n_obs));
       std::atomic<int> next(0);
       vector<std::thread> workers;
       for (int t = 0; t < n_threads; ++t) {
@@ -512,28 +513,28 @@ Eigen::MatrixXd Model::compute_full_covariance(
               while (true) {
                   int idx = next.fetch_add(1);
                   if (idx >= count) break;
-                  maps[idx] = calculate_derivative_from_susceptibilities(
+                  IntensityMap dI = calculate_derivative_from_susceptibilities(
                       fpeaks, apeaks, atomic_pairs, q, active[from + idx], scale, 1, my_sl);
+                  for (int ii = 0; ii < n_obs; ++ii)
+                      cols[idx][ii] = -dI.at(use_asu ? asu[ii] : ii);
               }
           });
       }
       for (auto& w : workers) w.join();
-      return maps;
+      return cols;
   };
 
   // Accumulate H for two sets of columns (from_j >= from_k convention so k<=j).
-  // Also fills H(0,j) from col0.
-  auto accumulate = [&](int from_j, const vector<IntensityMap>& mj,
-                         int from_k, const vector<IntensityMap>& mk) {
+  // Also fills H(0,j) from col0. Columns are already ASU-extracted and negated.
+  auto accumulate = [&](int from_j, const vector<vector<double>>& mj,
+                         int from_k, const vector<vector<double>>& mk) {
       int nj = (int)mj.size(), nk = (int)mk.size();
       for (int jj = 0; jj < nj; ++jj) {
           int j = active[from_j + jj];
           double h0j = 0.0;
           for (int ii = 0; ii < n_obs; ++ii) {
-              int i = use_asu ? asu[ii] : ii;
               double w = get_w(ii);
-              double Jj = -mj[jj].at(i);
-              h0j += w * w * col0[ii] * Jj;
+              h0j += w * w * col0[ii] * mj[jj][ii];
           }
           H(0, j) += h0j;
           H(j, 0)  = H(0, j);
@@ -543,9 +544,8 @@ Eigen::MatrixXd Model::compute_full_covariance(
               if (k > j) continue; // lower triangle only
               double h = 0.0;
               for (int ii = 0; ii < n_obs; ++ii) {
-                  int i = use_asu ? asu[ii] : ii;
                   double w = get_w(ii);
-                  h += w * w * (-mk[kk].at(i)) * (-mj[jj].at(i));
+                  h += w * w * mk[kk][ii] * mj[jj][ii];
               }
               H(k, j) += h;
               if (k != j) H(j, k) = h;
