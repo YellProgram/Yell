@@ -217,20 +217,24 @@ public:
    */
   Atom* construct_atom(string name, vector<yell::ExprPtr> param_exprs)  {
     auto p = refinement_parameters_asEig();
-    double a = cell.cell.parameters()[0];
-    double b = cell.cell.parameters()[1];
-    double c = cell.cell.parameters()[2];
-    //Also transforms input adps from angstroems^2 into fractional values
+    // Convert U_ij (Å²) to U_stored[ij] = U_ij * a*_i * a*_j using scalar
+    // reciprocal lattice lengths a* = sqrt(G*[i,i]).  Matches the SHELX/CIF
+    // DWF convention: T = exp(-2pi^2 (U11 h^2 a*^2 + ... + 2U12 hk a*b* + ...))
+    // For orthogonal cells a*=1/a so this is identical to the old formula.
+    auto G  = cell.cell.reciprocal_metrical_matrix();
+    double astar = std::sqrt(G[0]);
+    double bstar = std::sqrt(G[1]);
+    double cstar = std::sqrt(G[2]);
     Atom* atom = new Atom(name, param_exprs[0]->eval(p),
                     1, //we assign probability to 1 because it will be changed by Variant afterwards anyway
                     param_exprs[1]->eval(p), param_exprs[2]->eval(p),
                     param_exprs[3]->eval(p),
-                    param_exprs[4]->eval(p)/a/a,
-                    param_exprs[5]->eval(p)/b/b,
-                    param_exprs[6]->eval(p)/c/c,
-                    param_exprs[7]->eval(p)/a/b,
-                    param_exprs[8]->eval(p)/a/c,
-                    param_exprs[9]->eval(p)/b/c,
+                    param_exprs[4]->eval(p) * astar * astar,
+                    param_exprs[5]->eval(p) * bstar * bstar,
+                    param_exprs[6]->eval(p) * cstar * cstar,
+                    param_exprs[7]->eval(p) * astar * bstar,
+                    param_exprs[8]->eval(p) * astar * cstar,
+                    param_exprs[9]->eval(p) * bstar * cstar,
                     scattering_type);
     ParameterizedAtomData pad;
     pad.param_exprs = param_exprs;

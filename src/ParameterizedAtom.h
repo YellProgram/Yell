@@ -55,22 +55,28 @@ struct ParameterizedAtomData
             for (int i = 0; i < 6; ++i)
                 atom_ptr->U_expr[i] = param_exprs[4] * rm[i];
         } else {
-            // ADP conversion: U_frac[i][j] = U_ang[i][j] / (a_i * a_j)
-            const double a = unit_cell.parameters()[0];
-            const double b = unit_cell.parameters()[1];
-            const double c = unit_cell.parameters()[2];
-            atom_ptr->U[0] = param_exprs[4]->eval(p, cache) / (a * a);
-            atom_ptr->U[1] = param_exprs[5]->eval(p, cache) / (b * b);
-            atom_ptr->U[2] = param_exprs[6]->eval(p, cache) / (c * c);
-            atom_ptr->U[3] = param_exprs[7]->eval(p, cache) / (a * b);
-            atom_ptr->U[4] = param_exprs[8]->eval(p, cache) / (a * c);
-            atom_ptr->U[5] = param_exprs[9]->eval(p, cache) / (b * c);
-            atom_ptr->U_expr[0] = param_exprs[4] / (a * a);
-            atom_ptr->U_expr[1] = param_exprs[5] / (b * b);
-            atom_ptr->U_expr[2] = param_exprs[6] / (c * c);
-            atom_ptr->U_expr[3] = param_exprs[7] / (a * b);
-            atom_ptr->U_expr[4] = param_exprs[8] / (a * c);
-            atom_ptr->U_expr[5] = param_exprs[9] / (b * c);
+            // ADP conversion: U_stored[ij] = U_ang[ij] * a*_i * a*_j
+            // Uses scalar reciprocal lattice lengths a* = sqrt(G*[i,i])
+            // so the DWF matches the SHELX/CIF convention:
+            //   T = exp(-2pi^2 (U11 h^2 a*^2 + U22 k^2 b*^2 + U33 l^2 c*^2
+            //                 + 2U12 hk a*b* + 2U13 hl a*c* + 2U23 kl b*c*))
+            // For orthogonal cells a*=1/a so this reduces to the old formula.
+            auto rm   = unit_cell.reciprocal_metrical_matrix();
+            const double astar = std::sqrt(rm[0]);
+            const double bstar = std::sqrt(rm[1]);
+            const double cstar = std::sqrt(rm[2]);
+            atom_ptr->U[0] = param_exprs[4]->eval(p, cache) * (astar * astar);
+            atom_ptr->U[1] = param_exprs[5]->eval(p, cache) * (bstar * bstar);
+            atom_ptr->U[2] = param_exprs[6]->eval(p, cache) * (cstar * cstar);
+            atom_ptr->U[3] = param_exprs[7]->eval(p, cache) * (astar * bstar);
+            atom_ptr->U[4] = param_exprs[8]->eval(p, cache) * (astar * cstar);
+            atom_ptr->U[5] = param_exprs[9]->eval(p, cache) * (bstar * cstar);
+            atom_ptr->U_expr[0] = param_exprs[4] * (astar * astar);
+            atom_ptr->U_expr[1] = param_exprs[5] * (bstar * bstar);
+            atom_ptr->U_expr[2] = param_exprs[6] * (cstar * cstar);
+            atom_ptr->U_expr[3] = param_exprs[7] * (astar * bstar);
+            atom_ptr->U_expr[4] = param_exprs[8] * (astar * cstar);
+            atom_ptr->U_expr[5] = param_exprs[9] * (bstar * cstar);
         }
     }
 };
