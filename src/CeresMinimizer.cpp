@@ -81,7 +81,7 @@ public:
                 }
             }
             const int total_work = (int)work.size();
-            REPORT(MAIN) << "[Evaluate] Starting Jacobian: " << total_work << " items on " << n_threads << " threads.\n";
+            // REPORT(MAIN) << "[Evaluate] Starting Jacobian: " << total_work << " items on " << n_threads << " threads.\n";
 
             vector<Model*> thread_models(n_threads);
             for (size_t t = 0; t < n_threads; ++t) thread_models[t] = model_->clone();
@@ -109,7 +109,7 @@ public:
             }
             for (auto& w : workers) w.join();
             for (auto* m : thread_models) delete m;
-            REPORT(MAIN) << "[Evaluate] Jacobian finished.\n";
+            // REPORT(MAIN) << "[Evaluate] Jacobian finished.\n";
         }
 
         return true;
@@ -347,10 +347,11 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
         double w = weights->at(i);
         double Ic = calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i);
         double Ie = experimental_data->at(i);
-        num += w * w * Ie * Ic;
+        num += w * w * Ie * Ic; //TODO: check this is compatible with our definition of weights in the other parts. square of w, not linear???. just two lines down. THINK
         den += w * w * Ic * Ic;
     }
-    double S = (den > 1e-15) ? (num / den) : 1.0;
+    //TODO: think if 1e-015 is good here or overly conservative. Shall we keep scale intact coming from the input instead of this?
+    double S = (den > 1e-15) ? (num / den) : 1.0; //TODO: think if this will get refinement stuck possibly when ceres tries to refine scale and this thing fights back. Though that should theoretically never happen.
     if (S < 0) S = 0;
     yell_parameters[0] = S;
     if (model) model->set_scale(S);

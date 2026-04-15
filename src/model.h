@@ -17,7 +17,6 @@
  along with Yell.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef MODEL_H
 #define MODEL_H
 

@@ -1,6 +1,1 @@
-
-accum_mutex - when pairs are accumulated, they have their own accumulators, might be slow. Can do instead many processes calculate pairs, one distributes.
-
-go back revision by revision until clion allows to compile the project.
-
-Add switches for static vs dynamic lib pthreads
+Currently we don't refine Scale, that one is refined separately in an extra step. However, that means that jacobian doesn't see the effect of scale and if the two need to move together in a coherent fashion possibly it makes things worse (for say cubic problems). To check, go to tests/sluggish
