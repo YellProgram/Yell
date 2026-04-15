@@ -7,7 +7,6 @@
 #include <ctype.h>
 
 namespace cctbx { namespace eltbx { namespace xray_scattering {
-
   // Minimal optional<T> to avoid boost::optional dependency.
   template <typename T>
   class optional {
