@@ -304,11 +304,16 @@ public:
     refinement_parameters.push_back(saved_scale);
     refined_variable_names.push_back("Scale");
 
+    set<string> seen_names;
     for (auto& block : blocks) {
       vector<double> b_vals;
       for (auto& p : block) {
         string name = boost::fusion::get<0>(p);
         double val  = boost::fusion::get<1>(p);
+        if (!seen_names.insert(name).second) {
+          REPORT(ERROR) << "Refinable parameter '" << name << "' is defined more than once in RefinableVariables.\n";
+          throw(TerminateProgram());
+        }
         refined_variable_names.push_back(name);
         refinement_parameters.push_back(val);
         b_vals.push_back(val);

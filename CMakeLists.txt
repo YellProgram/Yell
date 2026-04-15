@@ -100,8 +100,9 @@ ExternalProject_Add(
 
 ExternalProject_Add(ceres-solver
         PREFIX CeresSolver
-        URL https://ceres-solver.googlesource.com/ceres-solver/+archive/76af132d02d055db2af1322e1314b03c493c6803.tar.gz
-        URL_HASH SHA256=7b5c010a812679104715d2c348da6d1eb5b5e907cf6c8ce596aae0072b8245db
+        # googlesource.com generates non-deterministic tarballs; use the GitHub mirror instead.
+        URL https://github.com/ceres-solver/ceres-solver/archive/76af132d02d055db2af1322e1314b03c493c6803.tar.gz
+        URL_HASH SHA256=4a1862a6dda913868aeeda26058d14bca92f90235cfc118fc1ffc36beb74c243
         #SOURCE_DIR ${CERES_PATH}
         #BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libs/ceres-solver
         #INSTALL_DIR ${CMAKE_BINARY_DIR}/ceres-solver
