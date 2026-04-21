@@ -383,7 +383,7 @@ void InputParser::InputParserII()
              > *(
                   '(' > omit[ char_("pP") ] > '=' >  number  > ')' >
                   chemical_unit[phoenix::bind(&ChemicalUnitNode::add_chemical_unit,*_val,_1)]
-                  ) [phoenix::bind(&ChemicalUnit::set_occupancy,*_2,_1)]
+                  ) [phoenix::bind(static_cast<void(ChemicalUnit::*)(double)>(&ChemicalUnit::set_occupancy),*_2,_1)]
              > ']'
              > eps [_pass = phoenix::bind(&ChemicalUnitNode::complain_if_sum_of_occupancies_is_not_one,_val)]
             );

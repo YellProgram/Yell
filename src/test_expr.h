@@ -14,9 +14,6 @@
 // — ExprFormulaParser —————————————————————————————————————————————————————————
 #include "ExprFormulaParser.h"
 
-// — ParameterizedAtom —————————————————————————————————————————————————————————
-#include "ParameterizedAtom.h"
-
 // — integration (Model parse-once) ————————————————————————————————————————————
 #include "basic_classes.h"
 #include "InputFileParser.h"
@@ -658,7 +655,7 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. ParameterizedAtomData
+// 5. Atom::update_caches (replaces removed ParameterizedAtomData tests)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ParameterizedAtomTests : public CxxTest::TestSuite
@@ -677,136 +674,117 @@ public:
 
     void testIsotropicConstantAtom()
     {
-        // All constant expressions — atom updated to exact values.
-        Atom a("C", 1, 0.5, 0, 0, 0, 0.02, 0.02, 0.02, 0, 0, 0);
-        // params: [mult, x, y, z, Uiso]
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), yell::lit(0.1), yell::lit(0.2), yell::lit(0.3),
-            yell::lit(0.02)
-        };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = true;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;
+        // Build atom with literal ExprPtrs — same as construct_atom_isotropic_adp.
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        auto uiso = yell::lit(0.02);
+        yell::ExprPtr U[6];
+        for (int i = 0; i < 6; ++i) U[i] = uiso * rm[i];
+        Atom a("C", XRay, yell::lit(1.0),
+               yell::lit(0.1), yell::lit(0.2), yell::lit(0.3),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
-        Eigen::VectorXd p;  // empty — only literals, no params
-        pad.update(p);
+        Eigen::VectorXd p;
+        a.update_caches(p);
 
-        TS_ASSERT_DELTA(1.0, a.multiplier, 1e-12);
-        TS_ASSERT_DELTA(0.1, a.r[0], 1e-12);
-        TS_ASSERT_DELTA(0.2, a.r[1], 1e-12);
-        TS_ASSERT_DELTA(0.3, a.r[2], 1e-12);
+        TS_ASSERT_DELTA(1.0, a.occ_cache, 1e-12);
+        TS_ASSERT_DELTA(0.1, a.r_cache[0], 1e-12);
+        TS_ASSERT_DELTA(0.2, a.r_cache[1], 1e-12);
+        TS_ASSERT_DELTA(0.3, a.r_cache[2], 1e-12);
     }
 
     void testIsotropicADPConversionCubic()
     {
-        // For cubic a=5Å, Uiso=0.025 Å²:
-        //   U_frac = Uiso * reciprocal_metric_tensor
-        //   For cubic: reciprocal_metric_tensor_ii = 1/a² = 0.04 → U11 = 0.025*0.04 = 0.001
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
-            yell::lit(0.025)
-        };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = true;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;
+        // Cubic a=5Å, Uiso=0.025 Å²: U_frac = Uiso * rm[i]
+        // For cubic: rm[0..2] = 1/25 = 0.04, rm[3..5] = 0
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        auto uiso = yell::lit(0.025);
+        yell::ExprPtr U[6];
+        for (int i = 0; i < 6; ++i) U[i] = uiso * rm[i];
+        Atom a("C", XRay, yell::lit(1.0),
+               yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
         Eigen::VectorXd p;
-        pad.update(p);
+        a.update_caches(p);
 
-        // reciprocal_metric_tensor for cubic a=5: each diag = 1/25 = 0.04
-        // U = 0.025 * 0.04 = 0.001
-        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U[0], 1e-10);
-        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U[1], 1e-10);
-        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U[2], 1e-10);
-        TS_ASSERT_DELTA(0.0, a.U[3], 1e-10);
-        TS_ASSERT_DELTA(0.0, a.U[4], 1e-10);
-        TS_ASSERT_DELTA(0.0, a.U[5], 1e-10);
+        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U_cache[0], 1e-10);
+        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U_cache[1], 1e-10);
+        TS_ASSERT_DELTA(0.025 / (5.0*5.0), a.U_cache[2], 1e-10);
+        TS_ASSERT_DELTA(0.0, a.U_cache[3], 1e-10);
+        TS_ASSERT_DELTA(0.0, a.U_cache[4], 1e-10);
+        TS_ASSERT_DELTA(0.0, a.U_cache[5], 1e-10);
     }
 
     void testIsotropicParameterizedPosition()
     {
-        // x is a refinable parameter at index 1
         yell::ParameterBlock block;
         block.add("Scale", 1.0);
         yell::ExprPtr x_expr = block.add("x", 0.25);
 
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), x_expr, yell::lit(0.0), yell::lit(0.0),
-            yell::lit(0.01)
-        };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = true;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        auto uiso = yell::lit(0.01);
+        yell::ExprPtr U[6];
+        for (int i = 0; i < 6; ++i) U[i] = uiso * rm[i];
+        Atom a("C", XRay, yell::lit(1.0),
+               x_expr, yell::lit(0.0), yell::lit(0.0),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
-        // First update with initial values
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.25, a.r[0], 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.25, a.r_cache[0], 1e-12);
 
-        // Change x to 0.75 and update
         block.set("x", 0.75);
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.75, a.r[0], 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.75, a.r_cache[0], 1e-12);
     }
 
     // ── anisotropic ────────────────────────────────────────────────────────
 
     void testAnisotropicConstantAtom()
     {
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        // params: [mult, x, y, z, U11, U22, U33, U12, U13, U23] in Å²
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), yell::lit(0.1), yell::lit(0.2), yell::lit(0.3),
-            yell::lit(0.04), yell::lit(0.04), yell::lit(0.04),
-            yell::lit(0.0),  yell::lit(0.0),  yell::lit(0.0)
+        // params in Å²; ADP conversion baked into ExprPtrs as in construct_atom
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        double astar = std::sqrt(rm[0]), bstar = std::sqrt(rm[1]), cstar = std::sqrt(rm[2]);
+        yell::ExprPtr U[6] = {
+            yell::lit(0.04) * (astar*astar), yell::lit(0.04) * (bstar*bstar),
+            yell::lit(0.04) * (cstar*cstar), yell::lit(0.0)  * (astar*bstar),
+            yell::lit(0.0)  * (astar*cstar), yell::lit(0.0)  * (bstar*cstar)
         };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = false;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;  // a=5
+        Atom a("C", XRay, yell::lit(1.0),
+               yell::lit(0.1), yell::lit(0.2), yell::lit(0.3),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
         Eigen::VectorXd p;
-        pad.update(p);
+        a.update_caches(p);
 
-        TS_ASSERT_DELTA(0.1, a.r[0], 1e-12);
-        TS_ASSERT_DELTA(0.04 / 25.0, a.U[0], 1e-12);  // U11 = U11_ang / a²
-        TS_ASSERT_DELTA(0.04 / 25.0, a.U[1], 1e-12);  // U22 = U22_ang / b²
-        TS_ASSERT_DELTA(0.04 / 25.0, a.U[2], 1e-12);  // U33 = U33_ang / c²
-        TS_ASSERT_DELTA(0.0, a.U[3], 1e-12);
+        TS_ASSERT_DELTA(0.1, a.r_cache[0], 1e-12);
+        TS_ASSERT_DELTA(0.04 / 25.0, a.U_cache[0], 1e-12);
+        TS_ASSERT_DELTA(0.04 / 25.0, a.U_cache[1], 1e-12);
+        TS_ASSERT_DELTA(0.04 / 25.0, a.U_cache[2], 1e-12);
+        TS_ASSERT_DELTA(0.0, a.U_cache[3], 1e-12);
     }
 
     void testAnisotropicADPConversionOrthorhombic()
     {
-        // ortho a=2, b=3, c=4
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
-            yell::lit(1.0), yell::lit(1.0), yell::lit(1.0),
-            yell::lit(1.0), yell::lit(1.0), yell::lit(1.0)
+        auto rm = ortho_cell.reciprocal_metrical_matrix();
+        double astar = std::sqrt(rm[0]), bstar = std::sqrt(rm[1]), cstar = std::sqrt(rm[2]);
+        yell::ExprPtr U[6] = {
+            yell::lit(1.0) * (astar*astar), yell::lit(1.0) * (bstar*bstar),
+            yell::lit(1.0) * (cstar*cstar), yell::lit(1.0) * (astar*bstar),
+            yell::lit(1.0) * (astar*cstar), yell::lit(1.0) * (bstar*cstar)
         };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = false;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = ortho_cell;
+        Atom a("C", XRay, yell::lit(1.0),
+               yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
         Eigen::VectorXd p;
-        pad.update(p);
+        a.update_caches(p);
 
-        TS_ASSERT_DELTA(1.0/(2.0*2.0), a.U[0], 1e-12); // U11/a²
-        TS_ASSERT_DELTA(1.0/(3.0*3.0), a.U[1], 1e-12); // U22/b²
-        TS_ASSERT_DELTA(1.0/(4.0*4.0), a.U[2], 1e-12); // U33/c²
-        TS_ASSERT_DELTA(1.0/(2.0*3.0), a.U[3], 1e-12); // U12/(a*b)
-        TS_ASSERT_DELTA(1.0/(2.0*4.0), a.U[4], 1e-12); // U13/(a*c)
-        TS_ASSERT_DELTA(1.0/(3.0*4.0), a.U[5], 1e-12); // U23/(b*c)
+        TS_ASSERT_DELTA(1.0/(2.0*2.0), a.U_cache[0], 1e-12); // U11/a²
+        TS_ASSERT_DELTA(1.0/(3.0*3.0), a.U_cache[1], 1e-12); // U22/b²
+        TS_ASSERT_DELTA(1.0/(4.0*4.0), a.U_cache[2], 1e-12); // U33/c²
+        TS_ASSERT_DELTA(1.0/(2.0*3.0), a.U_cache[3], 1e-12); // U12/(a*b)
+        TS_ASSERT_DELTA(1.0/(2.0*4.0), a.U_cache[4], 1e-12); // U13/(a*c)
+        TS_ASSERT_DELTA(1.0/(3.0*4.0), a.U_cache[5], 1e-12); // U23/(b*c)
     }
 
     void testAnisotropicParameterizedU()
@@ -815,51 +793,45 @@ public:
         block.add("Scale", 1.0);
         yell::ExprPtr u11_expr = block.add("U11", 0.04);
 
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        std::vector<yell::ExprPtr> params = {
-            yell::lit(1.0), yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
-            u11_expr, yell::lit(0.04), yell::lit(0.04),
-            yell::lit(0.0), yell::lit(0.0), yell::lit(0.0)
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        double astar = std::sqrt(rm[0]), bstar = std::sqrt(rm[1]), cstar = std::sqrt(rm[2]);
+        yell::ExprPtr U[6] = {
+            u11_expr * (astar*astar), yell::lit(0.04) * (bstar*bstar),
+            yell::lit(0.04) * (cstar*cstar), yell::lit(0.0) * (astar*bstar),
+            yell::lit(0.0) * (astar*cstar),  yell::lit(0.0) * (bstar*cstar)
         };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = false;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;  // a=5
+        Atom a("C", XRay, yell::lit(1.0),
+               yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.04/25.0, a.U[0], 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.04/25.0, a.U_cache[0], 1e-12);
 
         block.set("U11", 0.09);
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.09/25.0, a.U[0], 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.09/25.0, a.U_cache[0], 1e-12);
     }
 
     void testUpdateChangesOccupancy()
     {
-        // occupancy is NOT stored in ParameterizedAtomData — it is set by Variant.
-        // multiplier IS the first param.  Verify multiplier updates.
         yell::ParameterBlock block;
         block.add("Scale", 1.0);
         yell::ExprPtr mult = block.add("mult", 0.6);
 
-        Atom a("C", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        std::vector<yell::ExprPtr> params = {
-            mult, yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
-            yell::lit(0.01)
-        };
-        ParameterizedAtomData pad;
-        pad.param_exprs = params;
-        pad.isotropic   = true;
-        pad.atom_ptr    = &a;
-        pad.unit_cell   = cubic_cell;
+        auto rm = cubic_cell.reciprocal_metrical_matrix();
+        auto uiso = yell::lit(0.01);
+        yell::ExprPtr U[6];
+        for (int i = 0; i < 6; ++i) U[i] = uiso * rm[i];
+        Atom a("C", XRay, mult,
+               yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+               U[0], U[1], U[2], U[3], U[4], U[5]);
 
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.6, a.multiplier, 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.6, a.occ_cache, 1e-12);
 
         block.set("mult", 0.4);
-        pad.update(block.values());
-        TS_ASSERT_DELTA(0.4, a.multiplier, 1e-12);
+        a.update_caches(block.values());
+        TS_ASSERT_DELTA(0.4, a.occ_cache, 1e-12);
     }
 };
 

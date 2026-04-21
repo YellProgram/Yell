@@ -132,8 +132,8 @@ void Model::calculate(vector<double> params, bool average_flag)
     refinement_parameters = params;
     p = Eigen::VectorXd::Map(params.data(), params.size());
     yell::EvaluationCache cache;
-    for (auto& pad : parameterized_atoms_)
-      pad.update(p, &cache);
+    for (auto* a : all_atoms_)
+      a->update_caches(p, &cache);
   } else {
     p = Eigen::VectorXd::Map(refinement_parameters.data(), refinement_parameters.size());
   }
@@ -280,7 +280,7 @@ IntensityMap Model::calculate_derivative(const vector<double>& params, int param
   double scale = params[0];
 
   yell::EvaluationCache cache;
-  for (auto& pad : parameterized_atoms_) pad.update(q, &cache);
+  for (auto* a : all_atoms_) a->update_caches(q, &cache);
   for (auto* pool : pools) pool->pairs.clear();
 
   vector<AtomicPair> pairs;

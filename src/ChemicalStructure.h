@@ -24,6 +24,7 @@
 #include "Scatterers.h"
 #include "LaueSymmetry.h"
 #include "expr.hpp"
+#include "expr_types.h"
 
 #include <cctbx/uctbx.h>
 #include <scitbx/array_family/tiny.h>
@@ -43,30 +44,34 @@ class AtomicPair;
 class ChemicalUnit {
 public:
     virtual ~ChemicalUnit() {}
-    virtual double        get_occupancy() = 0;
-    virtual void          set_occupancy(double) = 0;
-    virtual vector<Atom*> get_atoms() = 0;
-    virtual ChemicalUnit* create_symmetric(mat3<double>, vec3<double>) = 0;
-    virtual ChemicalUnit* operator[](int) = 0;
-    virtual ChemicalUnit* clone() const = 0;
+    virtual yell::ExprPtr  get_occupancy() = 0;
+    virtual void           set_occupancy(yell::ExprPtr) = 0;
+    // Non-virtual double overload: converts to lit(d) and delegates.
+    // Called by the Variant parser and backward-compat code.
+    void set_occupancy(double d) { set_occupancy(yell::lit(d)); }
+    virtual vector<Atom*>  get_atoms() = 0;
+    virtual ChemicalUnit*  create_symmetric(mat3<double>, vec3<double>) = 0;
+    virtual ChemicalUnit*  operator[](int) = 0;
+    virtual ChemicalUnit*  clone() const = 0;
 };
 
 class AtomicAssembly : public ChemicalUnit {
 public:
-    AtomicAssembly() {}
+    AtomicAssembly() : occupancy_expr(yell::lit(1.0)) {}
 
-    AtomicAssembly(vector<ChemicalUnit*> units) {
-        for (int i = 0; i < units.size(); i++)
+    AtomicAssembly(vector<ChemicalUnit*> units) : occupancy_expr(yell::lit(1.0)) {
+        for (int i = 0; i < (int)units.size(); i++)
             chemical_units.push_back(units[i]);
     }
 
     void add_chemical_unit(ChemicalUnit* unit) { chemical_units.push_back(unit); }
 
-    double get_occupancy()           { return occupancy;   }
-    void   set_occupancy(double _occ) {
-        occupancy = _occ;
+    yell::ExprPtr get_occupancy() override { return occupancy_expr; }
+
+    void set_occupancy(yell::ExprPtr e) override {
+        occupancy_expr = e;
         for (int i = 0; i < (int)chemical_units.size(); ++i)
-            chemical_units[i].set_occupancy(_occ);
+            chemical_units[i].set_occupancy(e);
     }
 
     vector<Atom*> get_atoms() {
@@ -80,6 +85,7 @@ public:
 
     AtomicAssembly* create_symmetric(mat3<double> sym_matrix, vec3<double> translation) {
         AtomicAssembly* result = new AtomicAssembly();
+        result->occupancy_expr = occupancy_expr;
         for (int i = 0; i < (int)chemical_units.size(); i++)
             result->add_chemical_unit(chemical_units[i].create_symmetric(sym_matrix, translation));
         return result;
@@ -89,12 +95,14 @@ public:
 
     ChemicalUnit* clone() const override {
         vector<ChemicalUnit*> units;
-        for (int i = 0; i < chemical_units.size(); i++)
+        for (int i = 0; i < (int)chemical_units.size(); i++)
             units.push_back(chemical_units[i].clone());
-        return new AtomicAssembly(units);
+        AtomicAssembly* a = new AtomicAssembly(units);
+        a->occupancy_expr = occupancy_expr;
+        return a;
     }
 
-    double occupancy;
+    yell::ExprPtr occupancy_expr;
     p_vector<ChemicalUnit> chemical_units;
 };
 
@@ -107,9 +115,10 @@ public:
     p_vector<ChemicalUnit> chemical_units;
 
     bool complain_if_sum_of_occupancies_is_not_one() {
+        Eigen::VectorXd zero_p;
         double sum = 0;
-        for (int i = 0; i < chemical_units.size(); ++i)
-            sum += chemical_units[i].get_occupancy();
+        for (int i = 0; i < (int)chemical_units.size(); ++i)
+            sum += chemical_units[i].get_occupancy()->eval(zero_p);
 
         if (almost_equal(1, sum))
             return true;
@@ -157,97 +166,110 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AtomicParams and Atom
+// Atom
 // ─────────────────────────────────────────────────────────────────────────────
-//TODO: check if this structure is ever used, if not - delete.
-class AtomicParams {
-public:
-    double occupancy;
-    vec3<double> r;
-    sym_mat3<double> U;
-
-    AtomicParams(double _occupancy, vec3<double> _r, sym_mat3<double> _Uinp)
-        : occupancy(_occupancy), r(_r), U(_Uinp) {}
-    AtomicParams() {}
-
-    bool operator==(const AtomicParams& inp) const {
-        return almost_equal(occupancy, inp.occupancy)
-            && almost_equal(r, inp.r)
-            && almost_equal(U, inp.U);
-    }
-};
-
-/// TODO: make sure that precursor constructors are not accessible
 /// TODO: rename U to beta
 class Atom : public ChemicalUnit {
 public:
     string label;
     Scatterer* atomic_type;
-    double occupancy;
-    double multiplier; ///< multiplier from symmetry; unlike occupancy, unaffected by SubstitutionalCorrelation
-    vec3<double> r;
-    sym_mat3<double> U;
-    /// ExprPtr representations of U[0..5] (fractional coords).
-    /// Populated by ParameterizedAtomData::update() so analytical derivatives
-    /// flow through pair.U() ExprPtr trees.  Initialised to lit(U[i]) here.
-    yell::ExprPtr U_expr[6];
-    /// Live expression for the atom's total neutral occupancy = comp_prob_expr * mult_expr.
-    /// Initialized to lit(occupancy*multiplier) in constructors; in the parse-once path
-    /// construct_atom sets it to param_exprs[0] (mult ExprPtr), then set_occupancy(p)
-    /// multiplies by lit(p).  Evaluated by AtomicPair and ZeroVectorCorrelation.
-    yell::ExprPtr occupancy_expr;
 
-    Atom() {
-        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(0);
-        occupancy_expr = yell::lit(1.0);
+    /// Full effective occupancy expression: variant_prob * mult_expr.
+    /// Built at parse time; modified by set_occupancy() when placed in a Variant.
+    /// Used by AtomicPair for pair probability and analytical derivatives.
+    yell::ExprPtr occupancy;
+
+    /// Position (fractional coords) as expression trees.
+    /// Set by construct_atom*; transformed by create_symmetric().
+    yell::ExprPtr r[3];
+
+    /// ADP tensor in fractional coordinates as expression trees.
+    /// Populated by construct_atom*; ADP conversion (Å² → frac) baked at parse time.
+    yell::ExprPtr U[6];
+
+    // ── Double caches for MolecularScatterer inner loop and ADPMode ─────────
+    // TODO: Replace with a "DoubleAtom" snapshot (like pairs→PattersonPeaks)
+    // so MolecularScatterer can propagate derivatives analytically through its atoms.
+    // Currently: caches updated once per calculate() call; form_factor_at_c
+    // reads them blindly. MASSIVE improvement potential once discretized.
+    double           occ_cache;
+    vec3<double>     r_cache;
+    sym_mat3<double> U_cache;
+
+    /// Re-evaluate all ExprPtr trees and write to double caches.
+    /// Call once per calculate() step before pair generation.
+    void update_caches(const Eigen::VectorXd& p, yell::EvaluationCache* cache = nullptr) {
+        occ_cache = occupancy->eval(p, cache);
+        for (int i = 0; i < 3; ++i) r_cache[i] = r[i]->eval(p, cache);
+        for (int i = 0; i < 6; ++i) U_cache[i] = U[i]->eval(p, cache);
     }
 
-    /// Atom with Uiso and metric tensor.
-    Atom(string const& _label, double _multiplier, double _occupancy,
+    Atom() : occ_cache(1.0) {
+        occupancy = yell::lit(1.0);
+        for (int i = 0; i < 6; ++i) U[i] = yell::lit(0);
+        for (int i = 0; i < 3; ++i) r[i] = yell::lit(0);
+        atomic_type = nullptr;
+    }
+
+    /// ExprPtr constructor — used by construct_atom* in model.h.
+    /// Call update_caches(params) immediately after construction.
+    Atom(string const& _label, ScatteringType st,
+         yell::ExprPtr occ_expr,
+         yell::ExprPtr rx, yell::ExprPtr ry, yell::ExprPtr rz,
+         yell::ExprPtr U0, yell::ExprPtr U1, yell::ExprPtr U2,
+         yell::ExprPtr U3, yell::ExprPtr U4, yell::ExprPtr U5)
+        : label(_label), occupancy(occ_expr), occ_cache(0)
+    {
+        atomic_type = AtomicTypeCollection::get(_label, st);
+        r[0] = rx; r[1] = ry; r[2] = rz;
+        U[0] = U0; U[1] = U1; U[2] = U2;
+        U[3] = U3; U[4] = U4; U[5] = U5;
+    }
+
+    /// Literal constructor with isotropic ADP (used in tests).
+    Atom(string const& _label, double _occupancy,
          double r1, double r2, double r3,
          double Uiso,
          sym_mat3<double> reciprocal_metric_tensor,
          ScatteringType scattering_type = XRay)
-        : multiplier(_multiplier), occupancy(_occupancy), label(_label),
-          r(r1, r2, r3), U(Uiso * reciprocal_metric_tensor)
+        : label(_label),
+          occupancy(yell::lit(_occupancy)),
+          occ_cache(_occupancy),
+          r_cache(r1, r2, r3),
+          U_cache(Uiso * reciprocal_metric_tensor)
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
-        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
-        occupancy_expr = yell::lit(occupancy * multiplier);
+        r[0] = yell::lit(r1); r[1] = yell::lit(r2); r[2] = yell::lit(r3);
+        for (int i = 0; i < 6; ++i) U[i] = yell::lit(U_cache[i]);
     }
 
-    /// Constructor for tests only.
+    /// Literal constructor with anisotropic ADP (used in tests and direct construction).
     Atom(string const& _label, double _occupancy,
-         double r1, double r2, double r3,
-         double U11, double U22, double U33, double U12, double U13, double U23)
-        : occupancy(_occupancy), r(r1, r2, r3), U(U11, U22, U33, U12, U13, U23),
-          label(_label), multiplier(1)
-    {
-        atomic_type = AtomicTypeCollection::get(_label, XRay);
-        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
-        occupancy_expr = yell::lit(occupancy * multiplier);
-    }
-
-    /// General constructor. Uij parameters are Uij/ai*aj.
-    Atom(string const& _label, double _multiplier, double _occupancy,
          double r1, double r2, double r3,
          double U11, double U22, double U33, double U12, double U13, double U23,
          ScatteringType scattering_type = XRay)
-        : multiplier(_multiplier), occupancy(_occupancy),
-          r(r1, r2, r3), U(U11, U22, U33, U12, U13, U23), label(_label)
+        : label(_label),
+          occupancy(yell::lit(_occupancy)),
+          occ_cache(_occupancy),
+          r_cache(r1, r2, r3),
+          U_cache(U11, U22, U33, U12, U13, U23)
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
-        for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
-        occupancy_expr = yell::lit(occupancy * multiplier);
+        r[0] = yell::lit(r1); r[1] = yell::lit(r2); r[2] = yell::lit(r3);
+        U[0] = yell::lit(U11); U[1] = yell::lit(U22); U[2] = yell::lit(U33);
+        U[3] = yell::lit(U12); U[4] = yell::lit(U13); U[5] = yell::lit(U23);
     }
 
-    double get_occupancy()           { return occupancy; }
-    void   set_occupancy(double _o)  {
-        occupancy = _o;
-        // Multiply the existing expression (mult_expr) by the component probability.
-        // After construct_atom sets occupancy_expr = param_exprs[0] (mult ExprPtr),
-        // this produces comp_prob * mult_expr so derivatives flow through both.
-        occupancy_expr = yell::lit(_o) * occupancy_expr;
+    yell::ExprPtr get_occupancy() override { return occupancy; }
+
+    void set_occupancy(yell::ExprPtr e) override {
+        // Update the double cache incrementally: e is guaranteed to be a literal
+        // during Phase 3 (variant probs parsed as doubles). Safe because e->eval({})
+        // works for Literal nodes. Phase 5 (refinable variant probs) will need
+        // to pass current params here instead.
+        Eigen::VectorXd zero_p;
+        occ_cache *= e->eval(zero_p);
+        occupancy = e * occupancy;
     }
 
     vector<Atom*> get_atoms() {
@@ -256,10 +278,36 @@ public:
         return v;
     }
 
-    Atom* create_symmetric(mat3<double> transformation_matrix, vec3<double> translation) {
+    Atom* create_symmetric(mat3<double> M, vec3<double> t) {
         Atom* result = new Atom(*this);
-        result->r = transformation_matrix * r + translation;
-        result->U = trusted_mat_to_sym_mat(transformation_matrix * U * transformation_matrix.transpose());
+        // Transform double caches
+        result->r_cache = M * r_cache + t;
+        result->U_cache = trusted_mat_to_sym_mat(M * U_cache * M.transpose());
+        // Transform ExprPtr r
+        yell::ExprPtr new_r[3];
+        for (int i = 0; i < 3; ++i)
+            new_r[i] = yell::lit(M[i*3+0])*r[0] + yell::lit(M[i*3+1])*r[1]
+                     + yell::lit(M[i*3+2])*r[2] + yell::lit(t[i]);
+        for (int i = 0; i < 3; ++i)
+            result->r[i] = new_r[i];
+        // Transform ExprPtr U: compute M * U_expr * M^T element-wise
+        auto get_u = [&](int k, int l) -> yell::ExprPtr {
+            if (k == 0 && l == 0) return U[0];
+            if (k == 1 && l == 1) return U[1];
+            if (k == 2 && l == 2) return U[2];
+            if ((k == 0 && l == 1) || (k == 1 && l == 0)) return U[3];
+            if ((k == 0 && l == 2) || (k == 2 && l == 0)) return U[4];
+            return U[5]; // (1,2) and (2,1)
+        };
+        auto calc_ij = [&](int ii, int jj) -> yell::ExprPtr {
+            yell::ExprPtr res = yell::lit(0);
+            for (int k = 0; k < 3; ++k)
+                for (int l = 0; l < 3; ++l)
+                    res = res + M[ii*3+k] * get_u(k,l) * M[jj*3+l];
+            return res;
+        };
+        result->U[0] = calc_ij(0,0); result->U[1] = calc_ij(1,1); result->U[2] = calc_ij(2,2);
+        result->U[3] = calc_ij(0,1); result->U[4] = calc_ij(0,2); result->U[5] = calc_ij(1,2);
         return result;
     }
 
@@ -268,9 +316,8 @@ public:
     ChemicalUnit* clone() const override { return new Atom(*this); }
 
     bool operator==(const Atom& inp) const {
-        return almost_equal(occupancy, inp.occupancy)
-            && almost_equal(r, inp.r)
-            && almost_equal(U, inp.U)
+        return almost_equal(r_cache, inp.r_cache)
+            && almost_equal(U_cache, inp.U_cache)
             && atomic_type == inp.atomic_type;
     }
     bool operator!=(const Atom& inp) const { return !(*this == inp); }
@@ -293,8 +340,7 @@ public:
     vector<Atom*> constituent_atoms;
 
     inline static complex<double> form_factor_in_a_point(complex<double> f,
-                                                          double p,
-                                                          double N,
+                                                          double occ,
                                                           vec3<double> r,
                                                           sym_mat3<double> U,
                                                           vec3<double> s);

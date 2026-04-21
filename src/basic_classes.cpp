@@ -57,7 +57,7 @@ ADPMode z_rot_mode(ChemicalUnit* unit) //only for hex system
 	mat3<double> rotation(1/sqrt(3.0),-2/sqrt(3.),0,2/sqrt(3.),-1/sqrt(3.),0,0,0,0);
 	
 	for(atom=atoms.begin(); atom!=atoms.end(); atom++)
-		mode.add_atom(*atom,rotation*((*atom)->r));
+		mode.add_atom(*atom,rotation*((*atom)->r_cache));
 	
 	return mode;
 }
@@ -75,7 +75,7 @@ ADPMode* rot_mode(ChemicalUnit* unit,vec3<double> axis , vec3<double> point_on_a
 	*/
 	
 	for(atom=atoms.begin(); atom!=atoms.end(); atom++)    
-		mode->add_atom(*atom,metrical_matrix*(axis.cross((*atom)->r - point_on_axis))/sqrt(metrical_matrix.determinant()));
+		mode->add_atom(*atom,metrical_matrix*(axis.cross((*atom)->r_cache - point_on_axis))/sqrt(metrical_matrix.determinant()));
 	
 	return mode;
 }
@@ -111,7 +111,7 @@ vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1
 	//TODO: what happens here is that we silently ignore the last column and the last row which user has input. If the user input it such that it is not self consistent, we need to detect it and throw the error rather than silently fixing it.
 	//fill last row (s1-1 th element of each column j)
 	for(int j=0; j<s2-1; j++){
-    yell::ExprPtr val = yell::lit(node2->chemical_units[j].get_occupancy());
+    yell::ExprPtr val = node2->chemical_units[j].get_occupancy();
 		for(int i=0; i<s1-1; i++)
 			val = val - correlations[i+s1*j];
     correlations[s1*j+s1-1] = val;
@@ -119,7 +119,7 @@ vector<SubstitutionalCorrelation*> correlators_from_cuns(ChemicalUnitNode* node1
 
 	//fill last column (s2-1 th row)
 	for(int i=0; i<s1; i++) {
-    yell::ExprPtr val = yell::lit(node1->chemical_units[i].get_occupancy());
+    yell::ExprPtr val = node1->chemical_units[i].get_occupancy();
 		for(int j=0; j<s2-1; j++)
 			val = val - correlations[i+s1*j];
     correlations[(s2-1)*s1+i] = val;
@@ -288,21 +288,19 @@ complex<double> MolecularScatterer::form_factor_at_c(vec3<double>s,double d_star
   complex<double> result;
   for (Atom* at : constituent_atoms)
     result += form_factor_in_a_point(at->atomic_type->form_factor_at_c(s, d_star_sq),
-                                     at->occupancy,
-                                     at->multiplier,
-                                     at->r,
-                                     at->U,
+                                     at->occ_cache,
+                                     at->r_cache,
+                                     at->U_cache,
                                      s);
   return result;
 }
 
 complex<double> MolecularScatterer::form_factor_in_a_point(complex<double> f,
-                                                     double p,
-                                                     double N,
+                                                     double occ,
                                                      vec3<double> r,
                                                      sym_mat3<double> U,
                                                      vec3<double> s)
 {
-  return f*p*N*exp( complex<double>(M2PISQ*(s*U*s),M_2PI*(s*r)) );
+  return f*occ*exp( complex<double>(M2PISQ*(s*U*s),M_2PI*(s*r)) );
 }
 

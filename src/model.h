@@ -27,7 +27,6 @@
 #include <set>
 #include <sstream>
 #include <unordered_map>
-#include "ParameterizedAtom.h"
 #include <boost/fusion/tuple.hpp>
 
 
@@ -188,63 +187,53 @@ public:
       periodic_boundaries = inp;
   }
   
-  /**
-   * Creates an atom with isotropic ADP from ExprPtr parameter trees.
-   * Evaluates current values, creates the Atom, and stores the ExprPtr trees
-   * in parameterized_atoms_ for parse-once re-evaluation.
-   */
-  Atom* construct_atom_isotropic_adp(string name, vector<yell::ExprPtr> param_exprs)  {
-    auto p = refinement_parameters_asEig();
-    Atom* atom = new Atom(name, param_exprs[0]->eval(p),
-                    1,//we assign probability to 1 because it will be changed by Variant afterwards anyway
-                    param_exprs[1]->eval(p), param_exprs[2]->eval(p),
-                    param_exprs[3]->eval(p), param_exprs[4]->eval(p),
-                    cell.cell.reciprocal_metrical_matrix(), scattering_type);
-    ParameterizedAtomData pad;
-    pad.param_exprs = param_exprs;
-    pad.isotropic   = true;
-    pad.atom_ptr    = atom;
-    pad.unit_cell   = cell.cell;
-    // Set the live mult ExprPtr so set_occupancy() can multiply by comp_prob later.
-    atom->occupancy_expr = param_exprs[0];
-    parameterized_atoms_.push_back(pad);
+  /// Creates an atom with isotropic ADP from ExprPtr parameter trees.
+  /// Bakes the ADP conversion (Uiso Å² → fractional) into the ExprPtr at parse time.
+  /// param_exprs layout: [mult, x, y, z, Uiso_ang]
+  Atom* construct_atom_isotropic_adp(string name, vector<yell::ExprPtr> param_exprs) {
+    auto p_eig = refinement_parameters_asEig();
+    // TODO: assert cell is initialized before construct_atom is called.
+    auto rm = cell.cell.reciprocal_metrical_matrix();
+    yell::ExprPtr U_exprs[6];
+    for (int i = 0; i < 6; ++i)
+        U_exprs[i] = param_exprs[4] * rm[i];  // Uiso * rm[i]
+    Atom* atom = new Atom(name, scattering_type,
+                          param_exprs[0],
+                          param_exprs[1], param_exprs[2], param_exprs[3],
+                          U_exprs[0], U_exprs[1], U_exprs[2],
+                          U_exprs[3], U_exprs[4], U_exprs[5]);
+    atom->update_caches(p_eig);
+    all_atoms_.push_back(atom);
     return atom;
   }
 
-  /**
-   * Creates an atom with anisotropic ADP from ExprPtr parameter trees.
-   * Evaluates current values, creates the Atom, and stores the ExprPtr trees
-   * in parameterized_atoms_ for parse-once re-evaluation.
-   */
-  Atom* construct_atom(string name, vector<yell::ExprPtr> param_exprs)  {
-    auto p = refinement_parameters_asEig();
+  /// Creates an atom with anisotropic ADP from ExprPtr parameter trees.
+  /// Bakes the ADP conversion (U_ij Å² → fractional) into the ExprPtr at parse time.
+  /// param_exprs layout: [mult, x, y, z, U11, U22, U33, U12, U13, U23] (ADP in Å²)
+  Atom* construct_atom(string name, vector<yell::ExprPtr> param_exprs) {
+    auto p_eig = refinement_parameters_asEig();
     // Convert U_ij (Å²) to U_stored[ij] = U_ij * a*_i * a*_j using scalar
     // reciprocal lattice lengths a* = sqrt(G*[i,i]).  Matches the SHELX/CIF
     // DWF convention: T = exp(-2pi^2 (U11 h^2 a*^2 + ... + 2U12 hk a*b* + ...))
-    // For orthogonal cells a*=1/a so this is identical to the old formula.
-    auto G  = cell.cell.reciprocal_metrical_matrix();
-    double astar = std::sqrt(G[0]);
-    double bstar = std::sqrt(G[1]);
-    double cstar = std::sqrt(G[2]);
-    Atom* atom = new Atom(name, param_exprs[0]->eval(p),
-                    1, //we assign probability to 1 because it will be changed by Variant afterwards anyway
-                    param_exprs[1]->eval(p), param_exprs[2]->eval(p),
-                    param_exprs[3]->eval(p),
-                    param_exprs[4]->eval(p) * astar * astar,
-                    param_exprs[5]->eval(p) * bstar * bstar,
-                    param_exprs[6]->eval(p) * cstar * cstar,
-                    param_exprs[7]->eval(p) * astar * bstar,
-                    param_exprs[8]->eval(p) * astar * cstar,
-                    param_exprs[9]->eval(p) * bstar * cstar,
-                    scattering_type);
-    ParameterizedAtomData pad;
-    pad.param_exprs = param_exprs;
-    pad.isotropic   = false;
-    pad.atom_ptr    = atom;
-    pad.unit_cell   = cell.cell;
-    // Set the live mult ExprPtr so set_occupancy() can multiply by comp_prob later.
-    atom->occupancy_expr = param_exprs[0];
-    parameterized_atoms_.push_back(pad);
+    auto G = cell.cell.reciprocal_metrical_matrix();
+    const double astar = std::sqrt(G[0]);
+    const double bstar = std::sqrt(G[1]);
+    const double cstar = std::sqrt(G[2]);
+    yell::ExprPtr U_exprs[6] = {
+        param_exprs[4] * (astar * astar),
+        param_exprs[5] * (bstar * bstar),
+        param_exprs[6] * (cstar * cstar),
+        param_exprs[7] * (astar * bstar),
+        param_exprs[8] * (astar * cstar),
+        param_exprs[9] * (bstar * cstar)
+    };
+    Atom* atom = new Atom(name, scattering_type,
+                          param_exprs[0],
+                          param_exprs[1], param_exprs[2], param_exprs[3],
+                          U_exprs[0], U_exprs[1], U_exprs[2],
+                          U_exprs[3], U_exprs[4], U_exprs[5]);
+    atom->update_caches(p_eig);
+    all_atoms_.push_back(atom);
     return atom;
   }
 
@@ -563,7 +552,9 @@ public:
   vector<double> refinement_parameters;
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;
-  vector<ParameterizedAtomData> parameterized_atoms_;
+  // Non-owning flat list of all atoms (cell atoms + molecular scatterer atoms).
+  // Populated by construct_atom* during parsing; update_caches() called on each in calculate().
+  vector<Atom*> all_atoms_;
   // Per-clone private atom copies for molecular-scatterer atoms (not in cell).
   // Empty in the original model; populated and owned by each clone.
   vector<Atom*> mol_owned_atoms_;
@@ -604,7 +595,7 @@ public:
       for (size_t i = 0; i < pools.size(); ++i)
           m->pools.push_back(new AtomicPairPool(*pools[i]));
 
-      if (!m->parameterized_atoms_.empty()) {
+      if (!m->all_atoms_.empty()) {
           // Step 1: remap atoms that live in cell.chemical_unit_nodes (deep-copied
           // by Model(*this) copy-constructor via p_vector).
           auto clone_cell_atoms = collect_atoms_(m->cell);
@@ -616,20 +607,20 @@ public:
           // Step 2: atoms that live in MolecularScatterers (NOT in cell) are NOT
           // deep-copied by the copy-constructor — they remain shared with the global
           // AtomicTypeCollection.  Create per-clone private copies for them.
-          for (auto& pad : m->parameterized_atoms_) {
-              if (remap.find(pad.atom_ptr) == remap.end()) {
+          for (auto& a_ptr : m->all_atoms_) {
+              if (remap.find(a_ptr) == remap.end()) {
                   // Atom not found in cell traversal → molecular scatterer atom.
                   // Allocate a private copy so each clone writes to its own Atom.
-                  Atom* private_copy = new Atom(*pad.atom_ptr);
-                  remap[pad.atom_ptr] = private_copy;
+                  Atom* private_copy = new Atom(*a_ptr);
+                  remap[a_ptr] = private_copy;
                   m->mol_owned_atoms_.push_back(private_copy);
               }
           }
 
-          // Apply full remap to parameterized_atoms_.
-          for (auto& pad : m->parameterized_atoms_) {
-              auto it = remap.find(pad.atom_ptr);
-              if (it != remap.end()) pad.atom_ptr = it->second;
+          // Apply full remap to all_atoms_.
+          for (auto& a_ptr : m->all_atoms_) {
+              auto it = remap.find(a_ptr);
+              if (it != remap.end()) a_ptr = it->second;
           }
 
           // Step 3: fix scatterer_list_.  MolecularScatterer objects in the global

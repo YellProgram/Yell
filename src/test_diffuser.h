@@ -359,7 +359,7 @@ public:
     {
         cctbx::uctbx::unit_cell cell(af::double6(1,1,7,90,90,120));
 
-        Atom anAtom(string("C12"),1, 1,0,0,0, 0.1,  cell.reciprocal_metrical_matrix());
+        Atom anAtom(string("C12"),1, 0,0,0, 0.1,  cell.reciprocal_metrical_matrix());
 
         TS_ASSERT_DELTA(0.4/3,anAtom.U[0],0.00001);
         TS_ASSERT_DELTA(0.4/3,anAtom.U[1],0.00001);
@@ -380,25 +380,25 @@ public:
     }
     void testAtomAndPair()
     {
-        Atom at1(string("C"),0.12,0.5,0,0,0,1,1,1,0,0,0);
-        Atom at2(string("C2"),0.7,0.5,1,1,1,1,1,1,0,0,0);
+        // at1: occupancy=0.06 (= 0.12*0.5 in old mult×occ scheme)
+        // at2: occupancy=0.35 (= 0.7*0.5 in old mult×occ scheme)
+        Atom at1(string("C"),0.06,0,0,0,1,1,1,0,0,0);
+        Atom at2(string("C2"),0.35,1,1,1,1,1,1,0,0,0);
         AtomicPair pair(at1,at2);
-        
+
         TS_ASSERT(pair.r() == vec3<double>(1,1,1));
         TS_ASSERT(pair.U() == sym_mat3<double>(2,2,2,0,0,0));
 
         Eigen::VectorXd zero_p;
-        // at1: mult=0.12, occ=0.5 → occupancy_expr = lit(0.06)
-        // at2: mult=0.7,  occ=0.5 → occupancy_expr = lit(0.35)
-        // pair probability = 0.06 * 0.35 (multipliers now live in occupancy_expr)
-        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.12*0.5 * 0.7*0.5, 1e-7);
+        // pair probability = occ1 * occ2 = 0.06 * 0.35
+        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.06 * 0.35, 1e-7);
 
         TS_ASSERT(pair.average_r() == vec3<double>(1,1,1));
         TS_ASSERT(pair.average_U() == sym_mat3<double>(2,2,2,0,0,0));
-        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.12*0.5 * 0.7*0.5, 1e-7);
+        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.06 * 0.35, 1e-7);
 
         TS_ASSERT_DELTA(pair.atomic_type1->form_factor_at(0),5.9972,0.0001);
-        // pair.multiplier is now reserved for LaueSymmetry only; atom multipliers are in occupancy_expr
+        // pair.multiplier is reserved for LaueSymmetry counting only
         TS_ASSERT_DELTA(pair.multiplier, 1.0, 0.00001);
     }
 
@@ -665,8 +665,8 @@ public:
     void testMultiplicityCorrelationWithVariantProbability()
     {
         // Simulate: Variant [ (p=0.5) Mn 1 0 0 0 0 (p=0.5) Void ]
-        // Atom Mn has multiplier 1 and occupancy 0.5
-        Atom mn(string("Mn"), 1.0, 0.5, 0, 0, 0, 1, 1, 1, 0, 0, 0);
+        // Mn atom occupancy=1 multiplied by variant prob=0.5 → effective p=0.5
+        Atom mn(string("Mn"), 0.5, 0, 0, 0, 1, 1, 1, 0, 0, 0);
         
         AtomicPairPool aPool;
         AtomicPair& pair = aPool.get_pair(&mn, &mn);
@@ -703,8 +703,8 @@ public:
         TS_ASSERT_EQUALS(atoms.size(), 1);
         Atom* mn = atoms[0];
         
-        // Check atom occupancy is 0.5 as requested
-        TS_ASSERT_DELTA(mn->occupancy, 0.5, 0.00001);
+        // Check atom component probability is 0.5 as requested
+        TS_ASSERT_DELTA(mn->occ_cache, 0.5, 0.00001);
         
         // Create a pair pool and add a self-pair
         AtomicPairPool pool;
@@ -754,7 +754,7 @@ public:
 
     void testCorrelationFromCUNS()
     {
-        p_atom2->occupancy=0.3;
+        p_atom2->occupancy=yell::lit(0.3); p_atom2->occ_cache=0.3;
         Atom* p_atom3 = new Atom("Si",0.2,2,2,2,0,0,0,0,0,0);
 
         Atom* p_atom21 = new Atom(*p_atom3);
@@ -1182,15 +1182,15 @@ public:
         test_parser_nores("Cell 1 1 1  90. 90. 90.",a_parser.program_options,a_skipper);
         run_parser("C1  0.3 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0",a_parser.atom,a_skipper,atom);
 
-        TS_ASSERT_DELTA(0.3,atom->multiplier,0.01);
-        TS_ASSERT_DELTA(-0.0107,atom->r[0],0.01);
-        TS_ASSERT_DELTA(0.066,atom->U[0],0.01);
+        TS_ASSERT_DELTA(0.3,atom->occ_cache,0.01);
+        TS_ASSERT_DELTA(-0.0107,atom->r_cache[0],0.01);
+        TS_ASSERT_DELTA(0.066,atom->U_cache[0],0.01);
         delete atom;
 
         //check how Uiso parser works
         run_parser("C1 0.5 0 0 0  0.1",a_parser.atom,a_skipper,atom);
 
-        TS_ASSERT_EQUALS(Atom("C1",0.5,1,0,0,0, 0.1,0.1,0.1,0,0,0),*atom);
+        TS_ASSERT_EQUALS(Atom("C1",0.5,0,0,0, 0.1,0.1,0.1,0,0,0),*atom);
 
         delete atom;
     }
@@ -1219,8 +1219,8 @@ public:
         AtomicAssembly* assembly;
         run_parser("[ C1  21.0 0 0 0 0 0 0 0 0 0 C2  0 10 0 0 0 0 0 0 0 0 ]",a_parser.atomic_assembly,a_skipper,assembly);
 
-        TS_ASSERT_DELTA(21.0,(*assembly)[0]->get_atoms()[0]->multiplier,0.01);
-        TS_ASSERT_DELTA(10.0,(*assembly)[1]->get_atoms()[0]->r[0],0.01);
+        TS_ASSERT_DELTA(21.0,(*assembly)[0]->get_atoms()[0]->occ_cache,0.01);
+        TS_ASSERT_DELTA(10.0,(*assembly)[1]->get_atoms()[0]->r_cache[0],0.01);
         delete assembly;
     }
     void test_chemical_unit_parser()  {
@@ -1229,13 +1229,13 @@ public:
 
         run_parser("C1  0.1238 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0",a_parser.chemical_unit,a_skipper,unit);
 
-        TS_ASSERT_DELTA(0.1238,unit->get_atoms()[0]->multiplier,0.0001);//should wrap the atom
+        TS_ASSERT_DELTA(0.1238,unit->get_atoms()[0]->occ_cache,0.0001);//should wrap the atom
 
         delete unit;
 
         run_parser("[ C1  0.3215 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0 ]",a_parser.chemical_unit,a_skipper,unit);
 
-        TS_ASSERT_DELTA(0.3215,unit->get_atoms()[0]->multiplier,0.0001);//should wrap the atom atomic assembly
+        TS_ASSERT_DELTA(0.3215,unit->get_atoms()[0]->occ_cache,0.0001);//should wrap the atom atomic assembly
 
         delete unit;
     }
@@ -1257,7 +1257,7 @@ public:
         ChemicalUnitNode * a_variant;
 
         run_parser("Variant[ (p=0.9876) an_atom1 =[ C1  0.3215 -0.0107 0.8970 0.1319 0.066 0.066 0.066 -0.033 0 0 ] (p=1-0.9876)Void]",a_parser.variant,a_skipper,a_variant);
-        TS_ASSERT_DELTA(0.9876,a_variant->chemical_units[0].get_atoms()[0]->occupancy,0.0001);
+        TS_ASSERT_DELTA(0.9876,a_variant->chemical_units[0].get_atoms()[0]->occ_cache,0.0001);
 
     }
 
@@ -1304,7 +1304,7 @@ public:
         run_parser("some_atom*Symmetry(y,x,z)",a_parser.chemical_unit,a_skipper,changed_atom);
 
         // some_atom*Symmetry[y,x,z] == C 0.123 2 1 3 22 11 33 12 23 13
-        TS_ASSERT_EQUALS(Atom("C",0.123,1,2,1,3,22,11,33,12,23,13),*(changed_atom->get_atoms()[0]));
+        TS_ASSERT_EQUALS(Atom("C",0.123,2,1,3,22,11,33,12,23,13),*(changed_atom->get_atoms()[0]));
 
 
         TS_ASSERT(test_parser_nores("Void",a_parser.chemical_unit,a_skipper));
