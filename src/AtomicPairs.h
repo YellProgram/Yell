@@ -97,7 +97,7 @@ public:
     AtomicPair() {}
 
     AtomicPair(Atom& _atom1, Atom& _atom2)
-        : real(_atom1.occupancy * _atom2.occupancy,
+        : real(_atom1.full_occupancy() * _atom2.full_occupancy(),
                vec3_expr(_atom2.r[0]-_atom1.r[0],
                          _atom2.r[1]-_atom1.r[1],
                          _atom2.r[2]-_atom1.r[2]),
@@ -107,7 +107,7 @@ public:
                              _atom1.U[3]+_atom2.U[3],
                              _atom1.U[4]+_atom2.U[4],
                              _atom1.U[5]+_atom2.U[5])),
-          average(_atom1.occupancy * _atom2.occupancy,
+          average(_atom1.full_occupancy() * _atom2.full_occupancy(),
                vec3_expr(_atom2.r[0]-_atom1.r[0],
                          _atom2.r[1]-_atom1.r[1],
                          _atom2.r[2]-_atom1.r[2]),
@@ -312,19 +312,17 @@ public:
     bool generates_pairs() { return true; }
 
     void modify_pairs(AtomicPairPool* const pool) {
-        // Divide joint_probability_expr by the component occupancies to get a
-        // relative correlation factor, then multiply by each atom's occupancy_expr.
-        // This propagates per-atom multiplier parameters (e.g. pCu) through to the
-        // pair probability so analytical derivatives flow correctly.
-        yell::ExprPtr occ1 = chemical_units[0]->get_occupancy();
-        yell::ExprPtr occ2 = chemical_units[1]->get_occupancy();
+        // joint_probability_expr lives at the variant-probability level.
+        // Scale it by each atom's refinable multiplier so that per-atom
+        // occupancy parameters (e.g. pCu) flow through to the pair probability
+        // and appear in analytical derivatives.
         vector<Atom*> atoms1 = chemical_units[0]->get_atoms();
         vector<Atom*> atoms2 = chemical_units[1]->get_atoms();
         for (vector<Atom*>::iterator atom1 = atoms1.begin(); atom1 != atoms1.end(); atom1++)
             for (vector<Atom*>::iterator atom2 = atoms2.begin(); atom2 != atoms2.end(); atom2++) {
                 AtomicPair& pair = pool->get_pair(*atom1, *atom2);
-                pair.real_p() = (joint_probability_expr / occ1 / occ2)
-                                * (*atom1)->occupancy * (*atom2)->occupancy;
+                pair.real_p() = joint_probability_expr
+                                * (*atom1)->mult_expr * (*atom2)->mult_expr;
             }
     }
 
@@ -460,26 +458,6 @@ public:
     yell::ExprPtr amplitude;
 };
 
-class ZeroVectorCorrelation : public PairModifier {
-public:
-    ZeroVectorCorrelation() {}
-    bool generates_pairs() { return false; }
-
-    void modify_pairs(AtomicPairPool* const pool) {
-        Eigen::VectorXd zero_p; // only for evaluating literals during init
-        for (vector<AtomicPair>::iterator pair = pool->pairs.begin(); pair != pool->pairs.end(); pair++) {
-            vec3<double> r_val(pair->r().x->eval(zero_p), pair->r().y->eval(zero_p), pair->r().z->eval(zero_p));
-            if (r_val.length() < 0.0001 && pair->atom1 == pair->atom2) {
-                pair->U() = sym_mat3<double>(0,0,0,0,0,0);
-                pair->p() = pair->atom1->occupancy;
-            }
-            if (r_val.length() < 0.0001 && pair->atom1 != pair->atom2)
-                pair->p() = yell::lit(0);
-        }
-    }
-
-    PairModifier* clone() const override { return new ZeroVectorCorrelation(*this); }
-};
 
 class MultiplicityCorrelation : public PairModifier {
 public:

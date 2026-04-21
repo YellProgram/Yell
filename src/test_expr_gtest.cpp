@@ -800,6 +800,41 @@ TEST_F(ParameterizedAtomFixture, UpdateChangesMultiplier)
     EXPECT_NEAR(0.4, a.occ_cache, 1e-12);
 }
 
+TEST_F(ParameterizedAtomFixture, ComponentProbAndMultAreIndependent)
+{
+    // Verify the split: component_prob is the variant probability (set via
+    // set_occupancy), mult_expr is the per-atom refinable multiplier.
+    // get_occupancy() returns component_prob only; occ_cache = both combined.
+    yell::ParameterBlock block;
+    block.add("Scale", 1.0);
+    yell::ExprPtr mult = block.add("pCu", 0.7);
+
+    Atom a("C", XRay, mult,
+           yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+           yell::lit(0.0), yell::lit(0.0), yell::lit(0.0),
+           yell::lit(0.0), yell::lit(0.0), yell::lit(0.0));
+
+    // Before set_occupancy: component_prob = lit(1.0)
+    Eigen::VectorXd p = block.values();
+    EXPECT_NEAR(1.0, a.get_occupancy()->eval(p), 1e-12);
+    EXPECT_NEAR(0.7, a.mult_expr->eval(p), 1e-12);
+
+    a.update_caches(p);
+    EXPECT_NEAR(0.7, a.occ_cache, 1e-12);  // 1.0 * 0.7
+
+    // After set_occupancy (simulating Variant assignment of prob=0.5):
+    a.set_occupancy(yell::lit(0.5));
+    EXPECT_NEAR(0.5, a.get_occupancy()->eval(p), 1e-12);  // component_prob only
+    EXPECT_NEAR(0.7, a.mult_expr->eval(p), 1e-12);        // mult unchanged
+
+    // full_occupancy() = component_prob * mult_expr
+    EXPECT_NEAR(0.35, a.full_occupancy()->eval(p), 1e-12);
+
+    // occ_cache reflects the combined value after update_caches
+    a.update_caches(p);
+    EXPECT_NEAR(0.35, a.occ_cache, 1e-12);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Model: parse-once integration tests
 // ─────────────────────────────────────────────────────────────────────────────

@@ -198,7 +198,7 @@ public:
     for (int i = 0; i < 6; ++i)
         U_exprs[i] = param_exprs[4] * rm[i];  // Uiso * rm[i]
     Atom* atom = new Atom(name, scattering_type,
-                          param_exprs[0],
+                          param_exprs[0],  // mult_expr
                           param_exprs[1], param_exprs[2], param_exprs[3],
                           U_exprs[0], U_exprs[1], U_exprs[2],
                           U_exprs[3], U_exprs[4], U_exprs[5]);

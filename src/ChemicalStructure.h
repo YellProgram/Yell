@@ -174,10 +174,16 @@ public:
     string label;
     Scatterer* atomic_type;
 
-    /// Full effective occupancy expression: variant_prob * mult_expr.
-    /// Built at parse time; modified by set_occupancy() when placed in a Variant.
-    /// Used by AtomicPair for pair probability and analytical derivatives.
-    yell::ExprPtr occupancy;
+    /// Variant component probability — set by set_occupancy() when the atom is
+    /// placed inside a Variant node.  Pure probability, independent of per-atom
+    /// multiplier.  get_occupancy() returns this so consistency checks and
+    /// correlators_from_cuns see the marginal probability, not the full occupancy.
+    yell::ExprPtr component_prob;
+
+    /// Refinable per-atom occupancy multiplier — from param_exprs[0] in
+    /// construct_atom*.  Represents disorder that is not resolved via the Variant
+    /// mechanism (e.g. a refined site occupancy pCu).  Default: lit(1.0).
+    yell::ExprPtr mult_expr;
 
     /// Position (fractional coords) as expression trees.
     /// Set by construct_atom*; transformed by create_symmetric().
@@ -188,37 +194,37 @@ public:
     yell::ExprPtr U[6];
 
     // ── Double caches for MolecularScatterer inner loop and ADPMode ─────────
-    // TODO: Replace with a "DoubleAtom" snapshot (like pairs→PattersonPeaks)
-    // so MolecularScatterer can propagate derivatives analytically through its atoms.
-    // Currently: caches updated once per calculate() call; form_factor_at_c
-    // reads them blindly. MASSIVE improvement potential once discretized.
-    double           occ_cache;
+    double           occ_cache;   // = component_prob * mult_expr evaluated
     vec3<double>     r_cache;
     sym_mat3<double> U_cache;
 
+    /// Full occupancy ExprPtr used by AtomicPair and SubstitutionalCorrelation.
+    yell::ExprPtr full_occupancy() const { return component_prob * mult_expr; }
+
     /// Re-evaluate all ExprPtr trees and write to double caches.
-    /// Call once per calculate() step before pair generation.
     void update_caches(const Eigen::VectorXd& p, yell::EvaluationCache* cache = nullptr) {
-        occ_cache = occupancy->eval(p, cache);
+        occ_cache = component_prob->eval(p, cache) * mult_expr->eval(p, cache);
         for (int i = 0; i < 3; ++i) r_cache[i] = r[i]->eval(p, cache);
         for (int i = 0; i < 6; ++i) U_cache[i] = U[i]->eval(p, cache);
     }
 
     Atom() : occ_cache(1.0) {
-        occupancy = yell::lit(1.0);
+        component_prob = yell::lit(1.0);
+        mult_expr      = yell::lit(1.0);
         for (int i = 0; i < 6; ++i) U[i] = yell::lit(0);
         for (int i = 0; i < 3; ++i) r[i] = yell::lit(0);
         atomic_type = nullptr;
     }
 
     /// ExprPtr constructor — used by construct_atom* in model.h.
-    /// Call update_caches(params) immediately after construction.
+    /// component_prob starts as lit(1.0); set_occupancy() updates it when the
+    /// atom is placed in a Variant.  Call update_caches(params) after construction.
     Atom(string const& _label, ScatteringType st,
-         yell::ExprPtr occ_expr,
+         yell::ExprPtr mult,
          yell::ExprPtr rx, yell::ExprPtr ry, yell::ExprPtr rz,
          yell::ExprPtr U0, yell::ExprPtr U1, yell::ExprPtr U2,
          yell::ExprPtr U3, yell::ExprPtr U4, yell::ExprPtr U5)
-        : label(_label), occupancy(occ_expr), occ_cache(0)
+        : label(_label), component_prob(yell::lit(1.0)), mult_expr(mult), occ_cache(0)
     {
         atomic_type = AtomicTypeCollection::get(_label, st);
         r[0] = rx; r[1] = ry; r[2] = rz;
@@ -227,14 +233,17 @@ public:
     }
 
     /// Literal constructor with isotropic ADP (used in tests).
-    Atom(string const& _label, double _occupancy,
+    /// _multiplier is the per-atom mult (default 1.0); _occupancy is NOT used —
+    /// component_prob stays lit(1.0) until set_occupancy() is called.
+    Atom(string const& _label, double _multiplier,
          double r1, double r2, double r3,
          double Uiso,
          sym_mat3<double> reciprocal_metric_tensor,
          ScatteringType scattering_type = XRay)
         : label(_label),
-          occupancy(yell::lit(_occupancy)),
-          occ_cache(_occupancy),
+          component_prob(yell::lit(1.0)),
+          mult_expr(yell::lit(_multiplier)),
+          occ_cache(_multiplier),
           r_cache(r1, r2, r3),
           U_cache(Uiso * reciprocal_metric_tensor)
     {
@@ -244,13 +253,14 @@ public:
     }
 
     /// Literal constructor with anisotropic ADP (used in tests and direct construction).
-    Atom(string const& _label, double _occupancy,
+    Atom(string const& _label, double _multiplier,
          double r1, double r2, double r3,
          double U11, double U22, double U33, double U12, double U13, double U23,
          ScatteringType scattering_type = XRay)
         : label(_label),
-          occupancy(yell::lit(_occupancy)),
-          occ_cache(_occupancy),
+          component_prob(yell::lit(1.0)),
+          mult_expr(yell::lit(_multiplier)),
+          occ_cache(_multiplier),
           r_cache(r1, r2, r3),
           U_cache(U11, U22, U33, U12, U13, U23)
     {
@@ -260,16 +270,14 @@ public:
         U[3] = yell::lit(U12); U[4] = yell::lit(U13); U[5] = yell::lit(U23);
     }
 
-    yell::ExprPtr get_occupancy() override { return occupancy; }
+    /// Returns the pure variant component probability (not multiplied by mult_expr).
+    /// Used by consistency checks and correlators_from_cuns.
+    yell::ExprPtr get_occupancy() override { return component_prob; }
 
+    /// Called by the Variant parser to stamp the component probability onto the atom.
+    /// Does NOT update occ_cache — that happens in update_caches() with real params.
     void set_occupancy(yell::ExprPtr e) override {
-        // Update the double cache incrementally: e is guaranteed to be a literal
-        // during Phase 3 (variant probs parsed as doubles). Safe because e->eval({})
-        // works for Literal nodes. Phase 5 (refinable variant probs) will need
-        // to pass current params here instead.
-        Eigen::VectorXd zero_p;
-        occ_cache *= e->eval(zero_p);
-        occupancy = e * occupancy;
+        component_prob = e;
     }
 
     vector<Atom*> get_atoms() {
