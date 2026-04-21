@@ -214,6 +214,8 @@ struct ParameterizedParams {
         : occupancy(yell::lit(occ)), r(_r), U(_U) {}
     ParameterizedParams(double occ, vec3<double> _r, sym_mat3_expr _U)
         : occupancy(yell::lit(occ)), r(_r), U(std::move(_U)) {}
+    ParameterizedParams(yell::ExprPtr occ, vec3<double> _r, sym_mat3_expr _U)
+        : occupancy(occ), r(_r), U(std::move(_U)) {}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -224,14 +226,14 @@ public:
     AtomicPair() {}
 
     AtomicPair(Atom& _atom1, Atom& _atom2)
-        : real(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r,
+        : real(_atom1.occupancy_expr * _atom2.occupancy_expr, _atom2.r - _atom1.r,
                sym_mat3_expr(_atom1.U_expr[0]+_atom2.U_expr[0],
                              _atom1.U_expr[1]+_atom2.U_expr[1],
                              _atom1.U_expr[2]+_atom2.U_expr[2],
                              _atom1.U_expr[3]+_atom2.U_expr[3],
                              _atom1.U_expr[4]+_atom2.U_expr[4],
                              _atom1.U_expr[5]+_atom2.U_expr[5])),
-          average(_atom1.occupancy * _atom2.occupancy, _atom2.r - _atom1.r,
+          average(_atom1.occupancy_expr * _atom2.occupancy_expr, _atom2.r - _atom1.r,
                sym_mat3_expr(_atom1.U_expr[0]+_atom2.U_expr[0],
                              _atom1.U_expr[1]+_atom2.U_expr[1],
                              _atom1.U_expr[2]+_atom2.U_expr[2],
@@ -240,7 +242,7 @@ public:
                              _atom1.U_expr[5]+_atom2.U_expr[5])),
           atomic_type1(_atom1.atomic_type),
           atomic_type2(_atom2.atomic_type),
-          multiplier(_atom1.multiplier * _atom2.multiplier),
+          multiplier(1.0),  // atom multipliers now live in occupancy_expr; this holds LaueSymmetry factor only
           atom1(&_atom1),
           atom2(&_atom2)
     {}
@@ -433,12 +435,19 @@ public:
     bool generates_pairs() { return true; }
 
     void modify_pairs(AtomicPairPool* const pool) {
+        // Divide joint_probability_expr by the component occupancies to get a
+        // relative correlation factor, then multiply by each atom's occupancy_expr.
+        // This propagates per-atom multiplier parameters (e.g. pCu) through to the
+        // pair probability so analytical derivatives flow correctly.
+        double occ1 = chemical_units[0]->get_occupancy();
+        double occ2 = chemical_units[1]->get_occupancy();
         vector<Atom*> atoms1 = chemical_units[0]->get_atoms();
         vector<Atom*> atoms2 = chemical_units[1]->get_atoms();
         for (vector<Atom*>::iterator atom1 = atoms1.begin(); atom1 != atoms1.end(); atom1++)
             for (vector<Atom*>::iterator atom2 = atoms2.begin(); atom2 != atoms2.end(); atom2++) {
                 AtomicPair& pair = pool->get_pair(*atom1, *atom2);
-                pair.p() = joint_probability_expr;
+                pair.real_p() = (joint_probability_expr / occ1 / occ2)
+                                * (*atom1)->occupancy_expr * (*atom2)->occupancy_expr;
             }
     }
 
@@ -585,7 +594,7 @@ public:
             vec3<double> r_val(pair->r().x->eval(zero_p), pair->r().y->eval(zero_p), pair->r().z->eval(zero_p));
             if (r_val.length() < 0.0001 && pair->atom1 == pair->atom2) {
                 pair->U() = sym_mat3<double>(0,0,0,0,0,0);
-                pair->p() = yell::lit(pair->atom1->occupancy);
+                pair->p() = pair->atom1->occupancy_expr;
             }
             if (r_val.length() < 0.0001 && pair->atom1 != pair->atom2)
                 pair->p() = yell::lit(0);

@@ -205,6 +205,8 @@ public:
     pad.isotropic   = true;
     pad.atom_ptr    = atom;
     pad.unit_cell   = cell.cell;
+    // Set the live mult ExprPtr so set_occupancy() can multiply by comp_prob later.
+    atom->occupancy_expr = param_exprs[0];
     parameterized_atoms_.push_back(pad);
     return atom;
   }
@@ -240,10 +242,12 @@ public:
     pad.isotropic   = false;
     pad.atom_ptr    = atom;
     pad.unit_cell   = cell.cell;
+    // Set the live mult ExprPtr so set_occupancy() can multiply by comp_prob later.
+    atom->occupancy_expr = param_exprs[0];
     parameterized_atoms_.push_back(pad);
     return atom;
   }
-  
+
   void set_derivatives_mode(DerivativesMode m) { derivatives_mode = m; }
   void set_jacobian_multiplier(double v)        { jacobian_multiplier = v; }
 

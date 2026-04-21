@@ -1,0 +1,84 @@
+Cell 3.101 3.101 6  90 90 90
+LaueSymmetry 4/mmm
+DiffuseScatteringGrid -10 -10 -10 0.1 0.1 1 200 200 20
+
+CalculationMethod approximate
+Derivatives analytical
+Refine true
+
+Scale 1
+RefinableVariables
+[
+pCu=0;
+dp10=0;
+dp11=0;
+dp20=0;
+dp21=0;
+dp22=0;
+dp30=0;
+dp31=0;
+dp32=0;
+dp33=0;
+]
+
+UnitCell
+[
+  AuCu = Variant[
+    (p=1/2)[
+    Au 1 0.0 0.0 0 0.02
+    Cu pCu 0 0 0.5 0.02 
+    ]
+
+    (p=1/2)
+    Cu 1 0.0 0.0 0 0.02
+  ]
+]
+
+Modes[]
+
+Correlations
+[
+  [(0,0,0)
+   Multiplicity 1
+   SubstitutionalCorrelation(AuCu,AuCu,1/2)
+  ]
+
+  [(1,0,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp10)
+  ]
+
+  [(1,1,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp11)
+ ]
+
+  [(2,0,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp20)
+  ]
+  [(2,1,0)
+   Multiplicity 8
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp21)
+  ]
+  [(2,2,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp22)
+  ]
+  [(3,0,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp30)
+  ]
+  [(3,1,0)
+   Multiplicity 8
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp31)
+  ]
+  [(3,2,0)
+   Multiplicity 8
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp32)
+  ]
+  [(3,3,0)
+   Multiplicity 4
+   SubstitutionalCorrelation(AuCu,AuCu,0.25+dp33)
+  ]
+]

@@ -159,7 +159,7 @@ public:
 // ─────────────────────────────────────────────────────────────────────────────
 // AtomicParams and Atom
 // ─────────────────────────────────────────────────────────────────────────────
-
+//TODO: check if this structure is ever used, if not - delete.
 class AtomicParams {
 public:
     double occupancy;
@@ -191,9 +191,15 @@ public:
     /// Populated by ParameterizedAtomData::update() so analytical derivatives
     /// flow through pair.U() ExprPtr trees.  Initialised to lit(U[i]) here.
     yell::ExprPtr U_expr[6];
+    /// Live expression for the atom's total neutral occupancy = comp_prob_expr * mult_expr.
+    /// Initialized to lit(occupancy*multiplier) in constructors; in the parse-once path
+    /// construct_atom sets it to param_exprs[0] (mult ExprPtr), then set_occupancy(p)
+    /// multiplies by lit(p).  Evaluated by AtomicPair and ZeroVectorCorrelation.
+    yell::ExprPtr occupancy_expr;
 
     Atom() {
         for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(0);
+        occupancy_expr = yell::lit(1.0);
     }
 
     /// Atom with Uiso and metric tensor.
@@ -207,6 +213,7 @@ public:
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
         for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
+        occupancy_expr = yell::lit(occupancy * multiplier);
     }
 
     /// Constructor for tests only.
@@ -218,6 +225,7 @@ public:
     {
         atomic_type = AtomicTypeCollection::get(_label, XRay);
         for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
+        occupancy_expr = yell::lit(occupancy * multiplier);
     }
 
     /// General constructor. Uij parameters are Uij/ai*aj.
@@ -230,10 +238,17 @@ public:
     {
         atomic_type = AtomicTypeCollection::get(_label, scattering_type);
         for (int i = 0; i < 6; ++i) U_expr[i] = yell::lit(U[i]);
+        occupancy_expr = yell::lit(occupancy * multiplier);
     }
 
     double get_occupancy()           { return occupancy; }
-    void   set_occupancy(double _o)  { occupancy = _o; }
+    void   set_occupancy(double _o)  {
+        occupancy = _o;
+        // Multiply the existing expression (mult_expr) by the component probability.
+        // After construct_atom sets occupancy_expr = param_exprs[0] (mult ExprPtr),
+        // this produces comp_prob * mult_expr so derivatives flow through both.
+        occupancy_expr = yell::lit(_o) * occupancy_expr;
+    }
 
     vector<Atom*> get_atoms() {
         vector<Atom*> v;

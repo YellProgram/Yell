@@ -386,16 +386,20 @@ public:
         
         TS_ASSERT(pair.r() == vec3<double>(1,1,1));
         TS_ASSERT(pair.U() == sym_mat3<double>(2,2,2,0,0,0));
-        
+
         Eigen::VectorXd zero_p;
-        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.25, 1e-7);
-        
+        // at1: mult=0.12, occ=0.5 → occupancy_expr = lit(0.06)
+        // at2: mult=0.7,  occ=0.5 → occupancy_expr = lit(0.35)
+        // pair probability = 0.06 * 0.35 (multipliers now live in occupancy_expr)
+        TS_ASSERT_DELTA(pair.p()->eval(zero_p), 0.12*0.5 * 0.7*0.5, 1e-7);
+
         TS_ASSERT(pair.average_r() == vec3<double>(1,1,1));
         TS_ASSERT(pair.average_U() == sym_mat3<double>(2,2,2,0,0,0));
-        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.25, 1e-7);
-        
+        TS_ASSERT_DELTA(pair.average_p()->eval(zero_p), 0.12*0.5 * 0.7*0.5, 1e-7);
+
         TS_ASSERT_DELTA(pair.atomic_type1->form_factor_at(0),5.9972,0.0001);
-        TS_ASSERT_DELTA(pair.multiplier,0.7*0.12,0.00001);
+        // pair.multiplier is now reserved for LaueSymmetry only; atom multipliers are in occupancy_expr
+        TS_ASSERT_DELTA(pair.multiplier, 1.0, 0.00001);
     }
 
     void helperTestPointerVector()
