@@ -360,6 +360,18 @@ Frequently, the FFT approximation method has the strongest errors close to the e
 
 Details are described in ([Simonov et al. in. prep.](#YellPaper)).
 
+#### FFTBorderPixels {#FFTBorderPixels}
+expects: three numbers  
+default: `0 0 0`
+
+Number of extra border pixels appended to the ∆PDF block of each interatomic pair when it is accumulated into the map during the `approximate` calculation.
+
+Because of crystal symmetry the symmetry-correct ∆PDF peak frequently has to be represented on an *odd* number of pixels, whereas the FFT is more efficient on an *even* number. The border pixel reconciles the two cases, and choosing it correctly is not something Yell can decide on its own, so it is left to the user.
+
+As a rule it should be set to `1` along every dimension, *except* for the dimensions where the [`FFTGridSize`](#FFTGridSize) equals the number of pixels of the diffuse scattering grid along that dimension (see [`DiffuseScatteringGrid`](#DiffuseScatteringGrid)), where it should be `0`.
+
+A border pixel is never added along a dimension whose dataset is only one pixel thick.
+
 #### PeriodicBoundaries {#PeriodicBoundaries}
 expects: three booleans  
 default: `true true true`

@@ -187,7 +187,7 @@ void Model::calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
       // Main path: use all available hardware threads
-      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, max_processors);
+      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, max_processors);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();
@@ -229,7 +229,7 @@ IntensityMap Model::calculate_derivative_from_peaks(
       IntensityMap recipr_padded = out.padded(padding);
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
-      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, sl, padded, avg, fft_grid_size, periodic_boundaries, num_threads);
+      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, sl, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, num_threads);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();

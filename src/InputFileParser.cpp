@@ -99,6 +99,7 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("NumberOfSupercycles") > int_)                           [phoenix::bind(&Model::set_num_supercycles,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]
+    | (lit("FFTBorderPixels") > repeat(3)[int_])        [phoenix::bind(&Model::set_fft_border_pixels,*ref(model),_1)]
     | (lit("DumpPairs") > bool_)                        [phoenix::bind(&Model::set_dump_pairs,*ref(model),_1)]
     | (lit("CalculateJacobians") > bool_)               [phoenix::bind(&Model::set_calculate_jacobians,*ref(model),_1)]
     | program_option1

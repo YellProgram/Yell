@@ -42,7 +42,8 @@ class AtomicPairPool;
 // ─────────────────────────────────────────────────────────────────────────────
 
 void add_pair_to_appropriate_place(IntensityMap& small_piece, IntensityMap& accumulator,
-                                   vec3<int> r, vector<bool> periodic);
+                                   vec3<int> r, vector<bool> periodic,
+                                   vec3<int> border_pixels = vec3<int>(0, 0, 0));
 
 ADPMode* translational_mode(ChemicalUnit* unit, int direction, sym_mat3<double>);
 ADPMode  z_rot_mode(ChemicalUnit* unit);

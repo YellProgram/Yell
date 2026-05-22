@@ -166,16 +166,22 @@ inline int fastmod(int i, int j) {
     return i;
 }
 
-void add_pair_to_appropriate_place(IntensityMap &  small_piece,IntensityMap & accumulator,vec3<int> r,vector<bool> periodic) {
+void add_pair_to_appropriate_place(IntensityMap &  small_piece,IntensityMap & accumulator,vec3<int> r,vector<bool> periodic,vec3<int> border_pixels) {
 	vec3<int> piece_size=small_piece.size();
 	vec3<int> acc_size=accumulator.size();
-	
+
 	r=r-(piece_size/2);
-	
+
+	// Extra border pixels appended to the accumulation window. Whether (and how
+	// many) border pixels a PDF peak needs depends on the odd/even-pixel mismatch
+	// between the symmetry-correct peak size and the FFT-friendly (even) grid; this
+	// decision is too involved to hard-code, so it is supplied from the input as
+	// FFTBorderPixels (default 0 0 0). A flat dimension (acc_size==1) never gets a
+	// border, otherwise the extra pixel would alias back onto the single slice.
 	vec3<int> borders;
 	for(int i=0; i<3; i++)
 	{
-		borders[i]=0;//(acc_size[i]>1);
+		borders[i]=(acc_size[i]>1) ? border_pixels[i] : 0;
 	}
 
 	vec3<int> llimits, ulimits;
@@ -184,7 +190,6 @@ void add_pair_to_appropriate_place(IntensityMap &  small_piece,IntensityMap & ac
     llimits[i]=r[i];
     ulimits[i]=r[i]+piece_size[i]+borders[i];
 
-    
     if(!periodic.at(i))
     {
       llimits[i]=max(0,llimits[i]);

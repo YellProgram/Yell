@@ -328,6 +328,12 @@ public:
   void set_fft_grid_size(vector<int> params)  {
     fft_grid_size=vec3<int>(params[0],params[1],params[2]);
   }
+
+  /// Extra border pixels added to each PDF peak during FFT accumulation
+  /// (see add_pair_to_appropriate_place). Input keyword: FFTBorderPixels.
+  void set_fft_border_pixels(vector<int> params)  {
+    fft_border_pixels=vec3<int>(params[0],params[1],params[2]);
+  }
   
   void set_dump_pairs(bool inp)  {
     dump_pairs=inp;
@@ -407,6 +413,7 @@ public:
     refinement_flag = true;
     recalculate_average=true;
     fft_grid_size=vec3<int>(16,16,16);
+    fft_border_pixels=vec3<int>(0,0,0);
     dump_pairs=false;
     scattering_type = XRay;
     refinement_parameters = vector<double>(1,1);
@@ -705,6 +712,7 @@ public:
       OptionalIntensityMap& wts);
 
   vec3<int> fft_grid_size;
+  vec3<int> fft_border_pixels;
   vector<bool> periodic_boundaries;
 //  int number_of_parameters;
   bool cell_is_initialized;

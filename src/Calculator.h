@@ -111,6 +111,7 @@ public:
         bool                         average_flag,
         vec3<int>                    pair_grid_size,
         vector<bool>                 periodic_directions = vector<bool>(3, false),
+        vec3<int>                    border_pixels = vec3<int>(0, 0, 0),
         int                          num_threads = 0)
     {
         const int n_peaks = (int)full_peaks.size();
@@ -190,7 +191,7 @@ public:
                 {
                     std::lock_guard<std::mutex> lock(accum_mutex);
                     add_pair_to_appropriate_place(ppm, patterson_map,
-                                                  r_grid, periodic_directions);
+                                                  r_grid, periodic_directions, border_pixels);
                 }
             }
         };
@@ -215,6 +216,7 @@ public:
         bool           average_flag,
         vec3<int>      pair_grid_size,
         vector<bool>   periodic_directions = vector<bool>(3, false),
+        vec3<int>      border_pixels = vec3<int>(0, 0, 0),
         int            num_threads = 0)
     {
         const int n_peaks = (int)base_full_peaks.size();
@@ -301,7 +303,7 @@ public:
                 {
                     std::lock_guard<std::mutex> lock(accum_mutex);
                     add_pair_to_appropriate_place(ppm, deriv_patterson_map,
-                                                  r_grid, periodic_directions);
+                                                  r_grid, periodic_directions, border_pixels);
                 }
             }
         };
