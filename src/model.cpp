@@ -457,10 +457,18 @@ void Model::init_background_basis(OptionalIntensityMap& wts)
         s.push_back(std::sqrt(std::max(0.0, tmp.current_d_star_square())));
     const int n = (int)s.size();
 
-    // Normalisation domain: |q| range where data actually exists (weight > 0).
+    // A point is "measured" where data exists (weight > 0) and, if a reciprocal-space
+    // multiplier is loaded, where it is non-zero (the multiplier marks unmeasured
+    // regions of reciprocal space with 0).
+    const bool have_mult = reciprocal_space_multiplier.is_loaded;
+    auto measured = [&](int i) {
+        return wts.at(i) > 0 && (!have_mult || reciprocal_space_multiplier.at(i) > 0);
+    };
+
+    // Normalisation domain: |q| range over measured points only.
     double smin = std::numeric_limits<double>::max(), smax = -smin;
     for (int i = 0; i < n; ++i)
-        if (wts.at(i) > 0) { smin = std::min(smin, s[i]); smax = std::max(smax, s[i]); }
+        if (measured(i)) { smin = std::min(smin, s[i]); smax = std::max(smax, s[i]); }
     if (!(smax > smin)) smax = smin + 1.0; // degenerate guard
 
     // x_i = a·s_i + b maps [smin, smax] → [-1, 1].
@@ -479,6 +487,12 @@ void Model::init_background_basis(OptionalIntensityMap& wts)
             double Tk1 = 2.0 * x * Tk - Tkm1;
             background_basis_(i, k) = Tk1;
             Tkm1 = Tk; Tk = Tk1;
+        }
+        // Mask by the reciprocal-space multiplier so the background, like the calculated
+        // intensity (which already has it applied), is absent/scaled in unmeasured regions.
+        if (have_mult) {
+            double mult = reciprocal_space_multiplier.at(i);
+            for (int k = 0; k < m; ++k) background_basis_(i, k) *= mult;
         }
     }
 

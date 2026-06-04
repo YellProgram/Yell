@@ -191,6 +191,37 @@ def run_forward_case(name, yell, const):
     print("  SUCCESS" if ok else "  FAILURE")
     return ok
 
+def run_masked_case(name, yell, const):
+    """Forward pass with a reciprocal_space_multiplier that masks part of reciprocal
+    space (0 = unmeasured): the background must be absent (0) there and present elsewhere."""
+    work = os.path.join(BASE, f"work_background_{name}")
+    if os.path.exists(work): shutil.rmtree(work)
+    os.makedirs(work)
+    print(f"Testing background: {name} (reciprocal-space mask)")
+    extra = f"RefineBackground false\nBackground [ {const} ]"
+    with open(os.path.join(work, "model.txt"), "w") as f:
+        f.write(model_text("false", **TARGET, extra=extra))
+    # Need grid metadata; do a first run to get a correctly-shaped output to clone.
+    run_yell(yell, work)
+    tmpl = os.path.join(work, "background.h5")
+    with h5py.File(tmpl, "r") as src, h5py.File(os.path.join(work, "reciprocal_space_multiplier.h5"), "w") as out:
+        shape = src["data"].shape
+        for k in ("format", "is_direct", "lower_limits", "step_sizes", "unit_cell"):
+            src.copy(k, out)
+        mult = np.ones(shape); mult[: shape[0] // 2] = 0.0   # mask the first half
+        out.create_dataset("data", data=mult)
+    run_yell(yell, work)
+    with h5py.File(os.path.join(work, "background.h5"), "r") as f:
+        b = f["data"][...]
+    half = b.shape[0] // 2
+    masked_max = float(np.nanmax(np.abs(b[:half])))
+    present_max = float(np.nanmax(np.abs(b[half:])))
+    ok = masked_max <= 1e-9 and present_max >= 1e-6
+    print(f"    masked region max|bg|={masked_max:g} (want 0), measured region max|bg|={present_max:g} (want >0) "
+          f"[{'OK' if ok else 'FAIL'}]")
+    print("  SUCCESS" if ok else "  FAILURE")
+    return ok
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", default=default_bin())
@@ -221,6 +252,9 @@ def main():
     results.append(run_case("fixed",    args.bin, "RefineBackground false\nBackground [ 50 ]", const_inject))
     # FORWARD pass (Refine false): the fixed background must be calculated and written.
     results.append(run_forward_case("forward", args.bin, 42.0))
+    # MASKED: a reciprocal_space_multiplier of 0 marks unmeasured regions; the background
+    # must be absent there (and present in the measured region).
+    results.append(run_masked_case("masked", args.bin, 42.0))
 
     if all(results):
         print("\nAll background integration tests PASSED!")
