@@ -1,5 +1,11 @@
 Currently we don't refine Scale, that one is refined separately in an extra step. However, that means that jacobian doesn't see the effect of scale and if the two need to move together in a coherent fashion possibly it makes things worse (for say cubic problems). To check, go to tests/sluggish
+-> this is actually more complicated than I thought. testing showed that the way I do it now, even though it looks bad, actually works pretty efficient. Making it otherwise complicated the refinement code but made worse convergence. Need to collect many examples and reexamine it though, as theoretically I am doing it wrong.
+
+When doing this, think carefully how to deal with the scale refinement, as it is currently a little ugly.
+
 
 It would be good to sit and think about using odd number of pixels in fft approximation. Now there is a funny tension between the symmetry of individual patches and full model caused by the even patches. Fixed by adding margin on one side, but that changes total sum slightly.
 For some mysterious reason I am not applying convolving/deconvolving of peaks with a gaussian. This might improve things if the parameters are chosen smartly (half the pixel size is good, right?).
 My FFT approximation is very fragile wrt borders of the fft patch, especially if patches can fall in-between the pixels, which they very often do as a lot of atoms are sitting at 1/2 and many still at 1/4, so with incorrect choice of FFT grid a lot of bad things happen. Diffuse scattering isn't very sensitive for that, but Bragg peaks are not SOO robust as it turns out.
+
+The parser is not keeping track of where in the original file it took the values from .Because of that error reporting should be broken for a bunch of runtime errors, but that needs careful checking.
