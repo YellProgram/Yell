@@ -99,6 +99,7 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("RefineScale") > bool_)                                  [phoenix::bind(&Model::set_refine_scale,*ref(model),_1)]
     | (lit("RefineBackground") > bool_)                             [phoenix::bind(&Model::set_refine_background,*ref(model),_1)]
     | (lit("BackgroundDegree") > int_)                              [phoenix::bind(&Model::set_background_degree,*ref(model),_1)]
+    | (lit("Background") > lit('[') > *number > lit(']'))           [phoenix::bind(&Model::set_background_coefficients,*ref(model),_1)]
     | (lit("NumberOfSupercycles") > int_)                           [phoenix::bind(&Model::set_num_supercycles,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]

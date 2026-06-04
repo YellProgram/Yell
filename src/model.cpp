@@ -441,7 +441,11 @@ double Model::compute_optimal_scale(IntensityMap& exp_map, OptionalIntensityMap&
 void Model::init_background_basis(OptionalIntensityMap& wts)
 {
     const int m = background_n_terms();
-    background_coeffs_.assign(m, 0.0);
+    // Seed coefficients: supplied values (Background [...]) take priority, else zeros.
+    if ((int)background_input_coeffs_.size() == m && m > 0)
+        background_coeffs_ = background_input_coeffs_;
+    else
+        background_coeffs_.assign(m, 0.0);
     if (m == 0) { background_basis_.resize(0, 0); return; }
 
     // |q_i| = √(d*²_i) over the full grid, in the same flat order as at(i).
@@ -512,7 +516,9 @@ void Model::compute_optimal_linear_params(IntensityMap& exp_map, OptionalIntensi
         if (fit_bg) for (int k = 0; k < n_bg; ++k) c[col++] = background_basis_(i, k);
 
         double t = exp_map.at(i);
-        if (!fit_scale) t -= scale_ * Ic; // Scale fixed → fit background to the remainder
+        if (!fit_scale) t -= scale_ * Ic;                  // Scale fixed
+        if (!fit_bg && !background_coeffs_.empty())
+            t -= background_at(i);                          // background fixed (calculated, not refined)
 
         N.noalias() += w2 * (c * c.transpose());
         rhs.noalias() += (w2 * t) * c;
@@ -542,8 +548,11 @@ Eigen::MatrixXd Model::compute_full_covariance(
 
   // Background coefficients (if refined) extend the parameter space after the
   // structural params: covariance indices [n_params .. n_params+n_bg).
-  const int  n_bg    = refinement_options.refine_background ? (int)background_coeffs_.size() : 0;
-  const bool fit_bg  = n_bg > 0;
+  // n_bg counts enabled background terms so the covariance has a slot for each (a fixed
+  // background gets a zero row/col → ESD 0, like a fixed Scale). fit_bg gates whether the
+  // block is actually accumulated (only when the background is being refined).
+  const int  n_bg    = (int)background_coeffs_.size();
+  const bool fit_bg  = refinement_options.refine_background && n_bg > 0;
   const int  n_total = n_params + n_bg;
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_total, n_total);
 

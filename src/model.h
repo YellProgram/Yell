@@ -131,10 +131,16 @@ public:
   void set_refine_scale(bool inp)        { refinement_options.refine_scale = inp; }
   void set_refine_background(bool inp)   { refinement_options.refine_background = inp; }
   void set_background_degree(int inp)    { refinement_options.background_degree = inp; }
+  // `Background [ c0 c1 ... ]`: supply background coefficients. The background is then
+  // *calculated* (applied/subtracted) even when not refined; if RefineBackground is
+  // also true these are the starting values. The count sets the number of terms.
+  void set_background_coefficients(vector<double> inp) { background_input_coeffs_ = inp; }
 
-  // Number of Chebyshev background coefficients (degree + 1) when background
-  // refinement is enabled, else 0.
+  // Number of Chebyshev background coefficients, i.e. whether a background is enabled
+  // (calculated) at all. Enabled if explicit coefficients were supplied, or if
+  // RefineBackground requests a degree-(N) polynomial (N+1 terms). 0 = no background.
   int background_n_terms() const {
+    if (!background_input_coeffs_.empty()) return (int)background_input_coeffs_.size();
     return refinement_options.refine_background ? refinement_options.background_degree + 1 : 0;
   }
 
@@ -596,6 +602,10 @@ public:
   // (size = background_n_terms()); background_basis_ is Φ(i,k) = T_k(x_i) over the full
   // grid (size_1d × n_terms). Both empty unless RefineBackground is enabled.
   vector<double>  background_coeffs_;
+  // Coefficients supplied via the `Background [ ... ]` keyword (empty if none). When
+  // non-empty the background is calculated even if not refined; with RefineBackground
+  // they are the starting values. init_background_basis seeds background_coeffs_ from these.
+  vector<double>  background_input_coeffs_;
   Eigen::MatrixXd background_basis_;
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;

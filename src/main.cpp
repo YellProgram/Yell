@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.32\n";
+    REPORT(MAIN) << "Yell 1.3.33\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -384,10 +384,13 @@ int main (int argc, char * const argv[]) {
       }
       REPORT(MAIN) << "]\n]\n";
 
+      const bool bg_refined = a_model.refinement_options.refine_background;
       if (a_model.background_n_terms() > 0) {
-        REPORT(MAIN) << "Background (Chebyshev in |q|)\n";
+        REPORT(MAIN) << "Background (Chebyshev in |q|)" << (bg_refined ? "" : " #fixed") << "\n";
         for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
-          REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
+          REPORT(MAIN) << a_model.refined_variable_names[i] << '='
+                       << (bg_refined ? format_esd(refined_params[i], esd[i])
+                                      : (std::to_string(refined_params[i]) + " #fixed")) << ";\n";
       }
 
       std::ofstream out_refined_params("refined_parameters.txt");
@@ -411,10 +414,13 @@ int main (int argc, char * const argv[]) {
       out_refined_params << "]\n";
 
       if (a_model.background_n_terms() > 0) {
-        out_refined_params << "RefineBackground true\nBackgroundDegree "
-                           << a_model.refinement_options.background_degree << "\n# Refined background coefficients:\n";
+        // Re-runnable: the coefficients are written as a Background[...] line, so the
+        // refined background can be reused as a fixed input (with RefineBackground false).
+        out_refined_params << "RefineBackground " << (bg_refined ? "true" : "false") << "\n"
+                           << "Background [ ";
         for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
-          out_refined_params << "# " << a_model.refined_variable_names[i] << '=' << refined_params[i] << "\n";
+          out_refined_params << refined_params[i] << ' ';
+        out_refined_params << "]\n";
       }
 
 

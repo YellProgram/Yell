@@ -117,12 +117,16 @@ def parse_params(path):
     if blk:
         for name, val in re.findall(r'(\w+)\s*=\s*([0-9.eE+-]+)(?:\([0-9]+\))?\s*;', blk.group(1)):
             params[name] = float(val)
-    for name, val in re.findall(r'#\s*(Bkg_\d+)\s*=\s*([0-9.eE+-]+)', txt):
-        params[name] = float(val)
+    # Background coefficients are written as a re-runnable `Background [ c0 c1 ... ]` line.
+    bg = re.search(r'Background\s*\[([^\]]*)\]', txt)
+    if bg:
+        for i, v in enumerate(re.findall(r'[-+0-9.eE]+', bg.group(1))):
+            params[f'Bkg_{i}'] = float(v)
     return params
 
-def run_case(name, yell, degree, inject):
-    """inject: callable(E0_array, qlen_array) -> (E1_array, expected_bkg_dict)."""
+def run_case(name, yell, start_extra, inject):
+    """start_extra: background keywords for the starting (refinement) model.
+    inject: callable(E0_array, qlen_array) -> (E1_array, expected_bkg_dict)."""
     work = os.path.join(BASE, f"work_background_{name}")
     if os.path.exists(work): shutil.rmtree(work)
     os.makedirs(work)
@@ -142,9 +146,8 @@ def run_case(name, yell, degree, inject):
         f["data"][...] = E1
 
     # 3. refine with background, structural params perturbed to 0 / Scale 1
-    extra = f"RefineBackground true\nBackgroundDegree {degree}"
     with open(os.path.join(work, "model.txt"), "w") as f:
-        f.write(model_text("true", scale=1, p1=0, p2=0, extra=extra))
+        f.write(model_text("true", scale=1, p1=0, p2=0, extra=start_extra))
     run_yell(yell, work)
 
     # 4. compare
@@ -185,8 +188,13 @@ def main():
         return E1, {}
 
     results = []
-    results.append(run_case("constant", args.bin, 0, const_inject))
-    results.append(run_case("linear",   args.bin, 1, linear_inject))
+    # refined constant background (degree 0): recover Bkg_0
+    results.append(run_case("constant", args.bin, "RefineBackground true\nBackgroundDegree 0", const_inject))
+    # refined linear background (degree 1): structural recovery despite |q|-shaped bg
+    results.append(run_case("linear",   args.bin, "RefineBackground true\nBackgroundDegree 1", linear_inject))
+    # FIXED constant background (calculated, not refined): supplied via Background[...],
+    # must be applied/subtracted so structure is recovered, and echoed back unchanged.
+    results.append(run_case("fixed",    args.bin, "RefineBackground false\nBackground [ 50 ]", const_inject))
 
     if all(results):
         print("\nAll background integration tests PASSED!")
