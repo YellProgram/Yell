@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.33\n";
+    REPORT(MAIN) << "Yell 1.3.34\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -256,6 +256,13 @@ int main (int argc, char * const argv[]) {
     if (experimental_diffuse_map.is_loaded)
       experimental_diffuse_map.get_intensity_map()->set_grid(a_model.grid);
 
+    // Precompute the Chebyshev background basis and register coefficient names. Done for
+    // both refinement and forward-only runs so a supplied/refined background is applied
+    // in the forward pass too. No-op unless a background is enabled.
+    a_model.init_background_basis(a_model.weights);
+    for (int k = 0; k < a_model.background_n_terms(); ++k)
+      a_model.refined_variable_names.push_back("Bkg_" + std::to_string(k));
+
     if (a_model.refinement_flag) //refinement
     {
       if (!experimental_diffuse_map.is_loaded) {
@@ -282,11 +289,6 @@ int main (int argc, char * const argv[]) {
       vector<double> refined_params;
       vector<double> covar;
       a_model.init_asu();
-      // Precompute the Chebyshev background basis (no-op unless RefineBackground is on)
-      // and register coefficient names so they line up with the covariance/output.
-      a_model.init_background_basis(a_model.weights);
-      for (int k = 0; k < a_model.background_n_terms(); ++k)
-        a_model.refined_variable_names.push_back("Bkg_" + std::to_string(k));
 
       int n_supercycles = a_model.refinement_options.num_supercycles;
       int n_blocks      = (int)a_model.parameter_blocks.size();
@@ -441,9 +443,10 @@ int main (int argc, char * const argv[]) {
       a_model.calculate(a_model.refinement_parameters);
     }
 
-    // If a background was refined, subtract it from the experimental data once so that
-    // Rw and every downstream output (model.h5, exp-minus-model, PDFs) treat the data as
-    // background-corrected and the model as the structural part Scale·(Ifull−Iavg).
+    // If a background is enabled (refined or fixed), subtract it from the experimental
+    // data once — in both refinement and forward-only runs — so that Rw and every
+    // downstream output (exp-minus-model, PDFs) treat the data as background-corrected
+    // and the model maps as the structural part Scale·(Ifull−Iavg).
     if (a_model.background_n_terms() > 0 && experimental_diffuse_map.is_loaded) {
       IntensityMap* em = experimental_diffuse_map.get_intensity_map();
       for (int i = 0; i < em->size_1d(); ++i)
@@ -457,6 +460,13 @@ int main (int argc, char * const argv[]) {
     WriteHDF5("full.h5", a_model.intensity_map);
     WriteHDF5("average.h5", a_model.average_intensity_map);
     WriteHDF5("model.h5", a_model.model_scaled_to_experiment());
+
+    // Forward-calculated isotropic background, written whenever a background is enabled
+    // (refined or fixed) so it is an explicit output even without experimental data.
+    if (a_model.background_n_terms() > 0) {
+      IntensityMap bg_map = a_model.background_map();
+      WriteHDF5("background.h5", bg_map);
+    }
 
     if (a_model.grid.grid_is_compatible_with_fft()) {
       IntensityMap normalized_delta_pdf = a_model.model_scaled_to_experiment();

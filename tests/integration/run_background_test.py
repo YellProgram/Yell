@@ -167,6 +167,30 @@ def run_case(name, yell, start_extra, inject):
     print("  SUCCESS" if ok else "  FAILURE")
     return ok
 
+def run_forward_case(name, yell, const):
+    """Forward pass (Refine false) with a fixed background: the background must be
+    calculated and written to background.h5 even with no refinement / no experiment."""
+    work = os.path.join(BASE, f"work_background_{name}")
+    if os.path.exists(work): shutil.rmtree(work)
+    os.makedirs(work)
+    print(f"Testing background: {name} (forward pass)")
+    extra = f"RefineBackground false\nBackground [ {const} ]"
+    with open(os.path.join(work, "model.txt"), "w") as f:
+        f.write(model_text("false", **TARGET, extra=extra))
+    run_yell(yell, work)
+    bgp = os.path.join(work, "background.h5")
+    if not os.path.exists(bgp):
+        print("    background.h5 not produced [FAIL]"); print("  FAILURE"); return False
+    with h5py.File(bgp, "r") as f:
+        d = f["data"][...]
+    finite = d[np.isfinite(d)]
+    diff = float(np.max(np.abs(finite - const))) if finite.size else float("inf")
+    status = "OK" if diff <= 1e-6 else "FAIL"
+    print(f"    background.h5 == {const}: max|diff|={diff:g} [{status}]")
+    ok = diff <= 1e-6
+    print("  SUCCESS" if ok else "  FAILURE")
+    return ok
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", default=default_bin())
@@ -195,6 +219,8 @@ def main():
     # FIXED constant background (calculated, not refined): supplied via Background[...],
     # must be applied/subtracted so structure is recovered, and echoed back unchanged.
     results.append(run_case("fixed",    args.bin, "RefineBackground false\nBackground [ 50 ]", const_inject))
+    # FORWARD pass (Refine false): the fixed background must be calculated and written.
+    results.append(run_forward_case("forward", args.bin, 42.0))
 
     if all(results):
         print("\nAll background integration tests PASSED!")

@@ -548,6 +548,15 @@ public:
     return data_;
   }
 
+  /// Isotropic background B(|q|) evaluated on the diffuse-scattering grid (the same
+  /// values subtracted from the experiment). Empty/zero unless a background is enabled.
+  IntensityMap background_map() {
+    IntensityMap m(grid);
+    for (int i = 0; i < m.size_1d(); ++i)
+      m.at(i) = background_at(i);
+    return m;
+  }
+
   int number_of_observations() {
       if(refine_in_asu())
           return asu_indices().size();
