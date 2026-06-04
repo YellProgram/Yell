@@ -48,23 +48,21 @@ public:
         const bool use_asu = model_->refine_in_asu();
         const vector<int>& asu = model_->asu_indices();
 
-        // 3. Scale: variable-projection optimum, or held fixed if RefineScale is off.
-        double S;
-        if (model_->refinement_options.refine_scale) {
-            S = model_->compute_optimal_scale(*exp_, *weights_);
-            model_->set_scale(S);
-        } else {
-            // calculate() above clobbered refinement_parameters[0]; read authoritative
-            // scale_, then restore it so downstream reads see the fixed value.
-            S = model_->scale_;
-            model_->set_scale(S);
-        }
+        // 3. Linear parameters: jointly optimise Scale (if RefineScale) and the
+        //    background coefficients (if RefineBackground) by linear least squares;
+        //    anything not refined is held fixed. calculate() above clobbered
+        //    refinement_parameters[0], so re-stamp the authoritative scale_.
+        model_->compute_optimal_linear_params(*exp_, *weights_);
+        double S = model_->scale_;
+        model_->set_scale(S);
         p[0] = S;
 
-        // 4. Residuals
+        // 4. Residuals: r_i = (Ie_i − S·Ic_i − B_i)·w_i
         for (int ii = 0; ii < n_obs; ++ii) {
             int i = use_asu ? asu[ii] : ii;
-            residuals[ii] = (exp_->at(i) - S * (model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i))) * weights_->at(i);
+            residuals[ii] = (exp_->at(i)
+                             - S * (model_->get_intensity_map().at(i) - model_->get_average_intensity_map().at(i))
+                             - model_->background_at(i)) * weights_->at(i);
         }
 
         // 5. Parallel Jacobian evaluation
@@ -248,17 +246,22 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     }
 
     if (!any_free_block) {
-        if (model && model->refinement_options.refine_scale) {
+        bool fit_any = model && (model->refinement_options.refine_scale ||
+                                 model->refinement_options.refine_background);
+        if (fit_any) {
+            // With no structural parameters the model is linear in {Scale, b_k}, so a
+            // single joint linear least-squares solve is exact — no iterative refinement.
             model->calculate(initial_params);
-            double S = model->compute_optimal_scale(*_experimental_data, *weights);
-            model->set_scale(S);
-            REPORT(MAIN) << "Only Scale is refinable; optimised analytically to " << S
-                         << " (no iterative refinement needed).\n";
+            model->compute_optimal_linear_params(*_experimental_data, *weights);
+            REPORT(MAIN) << "Only linear parameters (Scale/background) are refinable; "
+                            "optimised analytically (no iterative refinement needed).\n";
         } else {
             // Nothing to refine at all; main() rejects this earlier, guard regardless.
             REPORT(MAIN) << "No refinable parameters and Scale is fixed; nothing to refine.\n";
         }
 
+        // Struct-only vector [Scale, structural]; main appends background for reporting.
+        // compute_full_covariance appends the background block to the covariance itself.
         vector<double> result;
         result.push_back(model ? model->refinement_parameters[0] : initial_params[0]);
         for (size_t b = 0; b < p_pointers.size(); ++b)
@@ -276,16 +279,16 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         return result;
     }
 
-    // Analytically optimise Scale before handing off to Ceres, so the first
-    // iteration starts from a sensible scale.
-    if (model && refinement_options.refine_scale && refinement_options.scale_before_refine) {
+    // Analytically optimise the linear parameters (Scale, and background if enabled)
+    // before handing off to Ceres, so the first iteration starts from a sensible point.
+    if (model && refinement_options.scale_before_refine &&
+        (refinement_options.refine_scale || refinement_options.refine_background)) {
         vector<double> p0 = initial_params;
         model->calculate(p0);
-        double S = model->compute_optimal_scale(*_experimental_data, *weights);
-        REPORT(MAIN) << "Scale set to " << S << " before refinement.\n";
-        model->set_scale(S);
-        // Update the initial values fed into p_pointers (Scale is not a Ceres block,
-        // but model->refinement_parameters[0] is used when result is assembled).
+        model->compute_optimal_linear_params(*_experimental_data, *weights);
+        REPORT(MAIN) << "Scale set to " << model->scale_ << " before refinement.\n";
+        // Scale is not a Ceres block, but model->refinement_parameters[0] / scale_ and
+        // background_coeffs_ are used when the result is assembled.
     }
 
     if (model && (model->derivatives_mode == ANALYTICAL || model->derivatives_mode == MIXED)) {
@@ -356,6 +359,9 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
     
     if (model) {
         REPORT(MAIN) << "Computing covariance matrix...\n";
+        // result is [Scale, structural]; compute_full_covariance appends the background
+        // block itself, so the returned covariance is (n_struct+1+n_bg)². main appends the
+        // background coefficients to its refined_params so the two stay index-aligned.
         Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
         covar = vector<double>(cov.data(), cov.data() + cov.size());
         REPORT(MAIN) << "Done.\n";
@@ -392,13 +398,15 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
     const bool use_asu = calc->refine_in_asu();
     const vector<int>& asu = calc->asu_indices();
 
-    // Scale: variable-projection optimum, or held fixed if RefineScale is off.
+    // Linear parameters: jointly optimise Scale (if RefineScale) and the background
+    // coefficients (if RefineBackground) by linear least squares; anything not refined
+    // is held fixed. For a Model this is delegated to compute_optimal_linear_params;
+    // legacy non-Model calculators keep the old scale-only variable projection.
     double S;
-    if (model && !model->refinement_options.refine_scale) {
-        // calculate() just clobbered refinement_parameters[0]; read the authoritative
-        // scale_ instead, then restore so result assembly / residuals see the fixed value.
+    if (model) {
+        model->compute_optimal_linear_params(*experimental_data, *weights);
         S = model->scale_;
-        model->set_scale(S);
+        model->set_scale(S); // restore refinement_parameters[0] clobbered by calculate()
     } else {
         double num = 0.0, den = 0.0;
         for (int ii = 0; ii < n_obs; ++ii) {
@@ -406,24 +414,23 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
             double w = weights->at(i);
             double Ic = calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i);
             double Ie = experimental_data->at(i);
-            num += w * w * Ie * Ic; //TODO: check this is compatible with our definition of weights in the other parts. square of w, not linear???. just two lines down. THINK
+            num += w * w * Ie * Ic;
             den += w * w * Ic * Ic;
         }
-        //TODO: think if 1e-015 is good here or overly conservative. Shall we keep scale intact coming from the input instead of this?
-        S = (den > 1e-15) ? (num / den) : 1.0; //TODO: think if this will get refinement stuck possibly when ceres tries to refine scale and this thing fights back. Though that should theoretically never happen.
+        S = (den > 1e-15) ? (num / den) : 1.0;
         if (S < 0) S = 0;
-        if (model) model->set_scale(S);
     }
     yell_parameters[0] = S;
 
+    auto bg = [&](int i) { return model ? model->background_at(i) : 0.0; };
     if (use_asu) {
         for(int ii=0; ii<n_obs; ii++) {
             auto i = asu[ii];
-            residuals[ii] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i))) * weights->at(i);
+            residuals[ii] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i)) - bg(i)) * weights->at(i);
         }
     } else {
         for(int i=0; i<n_obs; i++)
-            residuals[i] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i))) * weights->at(i);
+            residuals[i] = (experimental_data->at(i) - S * (calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i)) - bg(i)) * weights->at(i);
     }
 
     return true;

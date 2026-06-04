@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.30\n";
+    REPORT(MAIN) << "Yell 1.3.31\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -264,15 +264,17 @@ int main (int argc, char * const argv[]) {
       }
 
       // Reject the case where refinement is requested but there is nothing to refine:
-      // no active refinable parameters AND Scale is held fixed (RefineScale false).
+      // no active refinable parameters AND Scale fixed AND no background.
       {
         int n_active_refinable = 0;
         for (int i = 1; i < (int)a_model.refinement_parameters.size(); ++i)
           if (a_model.param_is_active(i)) ++n_active_refinable;
-        if (n_active_refinable == 0 && !a_model.refinement_options.refine_scale) {
+        if (n_active_refinable == 0 && !a_model.refinement_options.refine_scale
+                                    && !a_model.refinement_options.refine_background) {
           REPORT(ERROR) << "Refine is set to true but there is nothing to refine: no active "
-                           "refinable parameters and Scale is held fixed (RefineScale false). "
-                           "Set 'Refine false', set 'RefineScale true', or add refinable parameters.\n";
+                           "refinable parameters, Scale is held fixed (RefineScale false), and "
+                           "no background. Set 'Refine false', enable RefineScale/RefineBackground, "
+                           "or add refinable parameters.\n";
           throw(TerminateProgram());
         }
       }
@@ -280,6 +282,11 @@ int main (int argc, char * const argv[]) {
       vector<double> refined_params;
       vector<double> covar;
       a_model.init_asu();
+      // Precompute the Chebyshev background basis (no-op unless RefineBackground is on)
+      // and register coefficient names so they line up with the covariance/output.
+      a_model.init_background_basis(a_model.weights);
+      for (int k = 0; k < a_model.background_n_terms(); ++k)
+        a_model.refined_variable_names.push_back("Bkg_" + std::to_string(k));
 
       int n_supercycles = a_model.refinement_options.num_supercycles;
       int n_blocks      = (int)a_model.parameter_blocks.size();
@@ -334,7 +341,16 @@ int main (int argc, char * const argv[]) {
         covar = a_minimizer.covar;
       }
 
+      // minimize() returns [Scale, structural]; append the refined background
+      // coefficients so refined_params is index-aligned with the covariance (which
+      // already includes the background block).
+      for (double b : a_model.background_coeffs_) refined_params.push_back(b);
+
       vector<double> esd = esd_from_covar(covar, refined_params);
+
+      // Index in refined_params where the background coefficients begin (one past the
+      // last structural parameter); structural params occupy [1, n_struct_end).
+      const int n_struct_end = (int)a_model.refinement_parameters.size();
 
       // Pre-compute flat index of the first parameter in each block
       vector<int> block_starts;
@@ -352,7 +368,7 @@ int main (int argc, char * const argv[]) {
                                      : (std::to_string(refined_params[0]) + " #fixed")) <<
                    "\nRefinableVariables\n[\n";
       if (block_starts.empty()) REPORT(MAIN) << "[\n";
-      for (int i = 1; i < (int)refined_params.size(); ++i) {
+      for (int i = 1; i < n_struct_end; ++i) {
         for (int b = 0; b < (int)block_starts.size(); ++b) {
           if (block_starts[b] == i) {
             if (b > 0) REPORT(MAIN) << "]\n";
@@ -368,12 +384,18 @@ int main (int argc, char * const argv[]) {
       }
       REPORT(MAIN) << "]\n]\n";
 
+      if (a_model.background_n_terms() > 0) {
+        REPORT(MAIN) << "Background (Chebyshev in |q|)\n";
+        for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
+          REPORT(MAIN) << a_model.refined_variable_names[i] << '=' << format_esd(refined_params[i], esd[i]) << ";\n";
+      }
+
       std::ofstream out_refined_params("refined_parameters.txt");
       out_refined_params << "Refined parameters are:\nScale " << refined_params[0]
                          << (scale_refined ? "" : " #fixed") <<
                          "\nRefinableVariables\n";
       if (block_starts.empty()) out_refined_params << "[\n";
-      for (int i = 1; i < (int)refined_params.size(); ++i) {
+      for (int i = 1; i < n_struct_end; ++i) {
         for (int b = 0; b < (int)block_starts.size(); ++b) {
           if (block_starts[b] == i) {
             if (b > 0) out_refined_params << "]\n";
@@ -388,10 +410,20 @@ int main (int argc, char * const argv[]) {
       }
       out_refined_params << "]\n";
 
+      if (a_model.background_n_terms() > 0) {
+        out_refined_params << "RefineBackground true\nBackgroundDegree "
+                           << a_model.refinement_options.background_degree << "\n# Refined background coefficients:\n";
+        for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
+          out_refined_params << "# " << a_model.refined_variable_names[i] << '=' << refined_params[i] << "\n";
+      }
+
 
         report.last_run();
-      a_model.calculate(refined_params);
-      a_model.refinement_parameters = refined_params;
+      // refined_params carries the appended background coefficients; the structural
+      // state (and refinement_parameters) must stay [Scale, structural] only.
+      vector<double> struct_params(refined_params.begin(), refined_params.begin() + n_struct_end);
+      a_model.calculate(struct_params);
+      a_model.refinement_parameters = struct_params;
 
       if (a_model.print_covariance_matrix)
         print_covariance(covar, refined_params);
@@ -401,6 +433,15 @@ int main (int argc, char * const argv[]) {
     else {
       report.last_run();
       a_model.calculate(a_model.refinement_parameters);
+    }
+
+    // If a background was refined, subtract it from the experimental data once so that
+    // Rw and every downstream output (model.h5, exp-minus-model, PDFs) treat the data as
+    // background-corrected and the model as the structural part Scale·(Ifull−Iavg).
+    if (a_model.background_n_terms() > 0 && experimental_diffuse_map.is_loaded) {
+      IntensityMap* em = experimental_diffuse_map.get_intensity_map();
+      for (int i = 0; i < em->size_1d(); ++i)
+        em->at(i) -= a_model.background_at(i);
     }
 
     if (experimental_diffuse_map.is_loaded) {

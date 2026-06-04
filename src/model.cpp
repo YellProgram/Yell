@@ -22,6 +22,8 @@
 #include "Calculator.h"
 #include <Eigen/LU>
 #include <Eigen/SVD>
+#include <limits>
+#include <cmath>
 #include <sstream>
 #include <unordered_map>
 #include <complex>
@@ -436,6 +438,96 @@ double Model::compute_optimal_scale(IntensityMap& exp_map, OptionalIntensityMap&
     return (S > 0) ? S : 0.0;
 }
 
+void Model::init_background_basis(OptionalIntensityMap& wts)
+{
+    const int m = background_n_terms();
+    background_coeffs_.assign(m, 0.0);
+    if (m == 0) { background_basis_.resize(0, 0); return; }
+
+    // |q_i| = √(d*²_i) over the full grid, in the same flat order as at(i).
+    IntensityMap tmp(grid);
+    tmp.init_iterator();
+    std::vector<double> s;
+    s.reserve(tmp.size_1d());
+    while (tmp.next())
+        s.push_back(std::sqrt(std::max(0.0, tmp.current_d_star_square())));
+    const int n = (int)s.size();
+
+    // Normalisation domain: |q| range where data actually exists (weight > 0).
+    double smin = std::numeric_limits<double>::max(), smax = -smin;
+    for (int i = 0; i < n; ++i)
+        if (wts.at(i) > 0) { smin = std::min(smin, s[i]); smax = std::max(smax, s[i]); }
+    if (!(smax > smin)) smax = smin + 1.0; // degenerate guard
+
+    // x_i = a·s_i + b maps [smin, smax] → [-1, 1].
+    const double a = 2.0 / (smax - smin);
+    const double b = -(smax + smin) / (smax - smin);
+
+    background_basis_.resize(n, m);
+    for (int i = 0; i < n; ++i) {
+        double x = a * s[i] + b;
+        if (x < -1.0) x = -1.0; else if (x > 1.0) x = 1.0;
+        // Chebyshev recurrence: T0=1, T1=x, T_k = 2x·T_{k-1} − T_{k-2}.
+        background_basis_(i, 0) = 1.0;
+        if (m > 1) background_basis_(i, 1) = x;
+        double Tkm1 = 1.0, Tk = x;
+        for (int k = 2; k < m; ++k) {
+            double Tk1 = 2.0 * x * Tk - Tkm1;
+            background_basis_(i, k) = Tk1;
+            Tkm1 = Tk; Tk = Tk1;
+        }
+    }
+
+    REPORT(MAIN) << "Background: " << m << " Chebyshev term(s) in |q| over ["
+                 << smin << ", " << smax << "] A^-1.\n";
+}
+
+void Model::compute_optimal_linear_params(IntensityMap& exp_map, OptionalIntensityMap& wts)
+{
+    const bool fit_scale = refinement_options.refine_scale;
+    const int  n_bg      = (refinement_options.refine_background) ? (int)background_coeffs_.size() : 0;
+    const bool fit_bg    = n_bg > 0;
+    const int  m         = (fit_scale ? 1 : 0) + (fit_bg ? n_bg : 0);
+    if (m == 0) return; // nothing linear to fit; scale held fixed
+
+    const int n_obs    = number_of_observations();
+    const bool use_asu = refine_in_asu();
+    const vector<int>& asu = asu_indices();
+
+    // Weighted normal equations: (Σ w² c cᵀ) θ = Σ w² t c, where c is the design row
+    // [Ic (if fit_scale), Φ_i0..Φ_i,n_bg-1 (if fit_bg)] and t is the target
+    // (Ie, minus the fixed-scale contribution when Scale is not being fit).
+    Eigen::MatrixXd N = Eigen::MatrixXd::Zero(m, m);
+    Eigen::VectorXd rhs = Eigen::VectorXd::Zero(m);
+    Eigen::VectorXd c(m);
+
+    for (int ii = 0; ii < n_obs; ++ii) {
+        int i = use_asu ? asu[ii] : ii;
+        double w  = wts.at(i);
+        double w2 = w * w;
+        double Ic = intensity_map.at(i) - average_intensity_map.at(i);
+
+        int col = 0;
+        if (fit_scale) c[col++] = Ic;
+        if (fit_bg) for (int k = 0; k < n_bg; ++k) c[col++] = background_basis_(i, k);
+
+        double t = exp_map.at(i);
+        if (!fit_scale) t -= scale_ * Ic; // Scale fixed → fit background to the remainder
+
+        N.noalias() += w2 * (c * c.transpose());
+        rhs.noalias() += (w2 * t) * c;
+    }
+
+    // Chebyshev keeps N well-conditioned; LDLT is fine, fall back to SVD if singular.
+    Eigen::VectorXd theta = N.ldlt().solve(rhs);
+    if (!theta.allFinite())
+        theta = N.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(rhs);
+
+    int col = 0;
+    if (fit_scale) { double S = theta[col++]; set_scale(S > 0 ? S : 0.0); }
+    if (fit_bg) for (int k = 0; k < n_bg; ++k) background_coeffs_[k] = theta[col++];
+}
+
 Eigen::MatrixXd Model::compute_full_covariance(
     const vector<double>& params,
     IntensityMap& exp_map,
@@ -447,7 +539,13 @@ Eigen::MatrixXd Model::compute_full_covariance(
   const vector<int>& asu = asu_indices();
 
   calculate(params);
-  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
+
+  // Background coefficients (if refined) extend the parameter space after the
+  // structural params: covariance indices [n_params .. n_params+n_bg).
+  const int  n_bg    = refinement_options.refine_background ? (int)background_coeffs_.size() : 0;
+  const bool fit_bg  = n_bg > 0;
+  const int  n_total = n_params + n_bg;
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_total, n_total);
 
   // Scale column (param index 0).  Only accumulated when Scale is refined; when it
   // is held fixed (RefineScale off) row/col 0 stays zero, so the SVD pseudo-inverse
@@ -464,6 +562,32 @@ Eigen::MatrixXd Model::compute_full_covariance(
       for (int ii = 0; ii < n_obs; ++ii) {
           double w = get_w(ii);
           H(0, 0) += w * w * col0[ii] * col0[ii];
+      }
+  }
+
+  // Background columns: ∂model/∂b_k = Φ_ik, so the (negated) column is -Φ_ik.
+  // Fill the scale-bg and bg-bg blocks now (independent of structural params);
+  // struct-bg cross terms are added inside accumulate() below.
+  vector<vector<double>> bgcol;
+  if (fit_bg) {
+      bgcol.assign(n_bg, vector<double>(n_obs));
+      for (int k = 0; k < n_bg; ++k)
+          for (int ii = 0; ii < n_obs; ++ii) {
+              int i = use_asu ? asu[ii] : ii;
+              bgcol[k][ii] = -background_basis_(i, k);
+          }
+      for (int k = 0; k < n_bg; ++k) {
+          int K = n_params + k;
+          if (scale_refined) {
+              double h = 0.0;
+              for (int ii = 0; ii < n_obs; ++ii) { double w = get_w(ii); h += w * w * col0[ii] * bgcol[k][ii]; }
+              H(0, K) = H(K, 0) = h;
+          }
+          for (int l = 0; l <= k; ++l) {
+              double h = 0.0;
+              for (int ii = 0; ii < n_obs; ++ii) { double w = get_w(ii); h += w * w * bgcol[l][ii] * bgcol[k][ii]; }
+              H(K, n_params + l) = H(n_params + l, K) = h;
+          }
       }
   }
 
@@ -545,6 +669,21 @@ Eigen::MatrixXd Model::compute_full_covariance(
               }
               H(0, j) += h0j;
               H(j, 0)  = H(0, j);
+          }
+
+          // Structural-background cross terms. Only on the diagonal passes
+          // (from_j == from_k) so each active j contributes exactly once.
+          if (fit_bg && from_j == from_k) {
+              for (int k = 0; k < n_bg; ++k) {
+                  int K = n_params + k;
+                  double h = 0.0;
+                  for (int ii = 0; ii < n_obs; ++ii) {
+                      double w = get_w(ii);
+                      h += w * w * bgcol[k][ii] * mj[jj][ii];
+                  }
+                  H(K, j) += h;
+                  H(j, K)  = H(K, j);
+              }
           }
 
           for (int kk = 0; kk < nk; ++kk) {

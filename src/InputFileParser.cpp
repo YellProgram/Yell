@@ -97,6 +97,8 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("LinearSolver") > linear_solver_sym)                     [phoenix::bind(&Model::set_use_dense_qr,*ref(model),_1)]
     | (lit("ScaleBeforeRefine") > bool_)                            [phoenix::bind(&Model::set_scale_before_refine,*ref(model),_1)]
     | (lit("RefineScale") > bool_)                                  [phoenix::bind(&Model::set_refine_scale,*ref(model),_1)]
+    | (lit("RefineBackground") > bool_)                             [phoenix::bind(&Model::set_refine_background,*ref(model),_1)]
+    | (lit("BackgroundDegree") > int_)                              [phoenix::bind(&Model::set_background_degree,*ref(model),_1)]
     | (lit("NumberOfSupercycles") > int_)                           [phoenix::bind(&Model::set_num_supercycles,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]

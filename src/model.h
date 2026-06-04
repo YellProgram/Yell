@@ -129,6 +129,34 @@ public:
   void set_use_dense_qr(bool use_qr) { refinement_options.use_dense_qr = use_qr; }
   void set_scale_before_refine(bool inp) { refinement_options.scale_before_refine = inp; }
   void set_refine_scale(bool inp)        { refinement_options.refine_scale = inp; }
+  void set_refine_background(bool inp)   { refinement_options.refine_background = inp; }
+  void set_background_degree(int inp)    { refinement_options.background_degree = inp; }
+
+  // Number of Chebyshev background coefficients (degree + 1) when background
+  // refinement is enabled, else 0.
+  int background_n_terms() const {
+    return refinement_options.refine_background ? refinement_options.background_degree + 1 : 0;
+  }
+
+  // Isotropic background value at full flat grid index i: B_i = Σ_k b_k · Φ(i,k).
+  double background_at(int i) const {
+    if (background_coeffs_.empty()) return 0.0;
+    double b = 0.0;
+    for (int k = 0; k < (int)background_coeffs_.size(); ++k)
+      b += background_coeffs_[k] * background_basis_(i, k);
+    return b;
+  }
+
+  // Precompute the Chebyshev basis Φ(i,k) = T_k(x_i), x_i ∈ [-1,1] mapped from
+  // |q_i| = √(d*²_i) over the grid extent where data exists (weight > 0). Sized
+  // size_1d × n_terms over the FULL grid (flat index i), so it aligns with at(i).
+  void init_background_basis(OptionalIntensityMap& wts);
+
+  // Jointly optimise the active linear parameters — Scale (if refine_scale) and the
+  // background coefficients (if refine_background) — by weighted linear least squares
+  // against exp, given the current structural intensity. Sets scale_ and
+  // background_coeffs_. Generalises compute_optimal_scale.
+  void compute_optimal_linear_params(IntensityMap& exp_map, OptionalIntensityMap& wts);
   void set_num_supercycles(int inp)      { refinement_options.num_supercycles = inp; }
 
   double R_factor(IntensityMap& exp, R_FACTORS r,WEIGHTED_OPTIONS weighted)
@@ -564,6 +592,11 @@ public:
   // with the params vector). The fixed-scale path (RefineScale off) reads this so the
   // user's `Scale` value survives across evaluations; the VP path keeps it in sync.
   double scale_ = 1.0;
+  // Isotropic background. background_coeffs_ are the projected Chebyshev coefficients
+  // (size = background_n_terms()); background_basis_ is Φ(i,k) = T_k(x_i) over the full
+  // grid (size_1d × n_terms). Both empty unless RefineBackground is enabled.
+  vector<double>  background_coeffs_;
+  Eigen::MatrixXd background_basis_;
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;
   // Non-owning flat list of all atoms (cell atoms + molecular scatterer atoms).
