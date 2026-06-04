@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.29\n";
+    REPORT(MAIN) << "Yell 1.3.30\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -261,6 +261,20 @@ int main (int argc, char * const argv[]) {
       if (!experimental_diffuse_map.is_loaded) {
         REPORT(ERROR) << "Experimental data not found \n";
         throw(TerminateProgram());
+      }
+
+      // Reject the case where refinement is requested but there is nothing to refine:
+      // no active refinable parameters AND Scale is held fixed (RefineScale false).
+      {
+        int n_active_refinable = 0;
+        for (int i = 1; i < (int)a_model.refinement_parameters.size(); ++i)
+          if (a_model.param_is_active(i)) ++n_active_refinable;
+        if (n_active_refinable == 0 && !a_model.refinement_options.refine_scale) {
+          REPORT(ERROR) << "Refine is set to true but there is nothing to refine: no active "
+                           "refinable parameters and Scale is held fixed (RefineScale false). "
+                           "Set 'Refine false', set 'RefineScale true', or add refinable parameters.\n";
+          throw(TerminateProgram());
+        }
       }
 
       vector<double> refined_params;

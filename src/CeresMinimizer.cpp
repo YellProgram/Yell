@@ -234,6 +234,48 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
         }
     }
 
+    // No free parameter blocks for Ceres to vary — e.g. only Scale is refinable, or
+    // every structural block is inactive. Ceres requires at least one parameter block
+    // and aborts otherwise (Check failed: !block_sizes.empty()). Variable projection
+    // with no structural parameters reduces to a single closed-form Scale optimisation,
+    // so handle it here and return without an iterative solve.
+    bool any_free_block = false;
+    if (model) {
+        for (size_t b = 0; b < p_pointers.size(); ++b)
+            if (model->block_is_active((int)b + 1)) { any_free_block = true; break; }
+    } else {
+        any_free_block = !p_pointers.empty();
+    }
+
+    if (!any_free_block) {
+        if (model && model->refinement_options.refine_scale) {
+            model->calculate(initial_params);
+            double S = model->compute_optimal_scale(*_experimental_data, *weights);
+            model->set_scale(S);
+            REPORT(MAIN) << "Only Scale is refinable; optimised analytically to " << S
+                         << " (no iterative refinement needed).\n";
+        } else {
+            // Nothing to refine at all; main() rejects this earlier, guard regardless.
+            REPORT(MAIN) << "No refinable parameters and Scale is fixed; nothing to refine.\n";
+        }
+
+        vector<double> result;
+        result.push_back(model ? model->refinement_parameters[0] : initial_params[0]);
+        for (size_t b = 0; b < p_pointers.size(); ++b)
+            for (int i = 0; i < block_sizes[b]; ++i)
+                result.push_back(p_pointers[b][i]);
+
+        if (model) {
+            REPORT(MAIN) << "Computing covariance matrix...\n";
+            Eigen::MatrixXd cov = model->compute_full_covariance(result, *experimental_data, *weights);
+            covar = vector<double>(cov.data(), cov.data() + cov.size());
+            REPORT(MAIN) << "Done.\n";
+        }
+
+        for (double* pb : p_pointers) delete[] pb;
+        return result;
+    }
+
     // Analytically optimise Scale before handing off to Ceres, so the first
     // iteration starts from a sensible scale.
     if (model && refinement_options.refine_scale && refinement_options.scale_before_refine) {
