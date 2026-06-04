@@ -48,9 +48,17 @@ public:
         const bool use_asu = model_->refine_in_asu();
         const vector<int>& asu = model_->asu_indices();
 
-        // 3. Analytical Scale Optimization
-        double S = model_->compute_optimal_scale(*exp_, *weights_);
-        model_->set_scale(S);
+        // 3. Scale: variable-projection optimum, or held fixed if RefineScale is off.
+        double S;
+        if (model_->refinement_options.refine_scale) {
+            S = model_->compute_optimal_scale(*exp_, *weights_);
+            model_->set_scale(S);
+        } else {
+            // calculate() above clobbered refinement_parameters[0]; read authoritative
+            // scale_, then restore it so downstream reads see the fixed value.
+            S = model_->scale_;
+            model_->set_scale(S);
+        }
         p[0] = S;
 
         // 4. Residuals
@@ -228,7 +236,7 @@ vector<double> CeresMinimizer::minimize(const vector<double> initial_params,
 
     // Analytically optimise Scale before handing off to Ceres, so the first
     // iteration starts from a sensible scale.
-    if (model && refinement_options.scale_before_refine) {
+    if (model && refinement_options.refine_scale && refinement_options.scale_before_refine) {
         vector<double> p0 = initial_params;
         model->calculate(p0);
         double S = model->compute_optimal_scale(*_experimental_data, *weights);
@@ -341,20 +349,30 @@ bool CeresMinimizer::operator()(double const *const *params, double *residuals) 
     int n_obs = calc->number_of_observations();
     const bool use_asu = calc->refine_in_asu();
     const vector<int>& asu = calc->asu_indices();
-    double num = 0.0, den = 0.0;
-    for (int ii = 0; ii < n_obs; ++ii) {
-        int i = use_asu ? asu[ii] : ii;
-        double w = weights->at(i);
-        double Ic = calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i);
-        double Ie = experimental_data->at(i);
-        num += w * w * Ie * Ic; //TODO: check this is compatible with our definition of weights in the other parts. square of w, not linear???. just two lines down. THINK
-        den += w * w * Ic * Ic;
+
+    // Scale: variable-projection optimum, or held fixed if RefineScale is off.
+    double S;
+    if (model && !model->refinement_options.refine_scale) {
+        // calculate() just clobbered refinement_parameters[0]; read the authoritative
+        // scale_ instead, then restore so result assembly / residuals see the fixed value.
+        S = model->scale_;
+        model->set_scale(S);
+    } else {
+        double num = 0.0, den = 0.0;
+        for (int ii = 0; ii < n_obs; ++ii) {
+            int i = use_asu ? asu[ii] : ii;
+            double w = weights->at(i);
+            double Ic = calc->get_intensity_map().at(i) - calc->get_average_intensity_map().at(i);
+            double Ie = experimental_data->at(i);
+            num += w * w * Ie * Ic; //TODO: check this is compatible with our definition of weights in the other parts. square of w, not linear???. just two lines down. THINK
+            den += w * w * Ic * Ic;
+        }
+        //TODO: think if 1e-015 is good here or overly conservative. Shall we keep scale intact coming from the input instead of this?
+        S = (den > 1e-15) ? (num / den) : 1.0; //TODO: think if this will get refinement stuck possibly when ceres tries to refine scale and this thing fights back. Though that should theoretically never happen.
+        if (S < 0) S = 0;
+        if (model) model->set_scale(S);
     }
-    //TODO: think if 1e-015 is good here or overly conservative. Shall we keep scale intact coming from the input instead of this?
-    double S = (den > 1e-15) ? (num / den) : 1.0; //TODO: think if this will get refinement stuck possibly when ceres tries to refine scale and this thing fights back. Though that should theoretically never happen.
-    if (S < 0) S = 0;
     yell_parameters[0] = S;
-    if (model) model->set_scale(S);
 
     if (use_asu) {
         for(int ii=0; ii<n_obs; ii++) {

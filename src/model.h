@@ -128,6 +128,7 @@ public:
   void set_gradient_tolerance(double inp) { refinement_options.gradient_tolerance = inp; }
   void set_use_dense_qr(bool use_qr) { refinement_options.use_dense_qr = use_qr; }
   void set_scale_before_refine(bool inp) { refinement_options.scale_before_refine = inp; }
+  void set_refine_scale(bool inp)        { refinement_options.refine_scale = inp; }
   void set_num_supercycles(int inp)      { refinement_options.num_supercycles = inp; }
 
   double R_factor(IntensityMap& exp, R_FACTORS r,WEIGHTED_OPTIONS weighted)
@@ -281,6 +282,7 @@ public:
 
   void set_scale(double inp) {
     refinement_parameters[0]=inp;
+    scale_ = inp;
   }
   
   void set_refinable_parameter_blocks(FormulaParser& formula, ExprFormulaParser& expr_formula,
@@ -557,6 +559,11 @@ public:
   string model;
   vector<AtomicPairPool*> pools;
   vector<double> refinement_parameters;
+  // Authoritative scale value. Mirrors refinement_parameters[0] but, unlike it, is
+  // NOT clobbered by calculate() (which overwrites refinement_parameters wholesale
+  // with the params vector). The fixed-scale path (RefineScale off) reads this so the
+  // user's `Scale` value survives across evaluations; the VP path keeps it in sync.
+  double scale_ = 1.0;
   vector<string> refined_variable_names;
   p_vector<ADPMode> modes;
   // Non-owning flat list of all atoms (cell atoms + molecular scatterer atoms).

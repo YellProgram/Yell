@@ -72,6 +72,11 @@ struct RefinementOptions {
     // so it handles dangling (zero-column) parameters gracefully.
     bool   use_dense_qr;         // true → DENSE_QR (default), false → DENSE_NORMAL_CHOLESKY
     bool   scale_before_refine;  // true → analytically optimise Scale before first Ceres step
+    // RefineScale: true → Scale is refined by variable projection (recomputed to its
+    // analytic least-squares optimum at every residual evaluation).  false → Scale is
+    // held fixed at the value given by the `Scale` keyword (or 1.0) throughout
+    // refinement, covariance and output.  When false, scale_before_refine is moot.
+    bool   refine_scale;
     // Sequential block refinement: cycle through each block separately, running Ceres
     // once per block per supercycle.  0 = off (all active blocks refined together, old behaviour).
     int    num_supercycles;
@@ -90,6 +95,7 @@ struct RefinementOptions {
         result.gradient_tolerance  = 1E-10;
         result.use_dense_qr        = true;
         result.scale_before_refine = true;
+        result.refine_scale        = true;
         result.num_supercycles     = 0;
         result.trajectory_filename = "refinement_trajectory.json";
         return result;

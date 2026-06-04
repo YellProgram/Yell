@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.27\n";
+    REPORT(MAIN) << "Yell 1.3.28\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -332,7 +332,10 @@ int main (int argc, char * const argv[]) {
         }
       }
 
-      REPORT(MAIN) << "Refined parameters are:\nScale " << format_esd(refined_params[0], esd[0]) <<
+      const bool scale_refined = a_model.refinement_options.refine_scale;
+      REPORT(MAIN) << "Refined parameters are:\nScale "
+                   << (scale_refined ? format_esd(refined_params[0], esd[0])
+                                     : (std::to_string(refined_params[0]) + " #fixed")) <<
                    "\nRefinableVariables\n[\n";
       if (block_starts.empty()) REPORT(MAIN) << "[\n";
       for (int i = 1; i < (int)refined_params.size(); ++i) {
@@ -352,7 +355,8 @@ int main (int argc, char * const argv[]) {
       REPORT(MAIN) << "]\n]\n";
 
       std::ofstream out_refined_params("refined_parameters.txt");
-      out_refined_params << "Refined parameters are:\nScale " << refined_params[0] <<
+      out_refined_params << "Refined parameters are:\nScale " << refined_params[0]
+                         << (scale_refined ? "" : " #fixed") <<
                          "\nRefinableVariables\n";
       if (block_starts.empty()) out_refined_params << "[\n";
       for (int i = 1; i < (int)refined_params.size(); ++i) {

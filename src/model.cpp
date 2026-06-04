@@ -449,16 +449,22 @@ Eigen::MatrixXd Model::compute_full_covariance(
   calculate(params);
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(n_params, n_params);
 
-  // Scale column (param index 0)
+  // Scale column (param index 0).  Only accumulated when Scale is refined; when it
+  // is held fixed (RefineScale off) row/col 0 stays zero, so the SVD pseudo-inverse
+  // returns zero variance for Scale and the structural block becomes the covariance
+  // conditional on the fixed Scale.
+  const bool scale_refined = refinement_options.refine_scale;
   vector<double> col0(n_obs);
   for (int ii = 0; ii < n_obs; ++ii) {
       int i = use_asu ? asu[ii] : ii;
       col0[ii] = -(intensity_map.at(i) - average_intensity_map.at(i));
   }
   auto get_w = [&](int ii) { return wts.at(use_asu ? asu[ii] : ii); };
-  for (int ii = 0; ii < n_obs; ++ii) {
-      double w = get_w(ii);
-      H(0, 0) += w * w * col0[ii] * col0[ii];
+  if (scale_refined) {
+      for (int ii = 0; ii < n_obs; ++ii) {
+          double w = get_w(ii);
+          H(0, 0) += w * w * col0[ii] * col0[ii];
+      }
   }
 
   Eigen::VectorXd q = Eigen::VectorXd::Map(params.data(), n_params);
@@ -531,13 +537,15 @@ Eigen::MatrixXd Model::compute_full_covariance(
       int nj = (int)mj.size(), nk = (int)mk.size();
       for (int jj = 0; jj < nj; ++jj) {
           int j = active[from_j + jj];
-          double h0j = 0.0;
-          for (int ii = 0; ii < n_obs; ++ii) {
-              double w = get_w(ii);
-              h0j += w * w * col0[ii] * mj[jj][ii];
+          if (scale_refined) {
+              double h0j = 0.0;
+              for (int ii = 0; ii < n_obs; ++ii) {
+                  double w = get_w(ii);
+                  h0j += w * w * col0[ii] * mj[jj][ii];
+              }
+              H(0, j) += h0j;
+              H(j, 0)  = H(0, j);
           }
-          H(0, j) += h0j;
-          H(j, 0)  = H(0, j);
 
           for (int kk = 0; kk < nk; ++kk) {
               int k = active[from_k + kk];
