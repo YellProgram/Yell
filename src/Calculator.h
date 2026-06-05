@@ -77,13 +77,13 @@ struct RefinementOptions {
     // held fixed at the value given by the `Scale` keyword (or 1.0) throughout
     // refinement, covariance and output.  When false, scale_before_refine is moot.
     bool   refine_scale;
-    // RefineBackground: true → fit an isotropic background B(|q|) = Σ b_k T_k(x),
+    // RefineBackground: true → fit the isotropic background B(|q|) = Σ b_k T_k(x),
     // Chebyshev polynomials in normalised |q|, jointly with Scale by linear least
     // squares at every evaluation. The b_k are projected parameters (not Ceres
-    // parameters), exactly like Scale. background_degree is the Chebyshev degree;
-    // the number of coefficients is background_degree + 1.
+    // parameters), exactly like Scale. The number of terms is the number of
+    // coefficients supplied via the `Background` keyword (so refining from scratch
+    // means giving that many zeros).
     bool   refine_background;
-    int    background_degree;
     // Sequential block refinement: cycle through each block separately, running Ceres
     // once per block per supercycle.  0 = off (all active blocks refined together, old behaviour).
     int    num_supercycles;
@@ -104,7 +104,6 @@ struct RefinementOptions {
         result.scale_before_refine = true;
         result.refine_scale        = true;
         result.refine_background   = false;
-        result.background_degree   = 2;
         result.num_supercycles     = 0;
         result.trajectory_filename = "refinement_trajectory.json";
         return result;

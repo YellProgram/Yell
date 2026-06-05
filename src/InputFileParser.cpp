@@ -98,8 +98,13 @@ InputParser::InputParser() : InputParser::base_type(start)
     | (lit("ScaleBeforeRefine") > bool_)                            [phoenix::bind(&Model::set_scale_before_refine,*ref(model),_1)]
     | (lit("RefineScale") > bool_)                                  [phoenix::bind(&Model::set_refine_scale,*ref(model),_1)]
     | (lit("RefineBackground") > bool_)                             [phoenix::bind(&Model::set_refine_background,*ref(model),_1)]
-    | (lit("BackgroundDegree") > int_)                              [phoenix::bind(&Model::set_background_degree,*ref(model),_1)]
-    | (lit("Background") > lit('[') > *number > lit(']'))           [phoenix::bind(&Model::set_background_coefficients,*ref(model),_1)]
+    // Background <c0> <c1> ... — a list of polynomial coefficients; the count sets the
+    // number of terms. Square brackets are optional, and each value may be followed by an
+    // (esd) in parentheses which is ignored, so the reported coefficients can be pasted
+    // straight back (tolerant like the Scale keyword).
+    | (lit("Background") > -lit('[')
+         >> +(double_ >> -(omit[lit('(') >> *(char_ - ')') >> lit(')')]))
+         >> -lit(']'))                                              [phoenix::bind(&Model::set_background_coefficients,*ref(model),_1)]
     | (lit("NumberOfSupercycles") > int_)                           [phoenix::bind(&Model::set_num_supercycles,*ref(model),_1)]
     | (lit("FFTGridSize") > repeat(3)[int_])            [phoenix::bind(&Model::set_fft_grid_size,*ref(model),_1)]
     | (lit("FFTGridPadding") > repeat(3)[int_])         [phoenix::bind(&Model::set_padding,*ref(model),_1)]

@@ -14,12 +14,14 @@ is structural only):
          i.e. the injected background did NOT bias the structural fit, and
        - the refined background coefficients match the injection.
 
-Two cases:
-  * constant  (degree 0): B = C.  Exact, needs no |q|; checks Bkg_0 == C.
-  * linear    (degree 1): B = A + G*|q|.  |q| from the cell metric.  Chebyshev
-    degree-1 spans {1, |q|} under any affine normalisation, so this must be
+Cases:
+  * constant  (1 term ): B = C.  Exact, needs no |q|; checks Bkg_0 == C.
+  * linear    (2 terms): B = A + G*|q|.  |q| from the cell metric.  A 2-term
+    Chebyshev spans {1, |q|} under any affine normalisation, so this must be
     absorbed exactly -> verifies structural recovery despite a |q|-shaped
     background, and exercises the |q| basis.
+  * fixed / forward / masked: background supplied via `Background ...` and held
+    fixed, applied in forward mode, and masked by the reciprocal-space multiplier.
 
 Run:  python3 run_background_test.py [--bin /path/to/yell]
 """
@@ -117,10 +119,12 @@ def parse_params(path):
     if blk:
         for name, val in re.findall(r'(\w+)\s*=\s*([0-9.eE+-]+)(?:\([0-9]+\))?\s*;', blk.group(1)):
             params[name] = float(val)
-    # Background coefficients are written as a re-runnable `Background [ c0 c1 ... ]` line.
-    bg = re.search(r'Background\s*\[([^\]]*)\]', txt)
+    # Background coefficients on a `Background c0 c1 ...` line (brackets optional, any
+    # (esd) parentheses ignored). Anchored so it does not match "RefineBackground".
+    bg = re.search(r'^\s*Background\s+(.+)$', txt, re.MULTILINE)
     if bg:
-        for i, v in enumerate(re.findall(r'[-+0-9.eE]+', bg.group(1))):
+        line = re.sub(r'\([^)]*\)', '', bg.group(1).split('#')[0]).replace('[', ' ').replace(']', ' ')
+        for i, v in enumerate(re.findall(r'[-+]?[0-9][0-9.eE+-]*', line)):
             params[f'Bkg_{i}'] = float(v)
     return params
 
@@ -174,7 +178,7 @@ def run_forward_case(name, yell, const):
     if os.path.exists(work): shutil.rmtree(work)
     os.makedirs(work)
     print(f"Testing background: {name} (forward pass)")
-    extra = f"RefineBackground false\nBackground [ {const} ]"
+    extra = f"RefineBackground false\nBackground {const}"
     with open(os.path.join(work, "model.txt"), "w") as f:
         f.write(model_text("false", **TARGET, extra=extra))
     run_yell(yell, work)
@@ -198,7 +202,7 @@ def run_masked_case(name, yell, const):
     if os.path.exists(work): shutil.rmtree(work)
     os.makedirs(work)
     print(f"Testing background: {name} (reciprocal-space mask)")
-    extra = f"RefineBackground false\nBackground [ {const} ]"
+    extra = f"RefineBackground false\nBackground {const}"
     with open(os.path.join(work, "model.txt"), "w") as f:
         f.write(model_text("false", **TARGET, extra=extra))
     # Need grid metadata; do a first run to get a correctly-shaped output to clone.
@@ -243,13 +247,13 @@ def main():
         return E1, {}
 
     results = []
-    # refined constant background (degree 0): recover Bkg_0
-    results.append(run_case("constant", args.bin, "RefineBackground true\nBackgroundDegree 0", const_inject))
-    # refined linear background (degree 1): structural recovery despite |q|-shaped bg
-    results.append(run_case("linear",   args.bin, "RefineBackground true\nBackgroundDegree 1", linear_inject))
-    # FIXED constant background (calculated, not refined): supplied via Background[...],
+    # refined constant background (1 term): recover Bkg_0
+    results.append(run_case("constant", args.bin, "RefineBackground true\nBackground 0", const_inject))
+    # refined linear background (2 terms): structural recovery despite |q|-shaped bg
+    results.append(run_case("linear",   args.bin, "RefineBackground true\nBackground 0 0", linear_inject))
+    # FIXED constant background (calculated, not refined): supplied via `Background`,
     # must be applied/subtracted so structure is recovered, and echoed back unchanged.
-    results.append(run_case("fixed",    args.bin, "RefineBackground false\nBackground [ 50 ]", const_inject))
+    results.append(run_case("fixed",    args.bin, "RefineBackground false\nBackground 50", const_inject))
     # FORWARD pass (Refine false): the fixed background must be calculated and written.
     results.append(run_forward_case("forward", args.bin, 42.0))
     # MASKED: a reciprocal_space_multiplier of 0 marks unmeasured regions; the background

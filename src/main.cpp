@@ -208,7 +208,7 @@ OutputHandler report;
 
 int main (int argc, char * const argv[]) {
   try {
-    REPORT(MAIN) << "Yell 1.3.35\n";
+    REPORT(MAIN) << "Yell 1.3.36\n";
     REPORT(MAIN) <<
                  "The software is provided 'as-is', without any warranty.\nIf you find any bug report it to https://github.com/YellProgram/Yell/issues\n\n";
 
@@ -388,11 +388,13 @@ int main (int argc, char * const argv[]) {
 
       const bool bg_refined = a_model.refinement_options.refine_background;
       if (a_model.background_n_terms() > 0) {
-        REPORT(MAIN) << "Background (Chebyshev in |q|)" << (bg_refined ? "" : " #fixed") << "\n";
+        // One copy-pasteable `Background ...` line. The parser ignores the (esd)
+        // parentheses, so this pastes straight back into a model.txt.
+        REPORT(MAIN) << "Background";
         for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
-          REPORT(MAIN) << a_model.refined_variable_names[i] << '='
-                       << (bg_refined ? format_esd(refined_params[i], esd[i])
-                                      : (std::to_string(refined_params[i]) + " #fixed")) << ";\n";
+          REPORT(MAIN) << ' ' << (bg_refined ? format_esd(refined_params[i], esd[i])
+                                             : std::to_string(refined_params[i]));
+        REPORT(MAIN) << (bg_refined ? "\n" : "   #fixed\n");
       }
 
       std::ofstream out_refined_params("refined_parameters.txt");
@@ -416,13 +418,13 @@ int main (int argc, char * const argv[]) {
       out_refined_params << "]\n";
 
       if (a_model.background_n_terms() > 0) {
-        // Re-runnable: the coefficients are written as a Background[...] line, so the
-        // refined background can be reused as a fixed input (with RefineBackground false).
+        // Re-runnable: a plain `Background c0 c1 ...` line that can be reused directly
+        // (with RefineBackground false to hold it fixed, or true to refine from it).
         out_refined_params << "RefineBackground " << (bg_refined ? "true" : "false") << "\n"
-                           << "Background [ ";
+                           << "Background";
         for (int i = n_struct_end; i < (int)refined_params.size(); ++i)
-          out_refined_params << refined_params[i] << ' ';
-        out_refined_params << "]\n";
+          out_refined_params << ' ' << refined_params[i];
+        out_refined_params << "\n";
       }
 
 

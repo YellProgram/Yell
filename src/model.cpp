@@ -441,11 +441,9 @@ double Model::compute_optimal_scale(IntensityMap& exp_map, OptionalIntensityMap&
 void Model::init_background_basis(OptionalIntensityMap& wts)
 {
     const int m = background_n_terms();
-    // Seed coefficients: supplied values (Background [...]) take priority, else zeros.
-    if ((int)background_input_coeffs_.size() == m && m > 0)
-        background_coeffs_ = background_input_coeffs_;
-    else
-        background_coeffs_.assign(m, 0.0);
+    // Seed coefficients from the supplied values (Background ...); for a refined
+    // background these are the starting values (typically zeros).
+    background_coeffs_ = background_input_coeffs_;
     if (m == 0) { background_basis_.resize(0, 0); return; }
 
     // |q_i| = √(d*²_i) over the full grid, in the same flat order as at(i).

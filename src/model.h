@@ -130,19 +130,15 @@ public:
   void set_scale_before_refine(bool inp) { refinement_options.scale_before_refine = inp; }
   void set_refine_scale(bool inp)        { refinement_options.refine_scale = inp; }
   void set_refine_background(bool inp)   { refinement_options.refine_background = inp; }
-  void set_background_degree(int inp)    { refinement_options.background_degree = inp; }
-  // `Background [ c0 c1 ... ]`: supply background coefficients. The background is then
+  // `Background c0 c1 ...`: supply background coefficients. The background is then
   // *calculated* (applied/subtracted) even when not refined; if RefineBackground is
-  // also true these are the starting values. The count sets the number of terms.
+  // also true these are the starting values. The count of supplied coefficients sets
+  // the number of Chebyshev terms — refining from scratch means giving that many zeros.
   void set_background_coefficients(vector<double> inp) { background_input_coeffs_ = inp; }
 
-  // Number of Chebyshev background coefficients, i.e. whether a background is enabled
-  // (calculated) at all. Enabled if explicit coefficients were supplied, or if
-  // RefineBackground requests a degree-(N) polynomial (N+1 terms). 0 = no background.
-  int background_n_terms() const {
-    if (!background_input_coeffs_.empty()) return (int)background_input_coeffs_.size();
-    return refinement_options.refine_background ? refinement_options.background_degree + 1 : 0;
-  }
+  // Number of Chebyshev background terms = number of coefficients supplied via the
+  // `Background` keyword (0 = no background).
+  int background_n_terms() const { return (int)background_input_coeffs_.size(); }
 
   // Isotropic background value at full flat grid index i: B_i = Σ_k b_k · Φ(i,k).
   double background_at(int i) const {
