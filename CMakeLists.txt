@@ -275,7 +275,9 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(test-yell-gtest ${CMAKE_SOURCE_DIR}/src/test_expr_gtest.cpp)
+add_executable(test-yell-gtest
+    ${CMAKE_SOURCE_DIR}/src/test_expr_gtest.cpp
+    ${CMAKE_SOURCE_DIR}/src/test_anharmonic_gtest.cpp)
 target_link_libraries(test-yell-gtest
     yell-lib cctbx ${LAPACK_LIBRARIES}
     GTest::gtest_main)

@@ -1,0 +1,113 @@
+# ============================================================================
+#  DUMMY model.txt — proposed Gram–Charlier (anharmonic) syntax  v2
+#  NOT YET PARSEABLE. Syntax mock-up to agree on look & feel.
+#  ### NEW ### marks new syntax. Component values are illustrative, not
+#  necessarily symmetry-correct.
+#
+#  UNITS: Ångströms everywhere (like U).  You enter
+#     U  in Å²,  Gram–Charlier C in Å³,  Gram–Charlier D in Å⁴.
+#  Yell bakes the a* products internally for all of them — you never see a*.
+#
+#  COMPONENT ORDER (CIF lexicographic, fully symmetric tensors):
+#     GramCharlier3 (10):  111 112 113 122 123 133 222 223 233 333
+#     GramCharlier4 (15):  1111 1112 1113 1122 1123 1133 1222 1223 1233 1333
+#                          2222 2223 2233 2333 3333
+#  (U keeps Yell's existing 6-vector order 11 22 33 12 13 23 — separate field,
+#   never mixed with C/D.)
+# ============================================================================
+
+Cell 5.20 6.10 7.30 90 90 90
+LaueSymmetry -1
+DiffuseScatteringGrid -8 -8 -8 0.1 0.1 0.1 160 160 160
+
+CalculationMethod approximate
+Refine true
+FFTGridSize 32 32 32
+
+Scale 1
+
+# ----------------------------------------------------------------------------
+#  Gram–Charlier coefficients are ordinary refinable variables. You encode any
+#  symmetry constraints yourself by tying names / writing 0 — no special syntax.
+# ----------------------------------------------------------------------------
+RefinableVariables
+[
+  # atom-level coefficients for Na (skewness c..., kurtosis d...)
+  Na_c111 = 0.0
+  Na_c123 = 0.0
+  Na_d1111 = 0.0
+  # free pair-level (correlation) coefficients
+  pair_c123 = 0.0
+  pair_d1122 = 0.0
+  # bundled ADP correlation amplitudes
+  uxx = 0.004
+  uyy = 0.003
+  uxy = 0.001
+]
+
+
+# ----------------------------------------------------------------------------
+#  Atom line unchanged:  label occ  x y z   U11 U22 U33 U12 U13 U23
+#  plus an OPTIONAL Gram–Charlier tail (either part omittable).   ### NEW ###
+# ----------------------------------------------------------------------------
+UnitCell
+[
+  Var = Variant[
+    (p=1/2)
+    Na = Na 1  0 0 0   0.015 0.018 0.012  0 0 0
+         GramCharlier3[ Na_c111 0 0  0 Na_c123 0  0 0 0  0 ]                ### NEW ###
+         GramCharlier4[ Na_d1111 0 0  0 0 0  0 0 0 0  0 0 0 0 0 ]           ### NEW ###
+
+    (p=1/2)
+    Void
+  ]
+
+  # Cl harmonic — atom line completely unchanged, no tail.
+  Cl = Cl 1  1/2 1/2 1/2  0.012 0.012 0.012  0 0 0
+]
+
+
+Modes[
+  Na_x = TranslationalMode(Na, x)
+  Na_y = TranslationalMode(Na, y)
+  Na_z = TranslationalMode(Na, z)
+]
+
+
+Correlations
+[
+  [(0,0,0)
+   Multiplicity 1
+   SubstitutionalCorrelation(Var,Var,1/2)
+  ]
+
+  [(1,0,0)
+   Multiplicity 2
+
+   # --- BUNDLED ADPCorrelation: mode lists + amplitude matrix ---   ### NEW ###
+   # row = left modes (atom 1), col = right modes (atom 2).
+   # Replaces several scalar ADPCorrelation(Na_x,Na_x,..) lines.
+   ADPCorrelation(
+     [Na_x, Na_y],
+     [Na_x, Na_y],
+     [ uxx uxy
+       uxy uyy ]
+   )
+
+   # --- Free pair anharmonicity = higher cumulants of mode amplitudes --- ### NEW ###
+   # Same mode basis as ADPCorrelation. Coefficient list is the SYMMETRIC
+   # rank-n tensor over the listed modes (mode-space cumulants ⟨q_a q_b q_c…⟩),
+   # CIF order, Å units. M modes → C(M+n-1,n) numbers: here 3 modes → 10 / 15.
+   # The spatial C/D on the pair is built internally as Σ ⟨q…⟩ d⊗d⊗d…  (like
+   # U = Σ ⟨q q⟩ d⊗d). Adds on top of the atomic coefficients.
+   #            index 1=Na_x 2=Na_y 3=Na_z ;  e.g. "123" = ⟨q_x q_y q_z⟩
+   AnharmonicCorrelation3([Na_x, Na_y, Na_z],
+     [ 0 0 0  0 pair_c123 0  0 0 0  0 ])
+   #            order: 111 112 113 122 123 133 222 223 233 333
+
+   AnharmonicCorrelation4([Na_x, Na_y, Na_z],
+     [ 0 0 0  pair_d1122 0 0  0 0 0 0  0 0 0 0 0 ])
+   #            order: 1111 1112 1113 1122 1123 1133 1222 1223 1233 1333
+   #                   2222 2223 2233 2333 3333
+  ]
+]
