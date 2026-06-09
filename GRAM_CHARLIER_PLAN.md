@@ -1,9 +1,10 @@
 # Anharmonic Gram–Charlier PDF — Implementation Plan
 
-Status: in progress on `parallel_refinement`. **Phases 1–5 done** (toolkit, atom
+Status: in progress on `parallel_refinement`. **Phases 1–6 done** (toolkit, atom
 coefficients, pair combination + AnharmonicCorrelation, forward G(s) in direct & FFT,
-symmetry guard). Remaining: 6 (finite-diff refinement recovery), 7 (analytical
-derivatives), 8 (output/docs); bundled ADPCorrelation deferred.
+symmetry guard, finite-difference refinement recovery). Remaining: 7 (analytical
+derivatives), 8 (output/docs); bundled ADPCorrelation deferred. Refinement-recovery
+test lives in test_parallel_gtest.cpp (links the Ceres minimizer).
 
 ---
 

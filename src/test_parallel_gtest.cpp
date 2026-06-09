@@ -212,3 +212,57 @@ TEST(ParallelTiming, PrintHardwareConcurrency)
 {
     std::cout << "[Hardware] std::thread::hardware_concurrency() = " << std::thread::hardware_concurrency() << std::endl;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gram–Charlier refinement recovery (Phase 6): generate synthetic diffuse data
+// from a known 4th-order coefficient, refine from zero via finite differences,
+// and check the value (and Scale) come back. Needs the Ceres minimizer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#include "CeresMinimizer.h"
+
+static std::string gc_refine_model(double d_init)
+{
+    std::ostringstream oss;
+    oss << "Cell 5 5 5  90 90 90\n"
+        << "DiffuseScatteringGrid -3 -3 -3  1 1 1  6 6 6\n"   // -1-compatible
+        << "CalculationMethod direct\n"
+        << "LaueSymmetry -1\n"
+        << "RefinableVariables [ d = " << d_init << " ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) Na = Na 1 0 0 0  0.03 0.03 0.03 0 0 0 "
+        << "GramCharlier4[ d 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ] (p=0.5) Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V,0.5) ]\n"
+        << "  [ (2,0,0) SubstitutionalCorrelation(V,V,0.4) ]\n"
+        << "]\n";
+    return oss.str();
+}
+
+TEST(GramCharlierRefine, RecoversFourthOrderFromSyntheticData)
+{
+    const double d_true = 0.004;
+
+    Model truth(gc_refine_model(d_true));
+    truth.calculate({1.0, d_true});
+
+    // synthetic diffuse data = full − average (deep copy; IntensityMap copy is shallow)
+    IntensityMap Ie(truth.intensity_map.size());
+    Ie.set_grid(truth.intensity_map.grid);
+    for (int i = 0; i < Ie.size_1d(); ++i)
+        Ie.at(i) = truth.intensity_map.at(i) - truth.average_intensity_map.at(i);
+
+    Model fit(gc_refine_model(0.0));   // start the coefficient at zero
+    fit.init_asu();                    // populate ASU indices (main.cpp does this pre-refine)
+    fit.set_derivatives_mode(FINITE_DIFFERENCE);
+    OptionalIntensityMap weights;      // default value 1 everywhere
+
+    CeresMinimizer minimizer;
+    vector<double> refined = minimizer.minimize({1.0, 0.0}, &Ie, &fit, &weights,
+                                                fit.refinement_options);
+
+    ASSERT_EQ(refined.size(), 2u);
+    EXPECT_NEAR(refined[0], 1.0,    1e-3) << "Scale";
+    EXPECT_NEAR(refined[1], d_true, 1e-4) << "d1111";
+}
