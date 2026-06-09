@@ -1206,3 +1206,60 @@ TEST(GramCharlierParse, BothTailsParseAndCalculate)
     // forward calc still runs (G(s) not yet wired, but parsing must not break it)
     EXPECT_NO_THROW(m.calculate({1.0}));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gram–Charlier pair combination (Phase 3a): C = C2 − C1, D = D1 + D2.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static Atom make_anh_atom(const std::string& label, double c111, double d1111, bool anh)
+{
+    Atom a(label, 1.0, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0);  // aniso literal ctor
+    if (anh) {
+        a.C.c[0] = yell::lit(c111);     // 111
+        a.D.d[0] = yell::lit(d1111);    // 1111
+        a.anharmonic = true;
+    }
+    return a;
+}
+
+TEST(GramCharlierPair, CombinesOddSubtractEvenAdd)
+{
+    Atom a1 = make_anh_atom("C", /*c111*/ 2.0, /*d1111*/ 3.0, true);
+    Atom a2 = make_anh_atom("C", /*c111*/ 5.0, /*d1111*/ 7.0, true);
+    AtomicPair pair(a1, a2);
+    EXPECT_TRUE(pair.anharmonic_);
+
+    Eigen::VectorXd p = Eigen::VectorXd::Zero(1);
+    yell::tensor3 C = pair.C(false).eval(p);
+    yell::tensor4 D = pair.D(false).eval(p);
+    EXPECT_NEAR(C.c[0], 5.0 - 2.0, 1e-12);   // C2 − C1
+    EXPECT_NEAR(D.d[0], 3.0 + 7.0, 1e-12);   // D1 + D2
+
+    // average track seeded identically to full (atomic GC enters both)
+    EXPECT_NEAR(pair.C(true).eval(p).c[0], 3.0, 1e-12);
+    EXPECT_NEAR(pair.D(true).eval(p).d[0], 10.0, 1e-12);
+}
+
+TEST(GramCharlierPair, HarmonicAtomsGiveHarmonicPair)
+{
+    Atom a1 = make_anh_atom("C", 0, 0, false);
+    Atom a2 = make_anh_atom("C", 0, 0, false);
+    AtomicPair pair(a1, a2);
+    EXPECT_FALSE(pair.anharmonic_);
+
+    Eigen::VectorXd p = Eigen::VectorXd::Zero(1);
+    yell::tensor3 C = pair.C(false).eval(p);
+    for (int n = 0; n < yell::GC3_N; ++n) EXPECT_NEAR(C.c[n], 0.0, 1e-15);
+}
+
+TEST(GramCharlierPair, OneAnharmonicAtomMarksPair)
+{
+    Atom a1 = make_anh_atom("C", 2.0, 3.0, true);
+    Atom a2 = make_anh_atom("C", 0, 0, false);  // harmonic
+    AtomicPair pair(a1, a2);
+    EXPECT_TRUE(pair.anharmonic_);
+
+    Eigen::VectorXd p = Eigen::VectorXd::Zero(1);
+    EXPECT_NEAR(pair.C(false).eval(p).c[0], 0.0 - 2.0, 1e-12);  // C2(0) − C1(2)
+    EXPECT_NEAR(pair.D(false).eval(p).d[0], 3.0 + 0.0, 1e-12);  // D1 + D2(0)
+}

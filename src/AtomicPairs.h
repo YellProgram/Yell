@@ -78,6 +78,8 @@ struct ParameterizedParams {
     yell::ExprPtr occupancy;
     vec3_expr r;
     sym_mat3_expr U;
+    yell::tensor3_expr C;   ///< anharmonic 3rd order (spatial/reciprocal basis); default lit(0)
+    yell::tensor4_expr D;   ///< anharmonic 4th order; default lit(0)
 
     ParameterizedParams() : occupancy(yell::lit(0)) {}
     ParameterizedParams(double occ, vec3<double> _r, sym_mat3<double> _U)
@@ -123,11 +125,24 @@ public:
           multiplier(1.0),  // atom occupancy lives in atom.occupancy (ExprPtr); this holds LaueSymmetry factor only
           atom1(&_atom1),
           atom2(&_atom2)
-    {}
+    {
+        // Anharmonic cumulants combine like r and U: odd order subtracts, even adds
+        // (interatomic vector u = u2 − u1). Atomic GC enters both the full and average
+        // tracks; correlations (AnharmonicCorrelation) later add to the full track only.
+        if (_atom1.anharmonic || _atom2.anharmonic) {
+            real.C = _atom2.C - _atom1.C;   // 3rd order: C2 − C1
+            real.D = _atom1.D + _atom2.D;   // 4th order: D1 + D2
+            average.C = real.C;
+            average.D = real.D;
+            anharmonic_ = true;
+        }
+    }
 
-    yell::ExprPtr&   p(bool average_flag = false) { return params(average_flag).occupancy; }
-    vec3_expr&       r(bool average_flag = false) { return params(average_flag).r; }
-    sym_mat3_expr&   U(bool average_flag = false) { return params(average_flag).U; }
+    yell::ExprPtr&     p(bool average_flag = false) { return params(average_flag).occupancy; }
+    vec3_expr&         r(bool average_flag = false) { return params(average_flag).r; }
+    sym_mat3_expr&     U(bool average_flag = false) { return params(average_flag).U; }
+    yell::tensor3_expr& C(bool average_flag = false) { return params(average_flag).C; }
+    yell::tensor4_expr& D(bool average_flag = false) { return params(average_flag).D; }
 
     yell::ExprPtr&   average_p() { return p(true); }
     yell::ExprPtr&   real_p()    { return p(false); }
@@ -141,6 +156,7 @@ public:
     double multiplier; ///< 1/symmetry_multiplicity
     Atom* atom1;
     Atom* atom2;
+    bool anharmonic_ = false; ///< true if either constituent atom (or a correlation) is anharmonic
 
     bool pair_is_withing(Grid grid, const Eigen::VectorXd& p_vals) {
         vec3<double> r_val(average_r().x->eval(p_vals), average_r().y->eval(p_vals), average_r().z->eval(p_vals));
