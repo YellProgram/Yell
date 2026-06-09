@@ -1,6 +1,9 @@
 # Anharmonic Gram–Charlier PDF — Implementation Plan
 
-Status: design / proposal. Branch suggestion: `gram_charlier` off `parallel_refinement`.
+Status: in progress on `parallel_refinement`. **Phases 1–5 done** (toolkit, atom
+coefficients, pair combination + AnharmonicCorrelation, forward G(s) in direct & FFT,
+symmetry guard). Remaining: 6 (finite-diff refinement recovery), 7 (analytical
+derivatives), 8 (output/docs); bundled ADPCorrelation deferred.
 
 ---
 

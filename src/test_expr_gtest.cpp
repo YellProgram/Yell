@@ -1136,7 +1136,7 @@ static std::string gc_model_str(const std::string& gc_tail)
     // Non-cubic cell so the per-component a* products differ: a*=0.25, b*=0.2, c*=0.125
     std::ostringstream oss;
     oss << "Cell 4 5 8  90 90 90\n"
-        << "DiffuseScatteringGrid -1 -1 -1  1 1 1  3 3 3\n"
+        << "DiffuseScatteringGrid -2 -2 -2  1 1 1  4 4 4\n"  // -1-compatible (even, centred)
         << "CalculationMethod direct\n"
         << "LaueSymmetry -1\n"
         << "RefinableVariables [ ]\n"
@@ -1308,7 +1308,7 @@ TEST(AnharmonicCorrelationModifier, ParsesAndCalculates)
 {
     std::ostringstream oss;
     oss << "Cell 4 4 4  90 90 90\n"
-        << "DiffuseScatteringGrid -1 -1 -1  1 1 1  3 3 3\n"
+        << "DiffuseScatteringGrid -2 -2 -2  1 1 1  4 4 4\n"  // -1-compatible (even, centred)
         << "CalculationMethod direct\n"
         << "LaueSymmetry -1\n"
         << "RefinableVariables [ ]\n"
@@ -1326,4 +1326,98 @@ TEST(AnharmonicCorrelationModifier, ParsesAndCalculates)
         << "]\n";
     Model m(oss.str());
     EXPECT_NO_THROW(m.calculate({1.0}));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Forward Gram–Charlier intensity (Phase 5): direct vs FFT agreement, and that
+// the anharmonic term actually changes the diffuse map. Symmetry guard.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static std::string gc_forward_model(const char* method, const char* gc_tail,
+                                     const char* grid = "-12 -12 -12  1 1 1  24 24 24")
+{
+    // Cubic cell, symmetry-compatible isotropic grid → all Laue on the map.
+    std::ostringstream oss;
+    oss << "Cell 5 5 5  90 90 90\n"
+        << "DiffuseScatteringGrid " << grid << "\n"
+        << "CalculationMethod " << method << "\n"
+        << "LaueSymmetry -1\n"
+        << "FFTGridSize 16 16 16\n"
+        << "RefinableVariables [ ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) Na = Na 1 0 0 0  0.02 0.02 0.02 0 0 0 " << gc_tail
+        << " (p=0.5) Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V,0.5) ]\n"
+        << "  [ (2,0,0) SubstitutionalCorrelation(V,V,0.4) ]\n"
+        << "]\n";
+    return oss.str();
+}
+
+static double direct_fft_rel(const char* tail)
+{
+    Model d(gc_forward_model("direct",      tail));
+    Model f(gc_forward_model("approximate", tail));
+    d.calculate({1.0});
+    f.calculate({1.0});
+    double ma = 0, md = 0;
+    for (int i = 0; i < d.intensity_map.size_1d(); ++i) {
+        double a = d.intensity_map.at(i), b = f.intensity_map.at(i);
+        ma = std::max(ma, std::abs(a));
+        md = std::max(md, std::abs(a - b));
+    }
+    return md / ma;
+}
+
+TEST(GramCharlierForward, DirectVsFftConsistent)
+{
+    // The FFT method is approximate, so it never matches the exact direct method
+    // tightly even for harmonic models. Require the anharmonic case (G(s) applied in
+    // both paths) to agree no worse than the harmonic baseline — i.e. G(s) is wired
+    // consistently. 4th-order term: even cumulant, survives identical-atom self-pairs.
+    const char* tail = "GramCharlier4[ 0.001 0 0 0.0005 0 0 0 0 0 0 0 0 0 0 0 ]";
+    double rel_h = direct_fft_rel("");
+    double rel_a = direct_fft_rel(tail);
+    EXPECT_LT(rel_a, std::max(3.0 * rel_h, 1e-9))
+        << "anharmonic worsens FFT/direct agreement: " << rel_a << " vs harmonic " << rel_h;
+}
+
+TEST(GramCharlierForward, AnharmonicChangesIntensity)
+{
+    // 4th order survives the identical-atom self-pair (D = D1 + D2 ≠ 0) and the
+    // centrosymmetric map symmetrisation (even in s). Both paths must show the change.
+    for (const char* method : {"direct", "approximate"}) {
+        Model harm(gc_forward_model(method, ""));
+        Model anh (gc_forward_model(method,
+            "GramCharlier4[ 0.01 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ]"));  // d1111 only
+        harm.calculate({1.0});
+        anh.calculate({1.0});
+
+        bool differs = false;
+        for (int i = 0; i < harm.intensity_map.size_1d(); ++i)
+            if (std::abs(harm.intensity_map.at(i) - anh.intensity_map.at(i)) > 1e-9) { differs = true; break; }
+        EXPECT_TRUE(differs) << "no change for method " << method;
+    }
+}
+
+TEST(GramCharlierForward, IncompatibleGridThrows)
+{
+    // Anisotropic grid (unequal steps) under cubic-incompatible... use LaueSymmetry with a
+    // generator that must go to pairs. m-3m on an x≠y grid pushes generators to vectors.
+    std::ostringstream oss;
+    oss << "Cell 5 5 5  90 90 90\n"
+        << "DiffuseScatteringGrid -6 -6 -6  0.5 1 1  24 12 12\n"   // unequal x vs y,z
+        << "CalculationMethod direct\n"
+        << "LaueSymmetry m-3m\n"
+        << "RefinableVariables [ ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) Na = Na 1 0 0 0  0.02 0.02 0.02 0 0 0 "
+        << "GramCharlier3[ 0.01 0 0 0 0 0 0 0 0 0 ] (p=0.5) Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V,0.5) ]\n"
+        << "]\n";
+    Model m(oss.str());
+    EXPECT_THROW(m.calculate({1.0}), std::string);
 }

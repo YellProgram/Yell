@@ -163,9 +163,19 @@ void Model::calculate(vector<double> params, bool average_flag)
         REPORT(FIRST_RUN) << "Warning, pair is outside PDF grid " << pairs[i].to_string(p) << '\n';
    }
   
+  // Option B (see GRAM_CHARLIER_PLAN.md §4): anharmonic tensors are not rotated under
+  // pair-level Laue expansion. If any generator must be applied to the pairs (grid
+  // incompatible) and any pair is anharmonic, refuse rather than compute wrong skewness.
+  if (!cell.laue_symmetry.generators_on_vectors.empty())
+    for (const AtomicPair& pr : pairs)
+      if (pr.anharmonic_)
+        throw string("Anharmonic (Gram-Charlier) terms require a symmetry-compatible "
+                     "DiffuseScatteringGrid so Laue symmetry is applied on the map (not on the "
+                     "pairs). Use equal grid steps/extent along symmetry-related axes.");
+
   pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, p);
   atomic_pairs = pairs;
-  
+
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, p, scatterer_list_, full_peaks, avg_peaks);
   calculate_from_peaks(full_peaks, avg_peaks);
@@ -174,6 +184,15 @@ void Model::calculate(vector<double> params, bool average_flag)
 void Model::calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
                                  const vector<PattersonPeak>& avg_peaks)
 {
+  // Partition into harmonic / anharmonic, keeping full↔avg paired by index. The
+  // harmonic 1000s ride the unchanged hot FFT routine; the anharmonic dozens get
+  // the G(s) routine. The direct path needs no split (it branches per peak).
+  vector<PattersonPeak> h_full, h_avg, a_full, a_avg;
+  for (size_t k = 0; k < full_peaks.size(); ++k) {
+    if (full_peaks[k].anharmonic) { a_full.push_back(full_peaks[k]); a_avg.push_back(avg_peaks[k]); }
+    else                          { h_full.push_back(full_peaks[k]); h_avg.push_back(avg_peaks[k]); }
+  }
+
   auto run_calc = [&](const vector<PattersonPeak>& peaks, IntensityMap& out, bool avg) {
     if(direct_diffuse_scattering_calculation) {
       vec3<int> sym_boundary;
@@ -188,8 +207,10 @@ void Model::calculate_from_peaks(const vector<PattersonPeak>& full_peaks,
       IntensityMap recipr_padded = out.padded(padding);
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
-      // Main path: use all available hardware threads
-      IntnsityCalculator::calculate_patterson_map_from_pairs_f(full_peaks, avg_peaks, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, max_processors);
+      // Main path: use all available hardware threads. Harmonic routine zeros the
+      // map and fills it; the anharmonic routine then accumulates the G(s) peaks.
+      IntnsityCalculator::calculate_patterson_map_from_pairs_f(h_full, h_avg, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, max_processors);
+      IntnsityCalculator::calculate_patterson_map_from_pairs_anharmonic_f(a_full, a_avg, scatterer_list_, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, max_processors);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();

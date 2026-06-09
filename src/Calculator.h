@@ -219,6 +219,94 @@ public:
         }
     }
 
+    /// FFT-path anharmonic peaks: identical to calculate_patterson_map_from_pairs_f
+    /// but multiplies each peak's reciprocal-space contribution by the Gram–Charlier
+    /// factor G(s), and ACCUMULATES into patterson_map (does NOT zero it) so it can be
+    /// called after the harmonic routine on the same map. Run only on the (few)
+    /// anharmonic peaks, so the harmonic hot routine above stays untouched.
+    static void calculate_patterson_map_from_pairs_anharmonic_f(
+        const vector<PattersonPeak>& full_peaks,
+        const vector<PattersonPeak>& avg_peaks,
+        ScattererList&               scatterers,
+        IntensityMap&                patterson_map,
+        bool                         average_flag,
+        vec3<int>                    pair_grid_size,
+        vector<bool>                 periodic_directions = vector<bool>(3, false),
+        vec3<int>                    border_pixels = vec3<int>(0, 0, 0),
+        int                          num_threads = 0)
+    {
+        const int n_peaks = (int)full_peaks.size();
+        if (n_peaks == 0) return;
+        double scale = patterson_map.size_1d();
+
+        Grid grid_for_pairs_p(patterson_map.unit_cell(),
+                              patterson_map.grid_steps(),
+                              patterson_map.grid_steps().each_mul(-pair_grid_size / 2),
+                              patterson_map.grid.reciprocal_flag);
+        Grid grid_for_pairs_r = grid_for_pairs_p.reciprocal();
+
+        scatterers.compute_form_factors_on_grid(pair_grid_size, grid_for_pairs_r);
+
+        int n_threads_ = num_threads;
+        if (n_threads_ <= 0) n_threads_ = std::thread::hardware_concurrency();
+        if (n_threads_ <= 0) n_threads_ = 1;
+
+        vector<IntensityMap> scratch;
+        scratch.reserve(n_threads_);
+        for (int t = 0; t < n_threads_; ++t)
+            scratch.emplace_back(pair_grid_size);
+
+        std::mutex accum_mutex;
+        std::atomic<int> next_peak(0);
+
+        auto worker = [&](int t) {
+            IntensityMap& ppm = scratch[t];
+            while (true) {
+                int k = next_peak.fetch_add(1);
+                if (k >= n_peaks) break;
+
+                const PattersonPeak& fpk = full_peaks[k];
+                const PattersonPeak& apk = avg_peaks[k];
+                const PattersonPeak& pk  = average_flag ? apk : fpk;
+
+                ppm.set_grid(grid_for_pairs_r);
+
+                vec3<int>    r_grid;
+                vec3<double> r_res;
+                grid_and_residual(apk.r, patterson_map.grid, r_grid, r_res);
+                if (!average_flag)
+                    r_res += fpk.r - apk.r;
+
+                ppm.init_iterator();
+                while (ppm.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, ppm.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, ppm.current_index());
+                    vec3<double> s = ppm.current_s();
+                    complex<double> val = scale * calculate_scattering_from_a_pair_in_a_point_c(
+                        f1, f2, pk.coefficient, 1.0, s, r_res, pk.U);
+                    val *= yell::gram_charlier_factor(s, pk.C, pk.D);
+                    ppm.current_array_value_c() = val;
+                }
+
+                ppm.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(accum_mutex);
+                    add_pair_to_appropriate_place(ppm, patterson_map,
+                                                  r_grid, periodic_directions, border_pixels);
+                }
+            }
+        };
+
+        if (n_threads_ <= 1) {
+            worker(0);
+        } else {
+            vector<std::thread> workers;
+            for (int t = 0; t < n_threads_; ++t) workers.emplace_back(worker, t);
+            for (auto& w : workers) w.join();
+        }
+    }
+
     /// FFT-path analytical derivative map calculation for a single parameter.
     static void calculate_patterson_map_derivative_from_pairs_f(
         const vector<PattersonPeak>& base_full_peaks,
@@ -385,9 +473,12 @@ public:
             for (const PattersonPeak& pk : peaks) {
                 complex<double> f1 = scatterers.f(pk.type1_idx);
                 complex<double> f2 = scatterers.f(pk.type2_idx);
-                intensity += real(conj(f1) * f2 * pk.coefficient *
+                complex<double> term = conj(f1) * f2 * pk.coefficient *
                     exp(complex<double>(M2PISQ * (s * pk.U * s),
-                                        M_2PI  * (s * pk.r))));
+                                        M_2PI  * (s * pk.r)));
+                if (pk.anharmonic)
+                    term *= yell::gram_charlier_factor(s, pk.C, pk.D);
+                intensity += real(term);
             }
             I.current_array_value() = intensity;
         }

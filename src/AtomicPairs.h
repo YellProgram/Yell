@@ -614,6 +614,9 @@ struct PattersonPeak {
     double           coefficient;
     vec3<double>     r;
     sym_mat3<double> U;
+    bool             anharmonic = false;  ///< true → apply the Gram–Charlier factor G(s)
+    yell::tensor3    C{};                  ///< baked spatial 3rd-order tensor (valid if anharmonic)
+    yell::tensor4    D{};                  ///< baked spatial 4th-order tensor
 };
 
 struct PeakSusceptibility {
@@ -644,16 +647,20 @@ inline void peaks_from_pairs(
         pk.type1_idx  = idx1;
         pk.type2_idx  = idx2;
 
+        pk.anharmonic = pair.anharmonic_;
+
         pk.coefficient = pair.p(false)->eval(params, &cache) * pair.multiplier;
         pk.r = vec3<double>(pair.r(false).x->eval(params, &cache), pair.r(false).y->eval(params, &cache), pair.r(false).z->eval(params, &cache));
         pk.U = sym_mat3<double>(pair.U(false).u11->eval(params, &cache), pair.U(false).u22->eval(params, &cache), pair.U(false).u33->eval(params, &cache),
                                 pair.U(false).u12->eval(params, &cache), pair.U(false).u13->eval(params, &cache), pair.U(false).u23->eval(params, &cache));
+        if (pair.anharmonic_) { pk.C = pair.C(false).eval(params, &cache); pk.D = pair.D(false).eval(params, &cache); }
         full_peaks.push_back(pk);
 
         pk.coefficient = pair.p(true)->eval(params, &cache) * pair.multiplier;
         pk.r = vec3<double>(pair.r(true).x->eval(params, &cache), pair.r(true).y->eval(params, &cache), pair.r(true).z->eval(params, &cache));
         pk.U = sym_mat3<double>(pair.U(true).u11->eval(params, &cache), pair.U(true).u22->eval(params, &cache), pair.U(true).u33->eval(params, &cache),
                                 pair.U(true).u12->eval(params, &cache), pair.U(true).u13->eval(params, &cache), pair.U(true).u23->eval(params, &cache));
+        if (pair.anharmonic_) { pk.C = pair.C(true).eval(params, &cache); pk.D = pair.D(true).eval(params, &cache); }
         avg_peaks.push_back(pk);
     }
 }
