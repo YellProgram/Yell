@@ -25,6 +25,7 @@
 #include "LaueSymmetry.h"
 #include "expr.hpp"
 #include "expr_types.h"
+#include "anharmonic.h"
 
 #include <cctbx/uctbx.h>
 #include <scitbx/array_family/tiny.h>
@@ -193,10 +194,18 @@ public:
     /// Populated by construct_atom*; ADP conversion (Å² → frac) baked at parse time.
     yell::ExprPtr U[6];
 
+    /// Anharmonic Gram–Charlier coefficients (reciprocal basis, a* baked at parse
+    /// time like U). Default lit(0). Only meaningful when `anharmonic` is true.
+    yell::tensor3_expr C;   ///< 3rd-order (skewness), 10 components
+    yell::tensor4_expr D;   ///< 4th-order (kurtosis), 15 components
+    bool anharmonic = false;
+
     // ── Double caches for MolecularScatterer inner loop and ADPMode ─────────
     double           occ_cache;   // = component_prob * mult_expr evaluated
     vec3<double>     r_cache;
     sym_mat3<double> U_cache;
+    yell::tensor3    C_cache{};    // valid after update_caches() when anharmonic
+    yell::tensor4    D_cache{};
 
     /// Full occupancy ExprPtr used by AtomicPair and SubstitutionalCorrelation.
     yell::ExprPtr full_occupancy() const { return component_prob * mult_expr; }
@@ -206,6 +215,10 @@ public:
         occ_cache = component_prob->eval(p, cache) * mult_expr->eval(p, cache);
         for (int i = 0; i < 3; ++i) r_cache[i] = r[i]->eval(p, cache);
         for (int i = 0; i < 6; ++i) U_cache[i] = U[i]->eval(p, cache);
+        if (anharmonic) {          // skip the 25 evals for the harmonic majority
+            C_cache = C.eval(p, cache);
+            D_cache = D.eval(p, cache);
+        }
     }
 
     Atom() : occ_cache(1.0) {

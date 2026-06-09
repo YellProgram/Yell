@@ -28,6 +28,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <boost/fusion/tuple.hpp>
+#include <boost/optional.hpp>
 
 
 //COPYPASTE from InputFileParser.h
@@ -265,6 +266,35 @@ public:
                           U_exprs[3], U_exprs[4], U_exprs[5]);
     atom->update_caches(p_eig);
     all_atoms_.push_back(atom);
+    return atom;
+  }
+
+  /// Anisotropic atom with optional Gram–Charlier tail (atom-line grammar).
+  /// gc3 = 10 exprs (Å³), gc4 = 15 exprs (Å⁴), CIF component order. Each is
+  /// baked into the reciprocal basis by the matching a* products (mirrors the
+  /// U Å²→frac bake) and stored on the atom; the anharmonic flag is set.
+  Atom* construct_atom_gc(string name, vector<yell::ExprPtr> param_exprs,
+                          boost::optional<vector<yell::ExprPtr>> gc3,
+                          boost::optional<vector<yell::ExprPtr>> gc4) {
+    Atom* atom = construct_atom(name, param_exprs);
+    if (!gc3 && !gc4) return atom;
+
+    auto G = cell.cell.reciprocal_metrical_matrix();
+    const double as[3] = { std::sqrt(G[0]), std::sqrt(G[1]), std::sqrt(G[2]) };  // a*, b*, c*
+
+    if (gc3)
+      for (int n = 0; n < yell::GC3_N; ++n) {
+        const int* I = yell::GC3_IDX[n];
+        atom->C.c[n] = (*gc3)[n] * (as[I[0]] * as[I[1]] * as[I[2]]);
+      }
+    if (gc4)
+      for (int n = 0; n < yell::GC4_N; ++n) {
+        const int* I = yell::GC4_IDX[n];
+        atom->D.d[n] = (*gc4)[n] * (as[I[0]] * as[I[1]] * as[I[2]] * as[I[3]]);
+      }
+
+    atom->anharmonic = true;
+    atom->update_caches(refinement_parameters_asEig());
     return atom;
   }
 

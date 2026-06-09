@@ -437,9 +437,13 @@ void InputParser::InputParserIII()
   atomic_assembly = ('[' >> *chemical_unit >> ']')[_val = phoenix::new_<AtomicAssembly>(_1)] ;
 
   atom =
-    (atom_name >> repeat(10)[lexeme[expr_formula]]) [_val = phoenix::bind(&Model::construct_atom,*ref(model),_1,_2)] //Uaniso and p
+    (atom_name >> repeat(10)[lexeme[expr_formula]] >> -gram_charlier3 >> -gram_charlier4)
+        [_val = phoenix::bind(&Model::construct_atom_gc,*ref(model),_1,_2,_3,_4)] //Uaniso and p (+ optional Gram-Charlier)
   | (atom_name > repeat(5)[lexeme[expr_formula]])   [_val = phoenix::bind(&Model::construct_atom_isotropic_adp,*ref(model),_1,_2)]
   ;
+
+  gram_charlier3 %= lit("GramCharlier3") > '[' > repeat(10)[lexeme[expr_formula]] > ']';
+  gram_charlier4 %= lit("GramCharlier4") > '[' > repeat(15)[lexeme[expr_formula]] > ']';
 
   molecular_scatterer =
     chemical_unit[_val = phoenix::new_<MolecularScatterer>(_1)]

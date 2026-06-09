@@ -44,6 +44,8 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator, void(), skipper_type> start;
   qi::rule<Iterator, Atom*(), skipper_type> atom;
   qi::rule<Iterator, Atom*(), skipper_type> isotropic_atom;
+  qi::rule<Iterator, vector<yell::ExprPtr>(), skipper_type> gram_charlier3;
+  qi::rule<Iterator, vector<yell::ExprPtr>(), skipper_type> gram_charlier4;
   qi::rule<Iterator,string()> atom_name;
   qi::rule<Iterator,ChemicalUnit*(), skipper_type > chemical_unit;
   qi::rule<Iterator,qi::locals<string>,ChemicalUnit*(), skipper_type > chemical_unit_assignement;

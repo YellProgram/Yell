@@ -1125,3 +1125,84 @@ TEST(DerivativeTests, MixedJacobianConsistentWithDirect)
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gram–Charlier atom-line parsing (Phase 2): GramCharlier3/4 tail, a* baking,
+// optionality, and harmonic-atom invariance.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static std::string gc_model_str(const std::string& gc_tail)
+{
+    // Non-cubic cell so the per-component a* products differ: a*=0.25, b*=0.2, c*=0.125
+    std::ostringstream oss;
+    oss << "Cell 4 5 8  90 90 90\n"
+        << "DiffuseScatteringGrid -1 -1 -1  1 1 1  3 3 3\n"
+        << "CalculationMethod direct\n"
+        << "LaueSymmetry -1\n"
+        << "RefinableVariables [ ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) C 1 0 0 0  0.01 0.01 0.01 0 0 0 " << gc_tail
+        << " (p=0.5) Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V,0.5) ]\n"
+        << "]\n";
+    return oss.str();
+}
+
+static Atom* only_atom(Model& m)
+{
+    for (Atom* a : m.all_atoms_) if (a->label == "C") return a;
+    return nullptr;
+}
+
+TEST(GramCharlierParse, AnisoAtomWithoutTailIsHarmonic)
+{
+    Model m(gc_model_str(""));   // plain anisotropic atom, no GC tail
+    Atom* a = only_atom(m);
+    ASSERT_NE(a, nullptr);
+    EXPECT_FALSE(a->anharmonic);
+}
+
+TEST(GramCharlierParse, Order3TailBakesAstarProducts)
+{
+    // c111 = 2 (n=0), c123 = 3 (n=4); rest 0
+    Model m(gc_model_str("GramCharlier3[ 2 0 0 0 3 0 0 0 0 0 ]"));
+    Atom* a = only_atom(m);
+    ASSERT_NE(a, nullptr);
+    EXPECT_TRUE(a->anharmonic);
+
+    const double as = 0.25, bs = 0.2, cs = 0.125;
+    EXPECT_NEAR(a->C_cache.c[0], 2.0 * as * as * as, 1e-12);   // 111
+    EXPECT_NEAR(a->C_cache.c[4], 3.0 * as * bs * cs, 1e-12);   // 123
+    EXPECT_NEAR(a->C_cache.c[1], 0.0, 1e-15);                  // 112 untouched
+    // no GramCharlier4 → D stays zero
+    for (int n = 0; n < yell::GC4_N; ++n) EXPECT_NEAR(a->D_cache.d[n], 0.0, 1e-15);
+}
+
+TEST(GramCharlierParse, Order4TailBakesAstarProducts)
+{
+    // d1111 = 5 (n=0), d1122 = 7 (n=3); rest 0   (no GramCharlier3)
+    Model m(gc_model_str("GramCharlier4[ 5 0 0 7 0 0 0 0 0 0 0 0 0 0 0 ]"));
+    Atom* a = only_atom(m);
+    ASSERT_NE(a, nullptr);
+    EXPECT_TRUE(a->anharmonic);
+
+    const double as = 0.25, bs = 0.2;
+    EXPECT_NEAR(a->D_cache.d[0], 5.0 * as * as * as * as, 1e-12);  // 1111
+    EXPECT_NEAR(a->D_cache.d[3], 7.0 * as * as * bs * bs, 1e-12);  // 1122
+    // no GramCharlier3 → C stays zero
+    for (int n = 0; n < yell::GC3_N; ++n) EXPECT_NEAR(a->C_cache.c[n], 0.0, 1e-15);
+}
+
+TEST(GramCharlierParse, BothTailsParseAndCalculate)
+{
+    Model m(gc_model_str(
+        "GramCharlier3[ 1 0 0 0 0 0 0 0 0 0 ] "
+        "GramCharlier4[ 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ]"));
+    Atom* a = only_atom(m);
+    ASSERT_NE(a, nullptr);
+    EXPECT_TRUE(a->anharmonic);
+    // forward calc still runs (G(s) not yet wired, but parsing must not break it)
+    EXPECT_NO_THROW(m.calculate({1.0}));
+}
