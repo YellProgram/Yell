@@ -530,6 +530,16 @@ public:
     else
       return new SizeEffect(boost::get<ADPMode*>(el1),boost::get<ChemicalUnit*>(el2), amplitude);
   }
+
+  static AnharmonicCorrelation* create_anharmonic_correlation(
+      vector<StructurePartRef> left, vector<StructurePartRef> right,
+      int order, vector<yell::ExprPtr> coeffs)
+  {
+    vector<ADPMode*> l, r;
+    for (auto& s : left)  l.push_back(boost::get<ADPMode*>(s));
+    for (auto& s : right) r.push_back(boost::get<ADPMode*>(s));
+    return new AnharmonicCorrelation(l, r, order, coeffs);
+  }
   
   static const bool AVERAGE = true;
   static const bool FULL = false;

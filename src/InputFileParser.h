@@ -87,6 +87,7 @@ struct InputParser : qi::grammar<Iterator, void(), qi::rule<Iterator,void()> >{
   qi::rule<Iterator,ADPMode*(),skipper_type> mode_assignement;
   qi::rule<Iterator,DoubleADPMode*(),skipper_type> adp_correlation;
   qi::rule<Iterator,SizeEffect*(),skipper_type> size_effect;
+  qi::rule<Iterator,qi::locals<int>,AnharmonicCorrelation*(),skipper_type> anharmonic_correlation;
   qi::symbols<char,string> point_group_symbol;
   qi::symbols<char,string> atom_type;
   qi::symbols<char,string> molecular_type;

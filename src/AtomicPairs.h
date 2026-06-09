@@ -499,6 +499,112 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AnharmonicCorrelation — free Gram–Charlier pair coefficients from mode cumulants.
+//
+// Left modes act on atom 1, right modes on atom 2 (like the bundled ADPCorrelation).
+// coeffs is the fully-symmetric rank-`order` tensor over the COMBINED basis
+// [left ++ right] in CIF order (combinations-with-replacement), i.e. the mode-amplitude
+// cumulants ⟨q_a q_b …⟩. The pair's spatial tensor (κ of the relative displacement
+// Δu = u2 − u1) is assembled as Σ coeff · e_a⊗e_b⊗…, with e_a = −d_a(atom1) for a left
+// mode and +d_a(atom2) for a right mode. Only κ(Δu) is observable, so the combined
+// coefficient set is over-complete — the user ties redundant components symbolically
+// (see GRAM_CHARLIER_INDEPENDENT_COMPONENTS.md for auto-detection).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AnharmonicCorrelation : public PairModifier {
+public:
+    AnharmonicCorrelation(vector<ADPMode*> left, vector<ADPMode*> right,
+                          int order, vector<yell::ExprPtr> coeffs)
+        : left_(std::move(left)), right_(std::move(right)),
+          order_(order), coeffs_(std::move(coeffs))
+    {
+        int K = (int)(left_.size() + right_.size());
+        size_t expected = yell::enumerate_sym(K, order_).size();
+        if (coeffs_.size() != expected)
+            throw string("AnharmonicCorrelation" + std::to_string(order_) + " expects " +
+                         std::to_string(expected) + " coefficients for " + std::to_string(K) +
+                         " combined modes, got " + std::to_string(coeffs_.size()));
+    }
+
+    bool generates_pairs() override { return false; }
+
+    void modify_pairs(AtomicPairPool* const pool) override {
+        vector<ADPMode*> comb = left_;
+        comb.insert(comb.end(), right_.begin(), right_.end());
+        const int K  = (int)comb.size();
+        const int Lc = (int)left_.size();
+
+        vector<vector<int>> tuples = yell::enumerate_sym(K, order_);
+
+        for (Atom* i : side_atoms(left_))
+            for (Atom* j : side_atoms(right_)) {
+                AtomicPair& pair = pool->get_pair(i, j);
+                // mode a's contribution to Δu = u_j − u_i (left enters with −, right with +)
+                vector<vec3<double>> e(K);
+                for (int a = 0; a < K; ++a)
+                    e[a] = (a < Lc) ? -disp(comb[a], i) : disp(comb[a], j);
+
+                if (order_ == 3) assemble3(pair.C(false), tuples, e);
+                else             assemble4(pair.D(false), tuples, e);
+                pair.anharmonic_ = true;
+            }
+    }
+
+    PairModifier* clone() const override { return new AnharmonicCorrelation(*this); }
+
+private:
+    static vec3<double> disp(ADPMode* m, Atom* at) {
+        for (auto& ad : m->atomic_displacements)
+            if (ad.atom == at) return ad.displacement_vector;
+        return vec3<double>(0, 0, 0);
+    }
+    static vector<Atom*> side_atoms(const vector<ADPMode*>& modes) {
+        vector<Atom*> out;
+        for (ADPMode* m : modes)
+            for (auto& ad : m->atomic_displacements)
+                if (std::find(out.begin(), out.end(), ad.atom) == out.end())
+                    out.push_back(ad.atom);
+        return out;
+    }
+
+    // acc.c[sc] += Σ_tuples coeff · Σ_{perms of tuple} ∏ e over the spatial axes of sc
+    void assemble3(yell::tensor3_expr& acc, const vector<vector<int>>& tuples,
+                   const vector<vec3<double>>& e) {
+        for (size_t ti = 0; ti < tuples.size(); ++ti) {
+            double G[yell::GC3_N] = {0};
+            vector<int> perm = tuples[ti];
+            do {
+                for (int sc = 0; sc < yell::GC3_N; ++sc) {
+                    const int* I = yell::GC3_IDX[sc];
+                    G[sc] += e[perm[0]][I[0]] * e[perm[1]][I[1]] * e[perm[2]][I[2]];
+                }
+            } while (std::next_permutation(perm.begin(), perm.end()));
+            for (int sc = 0; sc < yell::GC3_N; ++sc)
+                if (G[sc] != 0.0) acc.c[sc] = acc.c[sc] + coeffs_[ti] * G[sc];
+        }
+    }
+    void assemble4(yell::tensor4_expr& acc, const vector<vector<int>>& tuples,
+                   const vector<vec3<double>>& e) {
+        for (size_t ti = 0; ti < tuples.size(); ++ti) {
+            double G[yell::GC4_N] = {0};
+            vector<int> perm = tuples[ti];
+            do {
+                for (int sc = 0; sc < yell::GC4_N; ++sc) {
+                    const int* I = yell::GC4_IDX[sc];
+                    G[sc] += e[perm[0]][I[0]] * e[perm[1]][I[1]] * e[perm[2]][I[2]] * e[perm[3]][I[3]];
+                }
+            } while (std::next_permutation(perm.begin(), perm.end()));
+            for (int sc = 0; sc < yell::GC4_N; ++sc)
+                if (G[sc] != 0.0) acc.d[sc] = acc.d[sc] + coeffs_[ti] * G[sc];
+        }
+    }
+
+    vector<ADPMode*>      left_, right_;
+    int                   order_;
+    vector<yell::ExprPtr> coeffs_;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PattersonPeak PODs and Baking functions
 // ─────────────────────────────────────────────────────────────────────────────
 

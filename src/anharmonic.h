@@ -43,6 +43,7 @@
 
 #include <complex>
 #include <cmath>
+#include <vector>
 
 #include <scitbx/vec3.h>
 
@@ -73,6 +74,25 @@ inline constexpr int GC4_IDX[GC4_N][4] = {
     {1,1,1,1},{1,1,1,2},{1,1,2,2},{1,2,2,2},{2,2,2,2}
 };
 inline constexpr int GC4_MULT[GC4_N] = { 1,4,4,6,12,6,4,12,12,4,1,4,6,4,1 };
+
+// ── Symmetric multi-index enumeration over K modes ──────────────────────────────
+// Non-decreasing n-tuples over {0..K-1} in lexicographic (CIF) order — the layout
+// of an AnharmonicCorrelation coefficient list (combinations with replacement,
+// count = C(K+n-1, n)). Used to map a coefficient position to its mode tuple.
+
+inline std::vector<std::vector<int>> enumerate_sym(int K, int n) {
+    std::vector<std::vector<int>> out;
+    std::vector<int> t(n, 0);
+    while (true) {
+        out.push_back(t);
+        int i = n - 1;
+        while (i >= 0 && t[i] == K - 1) --i;
+        if (i < 0) break;
+        int v = t[i] + 1;
+        for (int j = i; j < n; ++j) t[j] = v;   // keep non-decreasing
+    }
+    return out;
+}
 
 // ── Value tensors ───────────────────────────────────────────────────────────────
 // Aggregates: `tensor3 t{};` zero-initialises all components.

@@ -241,6 +241,7 @@ InputParser::InputParser() : InputParser::base_type(start)
       | substitutional_correlation          [phoenix::bind(&AtomicPairPool::add_modifiers,*_val,_1)]
       | adp_correlation                     [phoenix::bind(&AtomicPairPool::add_modifier,*_val,_1)]
       | size_effect                         [phoenix::bind(&AtomicPairPool::add_modifier,*_val,_1)]
+      | anharmonic_correlation              [phoenix::bind(&AtomicPairPool::add_modifier,*_val,_1)]
       )
   > "]";
    
@@ -308,6 +309,15 @@ static void do_size_effect(
     catch (...) { pass = false; }
 }
 
+static void do_anharmonic_correlation(
+    AnharmonicCorrelation*& out,
+    vector<StructurePartRef> left, vector<StructurePartRef> right,
+    vector<yell::ExprPtr> coeffs, int order, bool& pass)
+{
+    try { out = Model::create_anharmonic_correlation(left, right, order, coeffs); }
+    catch (...) { pass = false; }
+}
+
 void InputParser::InputParserI()
 {
 
@@ -343,6 +353,16 @@ void InputParser::InputParserI()
     > '('
     > (identifier > ',' > identifier > ',' > expr_number)[
         phoenix::bind(&do_size_effect, _val, _1, _2, _3, _pass)]
+    > ')'
+    ;
+
+    anharmonic_correlation =
+    (lit("AnharmonicCorrelation3")[_a = 3] | lit("AnharmonicCorrelation4")[_a = 4])
+    > '('
+    > ( '[' > (identifier % ',') > ']' > ','
+        > '[' > (identifier % ',') > ']' > ','
+        > '[' > (+expr_number) > ']' )[
+            phoenix::bind(&do_anharmonic_correlation, _val, _1, _2, _3, _a, _pass)]
     > ')'
     ;
 

@@ -220,3 +220,18 @@ TEST(Anharmonic, Tensor4ExprDefaultsZero) {
     tensor4 a = A.eval(p);
     for (int n = 0; n < yell::GC4_N; ++n) EXPECT_NEAR(a.d[n], 0.0, 1e-15);
 }
+
+TEST(Anharmonic, EnumerateSymCounts)
+{
+    // C(K+n-1, n) combinations with replacement
+    EXPECT_EQ(yell::enumerate_sym(3, 3).size(), 10u);
+    EXPECT_EQ(yell::enumerate_sym(3, 4).size(), 15u);
+    EXPECT_EQ(yell::enumerate_sym(2, 3).size(), 4u);
+    EXPECT_EQ(yell::enumerate_sym(6, 3).size(), 56u);
+    EXPECT_EQ(yell::enumerate_sym(6, 4).size(), 126u);
+    // first/last tuples are non-decreasing and lexicographic
+    auto t = yell::enumerate_sym(3, 3);
+    EXPECT_EQ(t.front(), (std::vector<int>{0,0,0}));
+    EXPECT_EQ(t[1],      (std::vector<int>{0,0,1}));
+    EXPECT_EQ(t.back(),  (std::vector<int>{2,2,2}));
+}

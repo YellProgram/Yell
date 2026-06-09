@@ -1263,3 +1263,67 @@ TEST(GramCharlierPair, OneAnharmonicAtomMarksPair)
     EXPECT_NEAR(pair.C(false).eval(p).c[0], 0.0 - 2.0, 1e-12);  // C2(0) − C1(2)
     EXPECT_NEAR(pair.D(false).eval(p).d[0], 3.0 + 0.0, 1e-12);  // D1 + D2(0)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AnharmonicCorrelation modifier (Phase 3b): left/right modes + combined-basis
+// coefficients assembled into the pair's spatial κ(Δu) tensor.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(AnharmonicCorrelationModifier, SelfPairRank3HandCheck)
+{
+    // K=2 self-pair: left=[modeL on Cu, +x], right=[modeR on Cu, +x].
+    // e_left = -x, e_right = +x, so Δu_x = q_right - q_left.
+    // coeffs over combined modes (n=3, K=2): [k000,k001,k011,k111] = [2,3,5,7].
+    // spatial xxx = κ3(Δu_x) = k111 - 3k011 + 3k001 - k000 = 7 -15 +9 -2 = -1.
+    Atom cu("Cu", 1.0, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0);
+    ADPMode modeL; modeL.add_atom(&cu, vec3<double>(1, 0, 0));
+    ADPMode modeR; modeR.add_atom(&cu, vec3<double>(1, 0, 0));
+
+    std::vector<ADPMode*> left{&modeL}, right{&modeR};
+    std::vector<yell::ExprPtr> coeffs{yell::lit(2), yell::lit(3), yell::lit(5), yell::lit(7)};
+    AnharmonicCorrelation corr(left, right, 3, coeffs);
+
+    AtomicPairPool pool;
+    corr.modify_pairs(&pool);
+    AtomicPair& pair = pool.get_pair(&cu, &cu);
+    EXPECT_TRUE(pair.anharmonic_);
+
+    Eigen::VectorXd p = Eigen::VectorXd::Zero(1);
+    yell::tensor3 C = pair.C(false).eval(p);
+    EXPECT_NEAR(C.c[0], -1.0, 1e-12);                 // xxx
+    for (int n = 1; n < yell::GC3_N; ++n)             // only x-direction populated
+        EXPECT_NEAR(C.c[n], 0.0, 1e-12) << "comp " << n;
+}
+
+TEST(AnharmonicCorrelationModifier, WrongCoeffCountThrows)
+{
+    Atom cu("Cu", 1.0, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0);
+    ADPMode m; m.add_atom(&cu, vec3<double>(1, 0, 0));
+    std::vector<ADPMode*> left{&m}, right{&m};   // K=2 → expects 4 coeffs for n=3
+    std::vector<yell::ExprPtr> coeffs{yell::lit(1), yell::lit(2)};  // only 2
+    EXPECT_THROW(AnharmonicCorrelation(left, right, 3, coeffs), std::string);
+}
+
+TEST(AnharmonicCorrelationModifier, ParsesAndCalculates)
+{
+    std::ostringstream oss;
+    oss << "Cell 4 4 4  90 90 90\n"
+        << "DiffuseScatteringGrid -1 -1 -1  1 1 1  3 3 3\n"
+        << "CalculationMethod direct\n"
+        << "LaueSymmetry -1\n"
+        << "RefinableVariables [ ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) Cu = Cu 1 0 0 0  0.01 0.01 0.01 0 0 0 (p=0.5) Void ]\n"
+        << "]\n"
+        << "Modes[\n"
+        << "  Cu_x = TranslationalMode(Cu, x)\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0)\n"
+        << "    SubstitutionalCorrelation(V,V,0.5)\n"
+        << "    AnharmonicCorrelation3([Cu_x],[Cu_x], [ 0 0 0 1 ])\n"  // k111 = 1
+        << "  ]\n"
+        << "]\n";
+    Model m(oss.str());
+    EXPECT_NO_THROW(m.calculate({1.0}));
+}

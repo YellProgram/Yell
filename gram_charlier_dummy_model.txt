@@ -95,19 +95,17 @@ Correlations
    )
 
    # --- Free pair anharmonicity = higher cumulants of mode amplitudes --- ### NEW ###
-   # Same mode basis as ADPCorrelation. Coefficient list is the SYMMETRIC
-   # rank-n tensor over the listed modes (mode-space cumulants ⟨q_a q_b q_c…⟩),
-   # CIF order, Å units. M modes → C(M+n-1,n) numbers: here 3 modes → 10 / 15.
-   # The spatial C/D on the pair is built internally as Σ ⟨q…⟩ d⊗d⊗d…  (like
-   # U = Σ ⟨q q⟩ d⊗d). Adds on top of the atomic coefficients.
-   #            index 1=Na_x 2=Na_y 3=Na_z ;  e.g. "123" = ⟨q_x q_y q_z⟩
-   AnharmonicCorrelation3([Na_x, Na_y, Na_z],
-     [ 0 0 0  0 pair_c123 0  0 0 0  0 ])
-   #            order: 111 112 113 122 123 133 222 223 233 333
-
-   AnharmonicCorrelation4([Na_x, Na_y, Na_z],
-     [ 0 0 0  pair_d1122 0 0  0 0 0 0  0 0 0 0 0 ])
-   #            order: 1111 1112 1113 1122 1123 1133 1222 1223 1233 1333
-   #                   2222 2223 2233 2333 3333
+   # Left modes act on atom 1, right modes on atom 2 (like the bundled
+   # ADPCorrelation). The coefficient list is the SYMMETRIC rank-n tensor over the
+   # COMBINED basis [left ++ right] (mode-space cumulants ⟨q_a q_b q_c…⟩), CIF order,
+   # Å units. Left modes enter the relative displacement Δu = u_R − u_L with a −
+   # sign. K combined modes → C(K+n-1,n) coefficients; the modifier assembles the
+   # pair's 10/15-component spatial C/D from Σ ⟨q…⟩ (±d)⊗(±d)…  Only κ(Δu) is
+   # observable, so populate the components your model needs (self terms overlap
+   # with atomic GC — leave them 0 if already set there).
+   # Here a self-pair: left=right=[Na_x,Na_y,Na_z], K=6 → 56 (rank3) / 126 (rank4)
+   # combined components; only the few refined ones are shown non-zero.
+   AnharmonicCorrelation3([Na_x, Na_y, Na_z], [Na_x, Na_y, Na_z], [ /* C(8,3)=56 coeffs, CIF order over combined modes */ ])
+   AnharmonicCorrelation4([Na_x, Na_y, Na_z], [Na_x, Na_y, Na_z], [ /* C(9,4)=126 coeffs */ ])
   ]
 ]

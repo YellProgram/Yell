@@ -362,11 +362,10 @@ Two related changes. **(a) Bundle the existing `ADPCorrelation`** into mode-list
 amplitude matrix (sugar over the current per-component form), and **(b) add free pair
 `AnharmonicCorrelation3/4`** as direct crystal-axis tensors.
 
-**(a) Bundled ADPCorrelation** — pure parse-time desugaring, no new runtime class. The grammar
-`ADPCorrelation([L1,L2,…], [R1,R2,…], [ row-major matrix ])` expands to
-`Σ_ab matrix[a][b] · DoubleADPMode(L_a, R_b)` (existing `DoubleADPMode`, `AtomicPairs.h:342`).
-The matrix is indexed by direction (row=left, col=right), so **no U 6-vector ordering** is
-involved. The legacy scalar `ADPCorrelation(mode,mode,amp)` remains valid (1×1 case).
+**(a) Bundled ADPCorrelation** — *deferred* (independent sugar, not yet built). Pure parse-time
+desugaring, no new runtime class: `ADPCorrelation([L…],[R…],[matrix])` → `Σ matrix[a][b]·
+DoubleADPMode(L_a,R_b)`. Matrix is direction-indexed, so no U 6-vector ordering. Legacy scalar
+form stays valid.
 
 **(b) AnharmonicCorrelation3/4** — the higher-cumulant analogue of `ADPCorrelation`, in the
 **same mode basis**. The unifying picture: mode amplitudes `q_m` have cumulants, and each
