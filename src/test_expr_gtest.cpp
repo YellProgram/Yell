@@ -1422,12 +1422,57 @@ TEST(GramCharlierForward, IncompatibleGridThrows)
     EXPECT_THROW(m.calculate({1.0}), std::string);
 }
 
-TEST(GramCharlierForward, AnalyticalDerivativeThrowsForNow)
+static std::string gc_refinable_model(const char* method)
 {
-    // Analytical derivatives through G(s) are not implemented (Phase 7); the path
-    // must fail loudly rather than silently leave anharmonic params unrefined.
-    Model m(gc_forward_model("direct",
-        "GramCharlier4[ 0.01 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ]"));
-    m.set_derivatives_mode(ANALYTICAL);
-    EXPECT_THROW(m.calculate_derivative({1.0}, 1), std::string);
+    // A refinable 4th-order coefficient `d` (even cumulant survives self-pairs).
+    std::ostringstream oss;
+    oss << "Cell 5 5 5  90 90 90\n"
+        << "DiffuseScatteringGrid -3 -3 -3  1 1 1  6 6 6\n"
+        << "CalculationMethod " << method << "\n"
+        << "LaueSymmetry -1\n"
+        << "FFTGridSize 16 16 16\n"
+        << "RefinableVariables [ d = 0.003 ]\n"
+        << "UnitCell [\n"
+        << "  V = Variant [ (p=0.5) Na = Na 1 0 0 0  0.03 0.03 0.03 0 0 0 "
+        << "GramCharlier4[ d 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ] (p=0.5) Void ]\n"
+        << "]\n"
+        << "Correlations [\n"
+        << "  [ (1,0,0) SubstitutionalCorrelation(V,V,0.5) ]\n"
+        << "  [ (2,0,0) SubstitutionalCorrelation(V,V,0.4) ]\n"
+        << "]\n";
+    return oss.str();
+}
+
+TEST(GramCharlierForward, AnalyticalDerivativeMatchesFiniteDifference)
+{
+    // Phase 7: analytical dI/d(d1111) via calculate_derivative (the minimizer's path)
+    // must match a true central finite difference of the diffuse map w.r.t. d, in both
+    // the exact direct method and the (self-consistent) FFT method.
+    const double d0 = 0.003, eps = 1e-6;
+    for (const char* method : {"direct", "approximate"}) {
+        Model ma(gc_refinable_model(method));
+        ma.calculate({1.0, d0});                                  // primes gridded form factors (minimizer does this)
+        IntensityMap dI = ma.calculate_derivative({1.0, d0}, 1);  // scale=1 → dI = d(diffuse)/dd
+
+        Model mf(gc_refinable_model(method));
+        auto diffuse_at = [&](double d) {
+            mf.calculate({1.0, d});
+            IntensityMap D(mf.intensity_map.size());
+            D.set_grid(mf.intensity_map.grid);
+            for (int i = 0; i < D.size_1d(); ++i)
+                D.at(i) = mf.intensity_map.at(i) - mf.average_intensity_map.at(i);
+            return D;
+        };
+        IntensityMap Dp = diffuse_at(d0 + eps);
+        IntensityMap Dm = diffuse_at(d0 - eps);
+
+        double col_scale = 0;
+        for (int i = 0; i < dI.size_1d(); ++i) col_scale = std::max(col_scale, std::abs(dI.at(i)));
+        EXPECT_GT(col_scale, 0.0) << "zero derivative, method " << method;
+        for (int i = 0; i < dI.size_1d(); ++i) {
+            double fd = (Dp.at(i) - Dm.at(i)) / (2 * eps);
+            EXPECT_NEAR(dI.at(i), fd, 1e-3 * col_scale + 1e-7)
+                << "method " << method << ", pixel " << i;
+        }
+    }
 }

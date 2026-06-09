@@ -419,6 +419,118 @@ public:
         }
     }
 
+    /// FFT-path anharmonic derivative: like calculate_patterson_map_derivative_from_pairs_f
+    /// but applies the Gram–Charlier product rule  ∂(base·G) = ∂base·G + base·∂G  and
+    /// ACCUMULATES (does not zero), so it runs after the harmonic derivative routine on
+    /// the same map. Only the anharmonic peaks are passed in.
+    static void calculate_patterson_map_derivative_from_pairs_anharmonic_f(
+        const vector<PattersonPeak>& base_full_peaks,
+        const vector<PattersonPeak>& base_avg_peaks,
+        const vector<PeakSusceptibility>& full_susc,
+        const vector<PeakSusceptibility>& avg_susc,
+        ScattererList& scatterers,
+        IntensityMap&  deriv_patterson_map,
+        bool           average_flag,
+        vec3<int>      pair_grid_size,
+        vector<bool>   periodic_directions = vector<bool>(3, false),
+        vec3<int>      border_pixels = vec3<int>(0, 0, 0),
+        int            num_threads = 0)
+    {
+        const int n_peaks = (int)base_full_peaks.size();
+        if (n_peaks == 0) return;
+        double scale = deriv_patterson_map.size_1d();
+
+        Grid grid_for_pairs_p(deriv_patterson_map.unit_cell(),
+                              deriv_patterson_map.grid_steps(),
+                              deriv_patterson_map.grid_steps().each_mul(-pair_grid_size / 2),
+                              deriv_patterson_map.grid.reciprocal_flag);
+        Grid grid_for_pairs_r = grid_for_pairs_p.reciprocal();
+
+        // Active = any susceptibility non-zero, including the anharmonic d_C / d_D.
+        vector<int> active_indices;
+        for (int i = 0; i < n_peaks; ++i) {
+            const auto& sk = average_flag ? avg_susc[i] : full_susc[i];
+            bool has = (sk.d_coefficient != 0.0) || (sk.d_r.length_sq() != 0.0);
+            for (int m = 0; m < 6 && !has; ++m) if (sk.d_U[m] != 0.0) has = true;
+            for (int m = 0; m < yell::GC3_N && !has; ++m) if (sk.d_C.c[m] != 0.0) has = true;
+            for (int m = 0; m < yell::GC4_N && !has; ++m) if (sk.d_D.d[m] != 0.0) has = true;
+            if (has) active_indices.push_back(i);
+        }
+        const int n_active = (int)active_indices.size();
+        if (n_active == 0) return;
+
+        int n_threads = num_threads;
+        if (n_threads <= 0) n_threads = std::thread::hardware_concurrency();
+        if (n_threads <= 0) n_threads = 1;
+
+        vector<IntensityMap> scratch;
+        scratch.reserve(n_threads);
+        for (int t = 0; t < n_threads; ++t)
+            scratch.emplace_back(pair_grid_size);
+
+        std::mutex accum_mutex;
+        std::atomic<int> next_active(0);
+
+        auto worker = [&](int t) {
+            IntensityMap& ppm = scratch[t];
+            while (true) {
+                int idx = next_active.fetch_add(1);
+                if (idx >= n_active) break;
+                int k = active_indices[idx];
+
+                const PattersonPeak& fpk = base_full_peaks[k];
+                const PattersonPeak& apk = base_avg_peaks[k];
+                const PattersonPeak& pk  = average_flag ? apk : fpk;
+                const PeakSusceptibility& sk = average_flag ? avg_susc[k] : full_susc[k];
+
+                ppm.set_grid(grid_for_pairs_r);
+
+                vec3<int>    r_grid;
+                vec3<double> r_res;
+                grid_and_residual(apk.r, deriv_patterson_map.grid, r_grid, r_res);
+                if (!average_flag)
+                    r_res += fpk.r - apk.r;
+
+                ppm.init_iterator();
+                while (ppm.next()) {
+                    complex<double> f1 = scatterers.f_gridded(fpk.type1_idx, ppm.current_index());
+                    complex<double> f2 = scatterers.f_gridded(fpk.type2_idx, ppm.current_index());
+
+                    vec3<double> s = ppm.current_s();
+                    double phase_val = M_2PI * (s * r_res);
+                    double adp_val   = M2PISQ * (s * pk.U * s);
+                    complex<double> E = exp(complex<double>(adp_val, phase_val));
+
+                    double d_phase = M_2PI * (s * sk.d_r);
+                    double d_adp   = M2PISQ * (s * sk.d_U * s);
+
+                    complex<double> d_term = sk.d_coefficient * E + pk.coefficient * E * complex<double>(d_adp, d_phase);
+                    complex<double> G  = yell::gram_charlier_factor(s, pk.C, pk.D);
+                    complex<double> dG = yell::gram_charlier_factor(s, sk.d_C, sk.d_D) - 1.0;
+                    d_term = d_term * G + pk.coefficient * E * dG;
+
+                    ppm.current_array_value_c() = scale * conj(f1) * f2 * d_term;
+                }
+
+                ppm.invert();
+
+                {
+                    std::lock_guard<std::mutex> lock(accum_mutex);
+                    add_pair_to_appropriate_place(ppm, deriv_patterson_map,
+                                                  r_grid, periodic_directions, border_pixels);
+                }
+            }
+        };
+
+        if (n_threads <= 1) {
+            worker(0);
+        } else {
+            vector<std::thread> workers;
+            for (int t = 0; t < n_threads; ++t) workers.emplace_back(worker, t);
+            for (auto& w : workers) w.join();
+        }
+    }
+
     static void calculate_scattering_from_pairs(vector<AtomicPair> pairs, const Eigen::VectorXd& params, IntensityMap& I, bool average_flag)
     {
         double d_star_square;
@@ -514,8 +626,15 @@ public:
                 // d(p * E) = dp * E + p * E * (d_adp + i * d_phase)
                 complex<double> term1 = sk.d_coefficient * E;
                 complex<double> term2 = pk.coefficient * E * complex<double>(d_adp, d_phase);
+                complex<double> d_term = term1 + term2;          // ∂[p·E]/∂p (harmonic)
 
-                deriv_val += real(f1f2 * (term1 + term2));
+                if (pk.anharmonic) {  // ∂(base·G) = ∂base·G + base·∂G; G is linear in C,D so ∂G = G(d_C,d_D)−1
+                    complex<double> G  = yell::gram_charlier_factor(s, pk.C, pk.D);
+                    complex<double> dG = yell::gram_charlier_factor(s, sk.d_C, sk.d_D) - 1.0;
+                    d_term = d_term * G + pk.coefficient * E * dG;
+                }
+
+                deriv_val += real(f1f2 * d_term);
             }
             dI.current_array_value() = deriv_val;
         }

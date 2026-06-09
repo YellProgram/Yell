@@ -623,6 +623,8 @@ struct PeakSusceptibility {
     double           d_coefficient;
     vec3<double>     d_r;
     sym_mat3<double> d_U;
+    yell::tensor3    d_C{};   ///< ∂C/∂p (zero unless the peak is anharmonic)
+    yell::tensor4    d_D{};   ///< ∂D/∂p
 };
 
 inline void peaks_from_pairs(
@@ -697,6 +699,12 @@ inline void susceptibilities_from_pairs(
             s.d_r = vec3<double>(rx_d.derivatives()[param_idx], ry_d.derivatives()[param_idx], rz_d.derivatives()[param_idx]);
             s.d_U = sym_mat3<double>(u11_d.derivatives()[param_idx], u22_d.derivatives()[param_idx], u33_d.derivatives()[param_idx],
                                      u12_d.derivatives()[param_idx], u13_d.derivatives()[param_idx], u23_d.derivatives()[param_idx]);
+            if (pair.anharmonic_) {       // ∂C/∂p, ∂D/∂p (no multiplier — matches pk.C/pk.D)
+                for (int n = 0; n < yell::GC3_N; ++n)
+                    s.d_C.c[n] = pair.C(avg).c[n]->eval_d(params, &cache).derivatives()[param_idx];
+                for (int n = 0; n < yell::GC4_N; ++n)
+                    s.d_D.d[n] = pair.D(avg).d[n]->eval_d(params, &cache).derivatives()[param_idx];
+            }
             return s;
         };
 

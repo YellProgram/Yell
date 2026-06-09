@@ -240,7 +240,12 @@ static std::string gc_refine_model(double d_init)
     return oss.str();
 }
 
-TEST(GramCharlierRefine, RecoversFourthOrderFromSyntheticData)
+// Run once with finite-difference derivatives (black-box calculate()) and once with
+// analytical derivatives (the G(s) product rule, exercised through the minimizer's
+// clone-based parallel Jacobian). Both must recover the known coefficient.
+class GramCharlierRefine : public ::testing::TestWithParam<DerivativesMode> {};
+
+TEST_P(GramCharlierRefine, RecoversFourthOrderFromSyntheticData)
 {
     const double d_true = 0.004;
 
@@ -255,7 +260,7 @@ TEST(GramCharlierRefine, RecoversFourthOrderFromSyntheticData)
 
     Model fit(gc_refine_model(0.0));   // start the coefficient at zero
     fit.init_asu();                    // populate ASU indices (main.cpp does this pre-refine)
-    fit.set_derivatives_mode(FINITE_DIFFERENCE);
+    fit.set_derivatives_mode(GetParam());
     OptionalIntensityMap weights;      // default value 1 everywhere
 
     CeresMinimizer minimizer;
@@ -266,3 +271,6 @@ TEST(GramCharlierRefine, RecoversFourthOrderFromSyntheticData)
     EXPECT_NEAR(refined[0], 1.0,    1e-3) << "Scale";
     EXPECT_NEAR(refined[1], d_true, 1e-4) << "d1111";
 }
+
+INSTANTIATE_TEST_SUITE_P(Modes, GramCharlierRefine,
+                         ::testing::Values(FINITE_DIFFERENCE, ANALYTICAL));

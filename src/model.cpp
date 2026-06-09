@@ -238,6 +238,18 @@ IntensityMap Model::calculate_derivative_from_peaks(
     ScattererList& sl)
 {
   IntensityMap res(grid);
+
+  // Partition peaks+susceptibilities into harmonic / anharmonic (paired by index), as
+  // in the forward path. The direct path applies G(s) per peak internally, so it does
+  // not need the split; the FFT path runs the unchanged harmonic derivative routine
+  // then accumulates the anharmonic one.
+  vector<PattersonPeak> hf, ha, af, aa;          // harmonic/anharmonic full, harmonic/anharmonic avg
+  vector<PeakSusceptibility> hfs, has_, afs, aas; // matching susceptibilities
+  for (size_t k = 0; k < full_peaks.size(); ++k) {
+    if (full_peaks[k].anharmonic) { af.push_back(full_peaks[k]); aa.push_back(avg_peaks[k]); afs.push_back(full_susc[k]); aas.push_back(avg_susc[k]); }
+    else                          { hf.push_back(full_peaks[k]); ha.push_back(avg_peaks[k]); hfs.push_back(full_susc[k]); has_.push_back(avg_susc[k]); }
+  }
+
   auto run_deriv = [&](const vector<PattersonPeak>& peaks, const vector<PeakSusceptibility>& susc, IntensityMap& out, bool avg) {
     if(direct_diffuse_scattering_calculation) {
       vec3<int> sym_boundary;
@@ -252,7 +264,8 @@ IntensityMap Model::calculate_derivative_from_peaks(
       IntensityMap recipr_padded = out.padded(padding);
       recipr_padded.invert_grid();
       IntensityMap padded = recipr_padded.padded(sym_boundary);
-      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(full_peaks, avg_peaks, full_susc, avg_susc, sl, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, num_threads);
+      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_f(hf, ha, hfs, has_, sl, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, num_threads);
+      IntnsityCalculator::calculate_patterson_map_derivative_from_pairs_anharmonic_f(af, aa, afs, aas, sl, padded, avg, fft_grid_size, periodic_boundaries, fft_border_pixels, num_threads);
       cell.laue_symmetry.apply_patterson_symmetry(padded);
       recipr_padded.copy_from_padded(sym_boundary, padded);
       recipr_padded.invert();
@@ -312,16 +325,6 @@ IntensityMap Model::calculate_derivative(const vector<double>& params, int param
     pairs.insert(pairs.end(), pool->pairs.begin(), pool->pairs.end());
   }
   pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
-
-  // Analytical derivatives through the Gram-Charlier factor G(s) are not implemented
-  // yet (Phase 7): the susceptibilities cover p/r/U only, so a parameter that appears
-  // solely in C/D would get a zero column and silently fail to refine. Fail loudly
-  // instead — use Derivatives finite_difference for anharmonic models for now.
-  for (const AtomicPair& pr : pairs)
-    if (pr.anharmonic_)
-      throw string("Analytical derivatives for Gram-Charlier (anharmonic) terms are not "
-                   "implemented yet. Use 'Derivatives finite_difference' for models with "
-                   "GramCharlier3/4 or AnharmonicCorrelation.");
 
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);

@@ -183,8 +183,9 @@ like `U`), CIF component order:
   `GRAM_CHARLIER_INDEPENDENT_COMPONENTS.md`).
 
 Key constraints / facts:
-- **Requires `Derivatives finite_difference`** (the default). Analytical derivatives
-  through `G(s)` are not implemented yet — the path throws if anharmonic terms are present.
+- Works with **both** `Derivatives finite_difference` (default) and `analytical` — the
+  `G(s)` product rule is implemented in both the direct and FFT derivative paths
+  (`PeakSusceptibility.d_C/d_D`, `…derivative_from_pairs_anharmonic_f`).
 - **Requires a symmetry-compatible grid** (Laue applied on the map, not on the pairs):
   equal steps/extent along symmetry-related axes; otherwise `calculate()` throws.
 - 3rd-order **cancels for identical-atom self-pairs** (`C₂−C₁=0`) and is suppressed by
