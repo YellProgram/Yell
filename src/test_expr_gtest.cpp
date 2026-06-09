@@ -1421,3 +1421,13 @@ TEST(GramCharlierForward, IncompatibleGridThrows)
     Model m(oss.str());
     EXPECT_THROW(m.calculate({1.0}), std::string);
 }
+
+TEST(GramCharlierForward, AnalyticalDerivativeThrowsForNow)
+{
+    // Analytical derivatives through G(s) are not implemented (Phase 7); the path
+    // must fail loudly rather than silently leave anharmonic params unrefined.
+    Model m(gc_forward_model("direct",
+        "GramCharlier4[ 0.01 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ]"));
+    m.set_derivatives_mode(ANALYTICAL);
+    EXPECT_THROW(m.calculate_derivative({1.0}, 1), std::string);
+}

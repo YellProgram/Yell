@@ -313,6 +313,16 @@ IntensityMap Model::calculate_derivative(const vector<double>& params, int param
   }
   pairs = cell.laue_symmetry.apply_patterson_symmetry(pairs, q);
 
+  // Analytical derivatives through the Gram-Charlier factor G(s) are not implemented
+  // yet (Phase 7): the susceptibilities cover p/r/U only, so a parameter that appears
+  // solely in C/D would get a zero column and silently fail to refine. Fail loudly
+  // instead — use Derivatives finite_difference for anharmonic models for now.
+  for (const AtomicPair& pr : pairs)
+    if (pr.anharmonic_)
+      throw string("Analytical derivatives for Gram-Charlier (anharmonic) terms are not "
+                   "implemented yet. Use 'Derivatives finite_difference' for models with "
+                   "GramCharlier3/4 or AnharmonicCorrelation.");
+
   vector<PattersonPeak> full_peaks, avg_peaks;
   peaks_from_pairs(pairs, q, scatterer_list_, full_peaks, avg_peaks);
 

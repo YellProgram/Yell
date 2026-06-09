@@ -164,6 +164,36 @@ Correlations [
 `Void` is the keyword for an empty chemical unit (not `[]`).
 For `s1=s2=2`, `SubstitutionalCorrelation` takes `(s1-1)*(s2-1) = 1` parameter.
 
+### Anharmonic Gram–Charlier (3rd/4th order)
+
+Anharmonic atomic displacements via the Gram–Charlier temperature factor
+`G(s) = 1 − (4π³i/3)C(s,s,s) + (2π⁴/3)D(s,s,s,s)`. Two input mechanisms, both in Å
+units (`C` Å³, `D` Å⁴; the `a*` reciprocal-basis conversion is baked at parse time
+like `U`), CIF component order:
+
+- **Per-atom** (optional tail on the anisotropic atom line):
+  `Na = Na 1 0 0 0  U11..U23  GramCharlier3[ 10 comps ] GramCharlier4[ 15 comps ]`
+  (either omittable). Pairs inherit `C = C₂−C₁`, `D = D₁+D₂` (odd subtracts, even adds).
+- **Free pair correlation** (in `Correlations`):
+  `AnharmonicCorrelation3([left modes],[right modes],[coeffs])` (and `…4`). The coeffs
+  are the symmetric rank-n cumulant tensor over the combined `[left++right]` mode basis
+  (`C(K+n−1,n)` of them, space-separated); the assembler builds the pair's spatial κ(Δu)
+  via `e_a = −d_a(atom1)`/`+d_a(atom2)`. Over-complete vs the ≤10/15 observable — tie
+  redundant components yourself with expressions (auto-detection: see
+  `GRAM_CHARLIER_INDEPENDENT_COMPONENTS.md`).
+
+Key constraints / facts:
+- **Requires `Derivatives finite_difference`** (the default). Analytical derivatives
+  through `G(s)` are not implemented yet — the path throws if anharmonic terms are present.
+- **Requires a symmetry-compatible grid** (Laue applied on the map, not on the pairs):
+  equal steps/extent along symmetry-related axes; otherwise `calculate()` throws.
+- 3rd-order **cancels for identical-atom self-pairs** (`C₂−C₁=0`) and is suppressed by
+  centrosymmetric grids; validate the forward path with **4th order** (even, survives).
+- Engine: `src/anharmonic.h` (tensors, `G(s)`, assembly), `AnharmonicCorrelation` in
+  `AtomicPairs.h`, FFT routine `…_from_pairs_anharmonic_f` in `Calculator.h`. Forward
+  path partitions peaks so the harmonic hot routine is untouched. Full design +
+  phase status in `GRAM_CHARLIER_PLAN.md`.
+
 ---
 
 ## Boost.Spirit Qi — Common Pitfalls
